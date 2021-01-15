@@ -1,0 +1,7 @@
+#!/bin/sh
+set -x
+set -e
+
+cd /ton-node
+exec /node/ton-node --config ./cfg >> /var/log/ton-node.log 2>>/var/log/ton-node.err
+

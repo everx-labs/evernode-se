@@ -1,0 +1,80 @@
+# Scan this file for changes every 30 seconds
+# https://docs.rs/log4rs/0.8.3/log4rs/encode/pattern/index.html
+refresh_rate: 30 seconds
+
+appenders:
+  stdout:
+    kind: console
+    encoder:
+      pattern: "{l} [{t}] {I}: {m}{n}"
+
+  logfile:
+    kind: file
+    path: "log/output.log"
+    encoder:
+      pattern: "{d} - {l}: {m}{n}"
+
+  tvm_logfile:
+    kind: file
+    path: "log/tvm.log"
+    encoder:
+      pattern: "{m}{n}"
+
+root:
+  level: debug
+  appenders:
+    - logfile
+
+loggers:
+  # node messages
+  node:
+    level: debug
+    appenders:
+      - stdout
+
+  # adnl messages
+  adnl:
+    level: debug
+    appenders:
+      - stdout
+
+  # block messages
+  ton_block:
+    level: debug
+    appenders:
+      - stdout
+
+  # block messages
+  executor:
+    level: debug
+    appenders:
+      - stdout      
+
+  # tvm messages
+  tvm:
+    level: trace
+    appenders:
+      - tvm_logfile
+
+  #next targets for poa
+  poa:
+    level: warn
+    appenders:
+      - stdout
+  engine:
+    level: warn
+    appenders:
+      - stdout
+  network:
+    level: warn
+    appenders:
+      - stdout
+  shutdown:
+    level: warn
+    appenders:
+      - stdout
+
+  librdkafka:
+    level: warn
+    appenders:
+      - stdout

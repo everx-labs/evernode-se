@@ -1,0 +1,4 @@
+q_server: /q-server/entrypoint
+node_workers: /ton-node/entrypoint
+arango: /arango/entrypoint
+nginx: nginx -g "daemon off;"

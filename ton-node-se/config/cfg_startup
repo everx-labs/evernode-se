@@ -1,0 +1,37 @@
+{
+    "node_index": 0,
+    "port": 40301,
+    "poa_validators": 2,
+    "poa_interval": 1,
+    "private_key": "./key01",
+    "keys": ["./pub01"],
+    "boot": [],
+    "shard_id": {
+        "workchain": 0,
+        "shardchain_pfx": 0,
+        "shardchain_pfx_len": 0
+    }, 
+    "adnl": {
+        "address": "0.0.0.0:3030", 
+        "keys": [
+            {
+                "type_id": 1209251014,
+                "pub_key": "BBKmgGAxz4ZofRgMO2qhYt+K1bGlGeowukPONVAkOcU=",
+                "pvt_key": "3CFeiTSlGkJf3D8w3ZXS4QS+6/0p+MFZGuv0XYMvMRo="
+            }
+        ]
+    },
+    "kafka_msg_recv": {
+        "input_topic": "requests",
+        "address": "0.0.0.0",
+        "port": 3000
+    },
+    "document_db": {
+        "server": "0.0.0.0:8529",
+        "database": "blockchain",
+        "blocks_collection": "blocks",
+        "messages_collection": "messages",
+        "transactions_collection": "transactions",
+        "accounts_collection": "accounts"
+    }
+}

@@ -1,0 +1,73 @@
+# Scan this file for changes every 30 seconds
+refresh_rate: 30 seconds
+
+appenders:
+  stdout:
+    kind: console
+    encoder:
+      pattern: "{l}: {m}{n}"
+
+  logfile:
+    kind: file
+    path: "log/output.log"
+    encoder:
+      pattern: "{d} - {l}: {m}{n}"
+
+root:
+  level: debug
+  appenders:
+    - logfile
+
+loggers:
+  # node messages
+  node:
+    level: debug
+    appenders:
+      - stdout
+
+  # adnl messages
+  adnl:
+    level: debug
+    appenders:
+      - stdout
+
+  # block messages
+  ton_block:
+    level: debug
+    appenders:
+      - stdout
+
+  # block messages
+  executor:
+    level: debug
+    appenders:
+      - stdout      
+
+  # tvm messages
+  tvm:
+    level: warn
+    appenders:
+      - stdout
+
+  #next targets for poa
+  poa:
+    level: debug
+    appenders:
+      - stdout
+  engine:
+    level: debug
+    appenders:
+      - stdout
+  network:
+    level: debug
+    appenders:
+      - stdout
+  shutdown:
+    level: warn
+    appenders:
+      - stdout
+
+  librdkafka:
+    level: warn
+    appenders:
+      - stdout

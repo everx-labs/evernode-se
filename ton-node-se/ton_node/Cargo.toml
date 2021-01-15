@@ -1,0 +1,76 @@
+[package]
+build = "../build/build.rs"
+name = "ton_node_old"
+version = "0.0.1"
+
+[dependencies]
+
+# External
+aes-ctr = "0.3.0"
+base64 = "0.10.1"
+bytes = "0.4.12"
+clap = "2.33.0"
+curve25519-dalek = "^1.2.3"
+ed25519-dalek = "1.0.0-pre.4"
+error-chain = { version = "^0.12.1", default-features = false }
+futures = "0.1"
+hex = "0.4.0"
+lazy_static = "1.4.0"
+log = "0.4.8"
+log4rs = "0.8.3"
+num = "^0.2"
+num-traits = "^0.2.8"
+parking_lot = "0.9.0"
+rand = "0.6.1"
+serde = "^1.0.101"
+serde_derive = "^1.0.101"
+serde_json = {version = "^1.0.41", features = ["preserve_order"]}
+sha2 = "^0.8.0"
+stream-cancel="0.4.4"
+tokio = "0.1.20"
+x25519-dalek = "^0.5.2"
+tokio-io-timeout = "0.3.1"
+
+# Domestic
+adnl = { path = "../adnl", features = ["server"] }
+poa = { path = "../poa" }
+ton_api = { git = "https://github.com/tonlabs/ton-labs-tl.git", package = "ton_api" }
+ton_block = { git = "https://github.com/tonlabs/ton-labs-block.git" }
+ton_executor = { git = "https://github.com/tonlabs/ton-labs-executor.git" }
+ton_types = { git = "https://github.com/tonlabs/ton-labs-types.git" }
+ton_vm = { git = "https://github.com/tonlabs/ton-labs-vm.git" }
+ton_labs_assembler = { git = "https://github.com/tonlabs/ton-labs-assembler.git" }
+
+# TBD
+#ethcore-network = { git = "https://github.com/paritytech/parity-ethereum.git", package = "ethcore-network" } 
+ethcore-network = { path = "../poa/parity/util/network" }
+#ethcore-network-devp2p = { git = "https://github.com/paritytech/parity-ethereum.git", package = "ethcore-network-devp2p" } 
+ethcore-network-devp2p = { path = "../poa/parity/util/network-devp2p" }
+#ethkey = { git = "https://github.com/paritytech/parity-ethereum.git", package = "ethkey" } 
+ethkey = { path = "../poa/parity/ethkey" }
+failure = "0.1"
+jsonrpc-http-server = "10.0.1"
+threadpool = "1.7.1"
+reqwest = "0.9.7"
+http = "0.1.18"
+iron = "0.6.1"
+router = "0.6.0"
+
+[target.'cfg(windows)'.dependencies.rdkafka]
+version = "0.23.0"
+features = ["cmake_build"]
+
+[target.'cfg(unix)'.dependencies.rdkafka]
+version = "0.23.0"
+
+[dev-dependencies]
+pretty_assertions = "0.6.1"
+
+[features]
+local_node = []
+startup_node = []
+ci_run = []
+log_file = []
+verbose = []
+
+
