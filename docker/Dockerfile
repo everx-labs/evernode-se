@@ -24,7 +24,7 @@ COPY --from=q-server-build /lib/ /lib/
 COPY --from=q-server-build /lib64/ /lib64/
 COPY --from=q-server-build /usr/ /usr/
 
-COPY --from=ton-node /node/ /node/
+COPY --from=ton-node / /
 
 ADD q-server /q-server
 ADD ton-node /ton-node
