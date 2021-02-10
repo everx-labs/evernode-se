@@ -1,6 +1,8 @@
 use super::*;
 
 use parking_lot::Mutex;
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::{Ordering as AtomicOrdering, AtomicBool, AtomicU64}};
 use std::time::{Duration, Instant};
 use std::thread;
@@ -19,9 +21,7 @@ use ton_block::{
 use ton_executor::{BlockchainConfig, ExecutorError, OrdinaryTransactionExecutor, TransactionExecutor};
 use ton_types::{BuilderData, SliceData, IBitstring, Result, AccountId, serialize_toc, HashmapRemover};
 
-// TODO
-// i think that 'static - is bad practis
-// if you know how do without static - please help 
+// TODO: I think that 'static - is a bad practice. If you know how to do it without static - please help
 pub struct MessagesProcessor<T>  where
     T: TransactionsStorage + Send + Sync + 'static,
 {
@@ -584,13 +584,13 @@ impl UsedAccounts {
 }
 
 /// Struct RouteMessage. Stored peedId of thew node received message
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RouteMessage {
     pub peer: usize,
     pub msg: Message
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum QueuedMessage {
     Message(Message),
     RouteMessage(RouteMessage)
@@ -599,6 +599,22 @@ pub enum QueuedMessage {
 impl Default for QueuedMessage {
     fn default() -> Self {
         QueuedMessage::Message(Message::default())
+    }
+}
+
+impl PartialOrd for QueuedMessage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.message().lt()
+            .and_then(|this| other.message().lt().map(|other| this.cmp(&other)))
+    }
+}
+
+impl Ord for QueuedMessage {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // All messages without LT will be at the end of the queue
+        self.message().lt()
+            .unwrap_or(u64::max_value())
+            .cmp(&other.message().lt().unwrap_or(u64::max_value()))
     }
 }
 
@@ -660,10 +676,10 @@ impl Deserializable for QueuedMessage {
 }
 
 /// This FIFO accumulates inbound messages from all types of receivers.
-/// The struct maigh be used from many threads. It provides internal mutability.
+/// The struct might be used from many threads. It provides internal mutability.
 pub struct InMessagesQueue {
     shard_id: ShardIdent,
-    storage: Mutex<VecDeque<QueuedMessage>>,
+    storage: Mutex<BTreeSet<QueuedMessage>>,
     out_storage: Mutex<VecDeque<QueuedMessage>>,
     db: Option<Arc<Box<dyn DocumentsDb>>>,
     used_accs: UsedAccounts,
@@ -678,7 +694,7 @@ impl InMessagesQueue {
     pub fn new(shard_id: ShardIdent, capacity: usize) -> Self {
         InMessagesQueue { 
             shard_id,
-            storage: Mutex::new(VecDeque::new()), 
+            storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
             used_accs: UsedAccounts::new(), 
             db: None,
@@ -690,7 +706,7 @@ impl InMessagesQueue {
     pub fn with_db(shard_id: ShardIdent, capacity: usize, db: Arc<Box<dyn DocumentsDb>>) -> Self {
         InMessagesQueue { 
             shard_id, 
-            storage: Mutex::new(VecDeque::new()), 
+            storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
             used_accs: UsedAccounts::new(), 
             db: Some(db),
@@ -752,7 +768,7 @@ impl InMessagesQueue {
             return Err(msg);
         }
 
-        storage.push_back(msg.clone());
+        storage.insert(msg.clone());
         debug!(target: "node", "Queued message: {:?}", msg.message());
 
         // write message into kafka with "queued" status
@@ -784,7 +800,7 @@ impl InMessagesQueue {
             }
         }
         debug!(target: "node", "Priority queued message: {:?}", msg.message());
-        storage.push_front(msg);
+        storage.insert(msg);
 
         Ok(())
 
@@ -793,7 +809,13 @@ impl InMessagesQueue {
     /// Extract oldest message from queue.
     pub fn dequeue(&self) -> Option<QueuedMessage> {
         let mut storage = self.storage.lock();
-        storage.pop_front()
+        let first = if let Some(first) = storage.iter().next() {
+            first.clone()
+        } else {
+            return None;
+        };
+        storage.remove(&first);
+        Some(first)
     }
 
     /// Extract oldest message from out_queue.
@@ -806,14 +828,16 @@ impl InMessagesQueue {
     pub fn dequeue_first_unused(&self) -> Option<QueuedMessage> {
         let mut storage = self.storage.lock();
         // iterate from front and find unused account message
-        storage.iter().position(|msg| 
-            msg.message().int_dst_account_id().map(|acc_id| !self.used_accs.acc_is_use(&acc_id)).unwrap_or(false)
-        )
-        .and_then(|index| storage.remove(index))
-        // .map(|message| {
-        //     Self::print_message(message.message());
-        //     message
-        // })
+        let result = storage.iter().find(|msg| msg.message().int_dst_account_id()
+            .map(|acc_id| !self.used_accs.acc_is_use(&acc_id))
+            .unwrap_or(false))
+            .cloned();
+
+        if let Some(ref msg) = result {
+            storage.remove(msg);
+        }
+
+        result
     }
 
     pub fn print_message(msg: &Message) {
