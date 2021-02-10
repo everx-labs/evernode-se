@@ -161,7 +161,7 @@ impl TonNodeEngine {
         .account(&AccountId::from(acc_info.account.id.0))?;
         
         if let Some(acc) = acc {
-            let account_boc = serialize_toc(acc.account_cell())?;
+            let account_boc = serialize_toc(&acc.account_cell())?;
             let acc_repr_hash = acc.account_cell().repr_hash();
 
             // proof from block with full `BlockInfo` and 
