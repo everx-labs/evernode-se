@@ -8,10 +8,9 @@ use poa::engines::authority_round::subst::{Client, EngineClient, EthereumMachine
 use poa::engines::authority_round::{AuthorityRound, AuthorityRoundParams};
 use poa::engines::validator_set::{/*PublicKeyListImport,*/ SimpleList};
 use poa::engines::Engine;
+use std::mem;
 use std::cmp::Ordering;
 use std::io::ErrorKind;
-use std::mem;
-use std::path::Path;
 use std::sync::{atomic::Ordering as AtomicOrdering, atomic::{AtomicBool, AtomicUsize}, Arc};
 use std::time::Duration;
 use ton_api::ton::ton_engine::{NetworkProtocol, network_protocol::*};
@@ -174,7 +173,8 @@ impl TonNodeEngine {
         boot_list: Vec<String>,
         adnl_config: AdnlServerConfig,
         receivers: Vec<Box<dyn MessagesReceiver>>,
-        documents_db: Option<Box<dyn DocumentsDb>>
+        documents_db: Option<Box<dyn DocumentsDb>>,
+        storage_path: PathBuf,
     ) -> NodeResult<Self> {
 
         let mut config = NetworkConfiguration::new_with_port(port);
@@ -189,11 +189,11 @@ impl TonNodeEngine {
         
         let queue = Arc::new(InMessagesQueue::with_db(shard, 10000, documents_db.clone()));
 
-        let storage = Arc::new(Storage::new(shard.clone())?);
+        let storage = Arc::new(Storage::with_path(shard.clone(), storage_path.clone())?);
         let block_finality = Arc::new(Mutex::new(
             OrdinaryBlockFinality::with_params(
                 shard.clone(),
-                PathBuf::from("./"),
+                storage_path,
                 storage.clone(),
                 storage.clone(),
                 storage.clone(),
@@ -289,12 +289,13 @@ impl TonNodeEngine {
     /// Construct new engine for selected shard
     /// with given time to generate block candidate
     // TODO need to delete this method - it is only for tests now
+    #[cfg(test)]
     pub fn with_config(config_file_name: &str) -> NodeResult<Self> {
         
-        let json = fs::read_to_string(Path::new(config_file_name))?;
+        let json = std::fs::read_to_string(std::path::Path::new(config_file_name))?;
         let (config, public_keys) = get_config_params(&json);
 
-        let keypair = fs::read(Path::new(&config.private_key))
+        let keypair = std::fs::read(std::path::Path::new(&config.private_key))
             .expect(&format!("Error reading key file {}", config.private_key));
         let private_key = Keypair::from_bytes(&keypair).unwrap();
         let adnl_config = AdnlServerConfig::from_json_config(&config.adnl);
@@ -311,7 +312,8 @@ impl TonNodeEngine {
             config.boot,
             adnl_config,
             vec!(),
-            None
+            None,
+            PathBuf::from("../target"),
         )
     }
    

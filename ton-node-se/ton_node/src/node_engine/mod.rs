@@ -8,7 +8,6 @@ use std::cell::{Cell as StdCell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::convert::From;
 use std::clone::Clone;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::{ Arc };

@@ -84,14 +84,6 @@ pub struct FileBasedStorage{
 
 
 impl FileBasedStorage {
-    
-    ///
-    /// Create new instance of FileBasedStorage with default path
-    /// 
-    pub fn new(shard_ident: ShardIdent) -> NodeResult<FileBasedStorage> {
-        Self::with_path(shard_ident, PathBuf::from("./"))
-    }
-
     ///
     /// Create new instance of FileBasedStorage with custom root path
     /// 
