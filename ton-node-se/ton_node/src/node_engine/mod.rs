@@ -91,8 +91,8 @@ impl MessagesReceiver for StubReceiver {
                 GIVER_GRAMS,
                 0
             );
-            queue_with_retry(QueuedMessage::Message(transfer_msg));
-            queue_with_retry(QueuedMessage::Message(giver_msg));
+            queue_with_retry(QueuedMessage::with_message(transfer_msg)?);
+            queue_with_retry(QueuedMessage::with_message(giver_msg)?);
         }
 
         if self.timeout == 0 {
@@ -113,7 +113,7 @@ impl MessagesReceiver for StubReceiver {
             self.join_handle = Some(std::thread::spawn(move || {
                 loop {
                     if let Some(msg) = Self::try_receive_message(workchain_id, &mut log_time_gen) {
-                        let _res = queue.queue(QueuedMessage::Message(msg));
+                        let _res = queue.queue(QueuedMessage::with_message(msg).unwrap());
                     }
                     if rx.try_recv().is_ok() {
                         println!("append message loop break");
@@ -122,17 +122,17 @@ impl MessagesReceiver for StubReceiver {
                     thread::sleep(Duration::from_micros(timeout));
                 }
                 // Creation of special account zero to give money for new accounts
-                queue.queue(QueuedMessage::Message(Self::create_transfer_message(
+                queue.queue(QueuedMessage::with_message(Self::create_transfer_message(
                     workchain_id, 
                     SUPER_ACCOUNT_ID.clone(),
                     SUPER_ACCOUNT_ID.clone(), 
                     1_000_000, 
                     log_time_gen.get_current_time()
-                ))).unwrap();
-                queue.queue(QueuedMessage::Message(Self::create_account_message_with_code(
+                )).unwrap()).unwrap();
+                queue.queue(QueuedMessage::with_message(Self::create_account_message_with_code(
                     workchain_id, 
                     SUPER_ACCOUNT_ID.clone()
-                ))).unwrap();
+                )).unwrap()).unwrap();
             }));
 
         }

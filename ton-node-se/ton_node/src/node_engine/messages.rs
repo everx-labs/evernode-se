@@ -21,6 +21,10 @@ use ton_block::{
 use ton_executor::{BlockchainConfig, ExecutorError, OrdinaryTransactionExecutor, TransactionExecutor};
 use ton_types::{BuilderData, SliceData, IBitstring, Result, AccountId, serialize_toc, HashmapRemover};
 
+#[cfg(test)]
+#[path = "../../../tonos-se-tests/rust/test_messages.rs"]
+mod tests;
+
 // TODO: I think that 'static - is a bad practice. If you know how to do it without static - please help
 pub struct MessagesProcessor<T>  where
     T: TransactionsStorage + Send + Sync + 'static,
@@ -68,7 +72,7 @@ impl<T> MessagesProcessor<T> where
             // internal and ExternalOutboundMessage
             if msg.is_internal() {
                 if shard.contains_address(&msg.dst().unwrap())? {
-                    queue.priority_queue(QueuedMessage::Message(msg))
+                    queue.priority_queue(QueuedMessage::with_message(msg)?)
                         .map_err(|_| failure::format_err!("Error priority queue message"))?;
                 } else {
                     // let out_msg = OutMsg::New(
@@ -539,7 +543,7 @@ impl JsonRpcMsgReceiver {
             Error::invalid_params(format!("Error parcing message: {}", err))
         )?;
 
-        msg_queue.queue(QueuedMessage::Message(message)).expect("Error queue message");
+        msg_queue.queue(QueuedMessage::with_message(message).unwrap()).expect("Error queue message");
 
         Ok(Value::String(String::from("The message has been succesfully received")))
     }
@@ -591,57 +595,92 @@ pub struct RouteMessage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum QueuedMessage {
+pub enum QueuedMessageInternal {
     Message(Message),
     RouteMessage(RouteMessage)
 }
 
+impl QueuedMessageInternal {
+    pub fn message(&self) -> &Message {
+        match self {
+            QueuedMessageInternal::Message(ref msg) => msg,
+            QueuedMessageInternal::RouteMessage(ref r_msg) => &r_msg.msg,
+        }
+    }
+
+    pub fn message_mut(&mut self) -> &mut Message {
+        match self {
+            QueuedMessageInternal::Message(ref mut msg) => msg,
+            QueuedMessageInternal::RouteMessage(ref mut r_msg) => &mut r_msg.msg,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QueuedMessage {
+    internal: QueuedMessageInternal,
+    hash: UInt256,
+}
+
 impl Default for QueuedMessage {
     fn default() -> Self {
-        QueuedMessage::Message(Message::default())
+        Self::with_message(Message::default()).unwrap()
     }
 }
 
 impl PartialOrd for QueuedMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.message().lt()
-            .and_then(|this| other.message().lt().map(|other| this.cmp(&other)))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for QueuedMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         // All messages without LT will be at the end of the queue
-        self.message().lt()
+        let result = self.message().lt()
             .unwrap_or(u64::max_value())
-            .cmp(&other.message().lt().unwrap_or(u64::max_value()))
+            .cmp(&other.message().lt().unwrap_or(u64::max_value()));
+        if result == Ordering::Equal {
+            return self.hash.cmp(&other.hash);
+        }
+        result
     }
 }
 
 impl QueuedMessage {
+    pub fn with_message(message: Message) -> Result<Self> {
+        Self::new(QueuedMessageInternal::Message(message))
+    }
+
+    pub fn with_route_message(message: RouteMessage) -> Result<Self> {
+        Self::new(QueuedMessageInternal::RouteMessage(message))
+    }
+
+    fn new(internal: QueuedMessageInternal) -> Result<Self> {
+        let hash = internal.message().serialize()?.repr_hash();
+        Ok(Self {
+            internal,
+            hash,
+        })
+    }
+
     pub fn message(&self) -> &Message {
-        match &self {
-            QueuedMessage::Message(ref msg) => msg,
-            QueuedMessage::RouteMessage(ref r_msg) => &r_msg.msg,
-        }
+        self.internal.message()
     }
 
     pub fn message_mut(&mut self) -> &mut Message {
-        match self {
-            QueuedMessage::Message(ref mut msg) => msg,
-            QueuedMessage::RouteMessage(ref mut r_msg) => &mut r_msg.msg,
-        }
+        self.internal.message_mut()
     }
 }
 
 impl Serializable for QueuedMessage {
     fn write_to(&self, cell: &mut BuilderData) -> Result<()> {
-        match self {
-            QueuedMessage::Message(msg) => {
+        match &self.internal {
+            QueuedMessageInternal::Message(msg) => {
                 cell.append_bits(0b1001, 4)?;
                 msg.write_to(cell)?;
             },
-            QueuedMessage::RouteMessage(rm) => {
+            QueuedMessageInternal::RouteMessage(rm) => {
                 cell.append_bits(0b0110, 4)?;
                 (rm.peer as u64).write_to(cell)?;
                 rm.msg.write_to(cell)?;
@@ -656,17 +695,17 @@ impl Deserializable for QueuedMessage {
         let tag = slice.get_next_int(4)? as usize;
         match tag {
             0b1001 => {
-                *self = QueuedMessage::Message(Message::construct_from(slice)?);
+                *self = Self::with_message(Message::construct_from(slice)?)?;
             },
             0b0110 => {
                 let mut peer: u64 = 0;
                 let mut msg = Message::default();
                 peer.read_from(slice)?;
                 msg.read_from(slice)?;
-                *self = QueuedMessage::RouteMessage(RouteMessage{
+                *self = Self::with_route_message(RouteMessage{
                     peer: peer as usize,
                     msg
-                });
+                })?;
             },
             _ => (),
         }
@@ -851,7 +890,7 @@ impl InMessagesQueue {
     }
 
     pub fn is_full(&self) -> bool {
-        self.storage.lock().len() >= self.capacity
+        dbg!(self.len()) >= self.capacity
     }
 
     /// The length of queue.

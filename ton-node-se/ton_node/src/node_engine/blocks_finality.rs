@@ -11,6 +11,10 @@ use ton_block::{InMsg, OutMsg, AccountStatus, ExtOutMessageHeader, MsgEnvelope};
 use ton_block::{HashmapAugType, BlkPrevInfo, Deserializable, ShardIdent};
 use ton_types::{UInt256, deserialize_tree_of_cells, BagOfCells, BuilderData};
 
+#[cfg(test)]
+#[path = "../../../tonos-se-tests/rust/test_block_finality.rs"]
+mod tests;
+
 /// Structure for Block finality layer
 /// This realize next functionality:
 /// Store block received from POA

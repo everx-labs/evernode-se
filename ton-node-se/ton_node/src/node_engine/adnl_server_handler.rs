@@ -266,7 +266,7 @@ impl TonNodeEngine {
             )?;
         let msg = Message::construct_from_bytes(&message.body.0)?;
         let ret = self.message_queue
-            .queue(QueuedMessage::Message(msg))
+            .queue(QueuedMessage::with_message(msg).unwrap())
             .map_err(|_| { 
                 warn!(target: "adnl", "Node message queue is full");
                 adnl_err!(AdnlErrorKind::QueueIsFull)

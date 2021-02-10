@@ -18,6 +18,10 @@ use ton_api::ton::ton_engine::{NetworkProtocol, network_protocol::*};
 use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
 use tokio::{prelude::Future, runtime::Runtime};
 
+#[cfg(test)]
+#[path = "../../../tonos-se-tests/rust/test_ton_node_engine.rs"]
+mod tests;
+
 #[derive(Clone, Debug)]
 pub enum BlockData {
     Block(Vec<u8>),
@@ -77,6 +81,10 @@ pub struct TonNodeEngine {
     responses: Arc<Mutex<HashMap<NetworkProtocol, ResponseCallback>>>,
     is_network_enabled: bool,
     service: Arc<NetworkService>,
+    #[cfg(test)]
+    pub test_counter_in: Arc<Mutex<u32>>,
+    #[cfg(test)]
+    pub test_counter_out: Arc<Mutex<u32>>,
 
     pub adnl_config: AdnlServerConfig,
     pub adnl_runtime: Arc<Mutex<Option<Runtime>>>,
@@ -265,6 +273,10 @@ impl TonNodeEngine {
             timers: Arc::new(Mutex::new(HashMap::new())),
             responses: Arc::new(Mutex::new(HashMap::new())),
             requests: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(test)]
+            test_counter_out: Arc::new(Mutex::new(0)),
+            #[cfg(test)]
+            test_counter_in: Arc::new(Mutex::new(0)),
 
             adnl_config,
             adnl_runtime: Arc::new(Mutex::new(None)),
@@ -437,6 +449,13 @@ impl TonNodeEngine {
     }
 
     fn read_internal(&self, io: &dyn NetworkContext, peer: &PeerId, packet_id: u8, data: &[u8]) -> NodeResult<()> {
+        #[cfg(test)]
+        debug!(target: "node",
+            "\nReceived {} ({} bytes) from {}",
+            packet_id,
+            data.len(),
+            peer
+        );
         match packet_id {
             REQUEST => {
                 // request processing
