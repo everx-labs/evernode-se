@@ -18,7 +18,7 @@ use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
 use tokio::{prelude::Future, runtime::Runtime};
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/rust/test_ton_node_engine.rs"]
+#[path = "../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
 mod tests;
 
 #[derive(Clone, Debug)]
