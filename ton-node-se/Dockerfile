@@ -33,7 +33,7 @@ COPY . .
 
 ARG FEATURES="disable-tests"
 
-RUN dos2unix /ton-node/ton_node/build.sh && /bin/bash -C "/ton-node/ton_node/build.sh $FEATURES"
+RUN dos2unix /ton-node/ton_node/build.sh && chmod +x /ton-node/ton_node/build.sh && /ton-node/ton_node/build.sh $FEATURES
 
 ###   STAGE final-image
 FROM alpine:3.10 as final-image
