@@ -1,7 +1,7 @@
 use super::*;
 
 use parking_lot::Mutex;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashSet};
 use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::{Ordering as AtomicOrdering, AtomicBool, AtomicU64}};
 use std::time::{Duration, Instant};
@@ -866,11 +866,21 @@ impl InMessagesQueue {
     /// Extract oldest message from queue if message account not using in executor
     pub fn dequeue_first_unused(&self) -> Option<QueuedMessage> {
         let mut storage = self.storage.lock();
+        let mut used_accs = HashSet::new();
         // iterate from front and find unused account message
-        let result = storage.iter().find(|msg| msg.message().int_dst_account_id()
-            .map(|acc_id| !self.used_accs.acc_is_use(&acc_id))
-            .unwrap_or(false))
-            .cloned();
+        let result = storage.iter().find(|msg| {
+            msg.message().int_dst_account_id()
+                .map(|acc_id| {
+                    let used = self.used_accs.acc_is_use(&acc_id);
+                    !if used { 
+                        used_accs.insert(acc_id.clone());
+                        used
+                    } else {
+                        used_accs.contains(&acc_id)
+                    }
+                })
+                .unwrap_or(false)
+        }).cloned();
 
         if let Some(ref msg) = result {
             storage.remove(msg);
