@@ -25,13 +25,12 @@ See the [TON Labs TON OS SE documentation](https://docs.ton.dev/86757ecb2/p/19d8
 
 **Attention!** [Docker daemon](https://www.docker.com/get-started) must be running. 
 
-
-
 Run this command 
 
 ```commandline
 $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 tonlabs/local-node
 ```
+
 To check that SE has been installed successfully check its local playground at http://0.0.0.0/graphql. 
 For Windows, use http://127.0.0.1/ or http://localhost/graphql. 
 
@@ -40,18 +39,20 @@ For Windows, use http://127.0.0.1/ or http://localhost/graphql.
 
 ## How to connect to TON OS SE Graphql API from SDK
 
-[Specify localhost as a server in Client Libraries.](https://docs.ton.dev/86757ecb2/p/5328db-tonclient).
+**Attention** at the moment there are a few [differences in SE behaviour comparing with a real TON blockchain](https://docs.ton.dev/86757ecb2/p/683279-difference-in-behaviour). Read about them before you start implemennting. Please note that we plan to upgrade the SE behaviour in the next releases so that it will work the same way as a real network.  
+
+To connect to local blockchain from your application [specify localhost in SDK Client network config](https://docs.ton.dev/86757ecb2/p/5328db-tonclient).
 
 
-### TON OS SE components:
+## TON OS SE components:
 
 * [TON Labs implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
-* ArangoDB database,
-* [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api). 
+* [ArangoDB database](https://www.arangodb.com/)
+* [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
 * [Pre-deployed Giver](https://docs.ton.dev/86757ecb2/p/00f9a3-ton-os-se-giver)
 
 
-## How to build
+## How to build docker image locally
 
 In order to build and use TON OS Startup Edition you need Docker.
 To build docker image, run from the repository root:
@@ -65,17 +66,6 @@ To build docker image, run from the repository root:
 ```commandline
 build.cmd
 ```
-
-## How to run
-
-```commandline
-docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 tonlabs/local-node
-```
-
-Container exposes the specified 80 port with nginx which proxies requests to /graphql to GraphQL API.
-
-Check out GraphQL playground at http://localhost/graphql
-
 
 ## License
 
