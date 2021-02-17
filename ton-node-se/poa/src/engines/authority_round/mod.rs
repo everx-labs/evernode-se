@@ -1275,6 +1275,7 @@ time.push(now.elapsed().as_micros());
 				//Transactions::transactions(block).is_empty() &&
 				(empty_steps.len() < self.maximum_empty_steps)
                         {
+				#[allow(deprecated)]
 				if self.step.can_propose.compare_and_swap(true, false, AtomicOrdering::SeqCst) {
                                         trace!(target: "engine", "Can propose NOT because of empty step sealing");
 					let gen = self.generate_empty_step(
@@ -1350,6 +1351,7 @@ time.push(now.elapsed().as_micros());
 let now = Instant::now();
 
 				// only issue the seal if we were the first to reach the compare_and_swap.
+				#[allow(deprecated)]
 				if self.step.can_propose.compare_and_swap(true, false, AtomicOrdering::SeqCst) {
                                         trace!(target: "engine", "Can propose NOT because of block signing");
 
