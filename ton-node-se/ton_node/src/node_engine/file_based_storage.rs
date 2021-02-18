@@ -19,6 +19,10 @@ use ton_block::{
 use ton_types::cells_serialization::{deserialize_tree_of_cells, serialize_tree_of_cells};
 use ton_types::{Cell, types::UInt256, AccountId};
 
+#[cfg(test)]
+#[path = "../../../tonos-se-tests/unit/test_file_based_storage.rs"]
+mod tests;
+
 ///
 /// Hash of ShardState with block sequence number
 ///
@@ -80,16 +84,8 @@ pub struct FileBasedStorage{
 
 
 impl FileBasedStorage {
-    
     ///
-    /// Create new instance of FileBasedStorage with default path
-    /// 
-    pub fn new(shard_ident: ShardIdent) -> NodeResult<FileBasedStorage> {
-        Self::with_path(shard_ident, PathBuf::from("./"))
-    }
-
-    ///
-    /// Create new instance of FileBasedStorege with custom root path
+    /// Create new instance of FileBasedStorage with custom root path
     /// 
     pub fn with_path(shard_ident: ShardIdent, root_path: PathBuf) -> NodeResult<FileBasedStorage> {
         let shards_path = Self::create_workchains_dir(&root_path)?;

@@ -85,10 +85,10 @@ debug!("TRY ROUTING {}/{} {}:{}:{}", next, next_step, wc, addr, next_validator);
 //debug!(target: "node", "SEND ROUTING MSG {:?}", msg);
 debug!(target: "node", "SEND ROUTING MSG {} -> {}", self.validator_index(), next_validator);
                     // send message to "right" node
-                    let qm = QueuedMessage::RouteMessage(RouteMessage{
+                    let qm = QueuedMessage::with_route_message(RouteMessage{
                         peer: self.validator_index() as usize,
                         msg: msg.message().clone()
-                    });
+                    }).unwrap();
                     let res = self.send_message_to_node(io, &route_node, qm);
                     // if message accepted - delete it from queue
                     // message accepted only if validator will generate block on next step     
@@ -353,7 +353,7 @@ debug!(target: "node", "SEND ROUTING MSG {} -> {}", self.validator_index(), next
                 //info!(target: "node", "!!!! Send Message Request !!!!");
                 
                 let msg = Message::construct_from_bytes(&request.message.0)?;
-                let msg = QueuedMessage::Message(msg);
+                let msg = QueuedMessage::with_message(msg).unwrap();
                 
                 return Ok(self.process_send_message_request(msg)?.into_boxed())
             }

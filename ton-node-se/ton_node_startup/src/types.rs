@@ -108,7 +108,7 @@ impl KafkaProxyMsgReceiver {
                                 }
                             };
 
-                            let mut message = QueuedMessage::Message(message);
+                            let mut message = QueuedMessage::with_message(message).unwrap();
                             loop {
                                 if let Err(msg) = queue.queue(message) {
                                     if queue.has_delivery_problems() {

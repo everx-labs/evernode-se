@@ -22,3 +22,9 @@ ton-node-se/target/
 block-signer-config.json
 *.account
 
+/ton-node-se/cfg
+/ton-node-se/entrypoint
+/ton-node-se/private-key
+/ton-node-se/pub-key
+/ton-node-se/log_cfg.yml
+/ton-node-se/tonos-se-tests
