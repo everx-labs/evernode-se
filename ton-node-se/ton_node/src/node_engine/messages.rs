@@ -549,44 +549,6 @@ impl JsonRpcMsgReceiver {
     }
 }
 
-
-///
-/// Struct UsedAccounts
-/// used for verify that account is being used to execute transaction now
-/// 
-struct UsedAccounts {
-    accs: Arc<Mutex<HashMap<AccountId, u8>>>
-}
-
-impl UsedAccounts {
-    /// Create new instance of UsedAccounts
-    pub fn new() -> Self {
-        UsedAccounts {
-            accs: Arc::new(Mutex::new(HashMap::new()))
-        }
-    }
-
-    /// Lock account ID for execute transaction
-    pub fn lock_acc(&self, account_id: AccountId) {
-        self.accs.lock().insert(account_id, 0);
-    }
-
-    /// verify that account is being used 
-    pub fn acc_is_use(&self, account_id: &AccountId) -> bool {
-        self.accs.lock().contains_key(account_id)
-    }
-
-    /// Unlock account 
-    pub fn unlock_acc(&self, account_id: &AccountId) {
-        self.accs.lock().remove(account_id);
-    }
-
-    /// Unclock all
-    pub fn clear(&self) {
-        self.accs.lock().clear();
-    }
-}
-
 /// Struct RouteMessage. Stored peedId of thew node received message
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RouteMessage {
@@ -721,7 +683,7 @@ pub struct InMessagesQueue {
     storage: Mutex<BTreeSet<QueuedMessage>>,
     out_storage: Mutex<VecDeque<QueuedMessage>>,
     db: Option<Arc<Box<dyn DocumentsDb>>>,
-    used_accs: UsedAccounts,
+    used_accs: Mutex<HashSet<AccountId>>,
     capacity: usize,
     ready_to_process: AtomicBool,
 }
@@ -735,7 +697,7 @@ impl InMessagesQueue {
             shard_id,
             storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
-            used_accs: UsedAccounts::new(), 
+            used_accs: Mutex::new(HashSet::new()),
             db: None,
             capacity, 
             ready_to_process: AtomicBool::new(false),
@@ -747,7 +709,7 @@ impl InMessagesQueue {
             shard_id, 
             storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
-            used_accs: UsedAccounts::new(), 
+            used_accs: Mutex::new(HashSet::new()),
             db: Some(db),
             capacity,
             ready_to_process: AtomicBool::new(false),
@@ -866,19 +828,11 @@ impl InMessagesQueue {
     /// Extract oldest message from queue if message account not using in executor
     pub fn dequeue_first_unused(&self) -> Option<QueuedMessage> {
         let mut storage = self.storage.lock();
-        let mut used_accs = HashSet::new();
+        let used_accs = self.used_accs.lock();
         // iterate from front and find unused account message
         let result = storage.iter().find(|msg| {
             msg.message().int_dst_account_id()
-                .map(|acc_id| {
-                    let used = self.used_accs.acc_is_use(&acc_id);
-                    !if used { 
-                        used_accs.insert(acc_id.clone());
-                        used
-                    } else {
-                        used_accs.contains(&acc_id)
-                    }
-                })
+                .map(|acc_id| !used_accs.contains(&acc_id))
                 .unwrap_or(false)
         }).cloned();
 
@@ -910,17 +864,17 @@ impl InMessagesQueue {
 
     /// lock account message for dequeue
     pub fn lock_account(&self, account_id: AccountId) {
-        self.used_accs.lock_acc(account_id);
+        self.used_accs.lock().insert(account_id);
     }
 
     /// unlock account mesages for dequeue
     pub fn unlock_account(&self, account_id: &AccountId) {
-        self.used_accs.unlock_acc(account_id);
+        self.used_accs.lock().remove(account_id);
     }
 
     /// Unlock all accounts
     pub fn locks_clear(&self) {
-        self.used_accs.clear();
+        self.used_accs.lock().clear();
     }
   
 }
