@@ -1,6 +1,8 @@
 use super::*;
 
 use parking_lot::Mutex;
+use std::{cmp::Ordering, collections::HashSet};
+use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::{Ordering as AtomicOrdering, AtomicBool, AtomicU64}};
 use std::time::{Duration, Instant};
 use std::thread;
@@ -19,9 +21,11 @@ use ton_block::{
 use ton_executor::{BlockchainConfig, ExecutorError, OrdinaryTransactionExecutor, TransactionExecutor};
 use ton_types::{BuilderData, SliceData, IBitstring, Result, AccountId, serialize_toc, HashmapRemover};
 
-// TODO
-// i think that 'static - is bad practis
-// if you know how do without static - please help 
+#[cfg(test)]
+#[path = "../../../tonos-se-tests/unit/test_messages.rs"]
+mod tests;
+
+// TODO: I think that 'static - is a bad practice. If you know how to do it without static - please help
 pub struct MessagesProcessor<T>  where
     T: TransactionsStorage + Send + Sync + 'static,
 {
@@ -68,7 +72,7 @@ impl<T> MessagesProcessor<T> where
             // internal and ExternalOutboundMessage
             if msg.is_internal() {
                 if shard.contains_address(&msg.dst().unwrap())? {
-                    queue.priority_queue(QueuedMessage::Message(msg))
+                    queue.priority_queue(QueuedMessage::with_message(msg)?)
                         .map_err(|_| failure::format_err!("Error priority queue message"))?;
                 } else {
                     // let out_msg = OutMsg::New(
@@ -539,93 +543,106 @@ impl JsonRpcMsgReceiver {
             Error::invalid_params(format!("Error parcing message: {}", err))
         )?;
 
-        msg_queue.queue(QueuedMessage::Message(message)).expect("Error queue message");
+        msg_queue.queue(QueuedMessage::with_message(message).unwrap()).expect("Error queue message");
 
         Ok(Value::String(String::from("The message has been succesfully received")))
     }
 }
 
-
-///
-/// Struct UsedAccounts
-/// used for verify that account is being used to execute transaction now
-/// 
-struct UsedAccounts {
-    accs: Arc<Mutex<HashMap<AccountId, u8>>>
-}
-
-impl UsedAccounts {
-    /// Create new instance of UsedAccounts
-    pub fn new() -> Self {
-        UsedAccounts {
-            accs: Arc::new(Mutex::new(HashMap::new()))
-        }
-    }
-
-    /// Lock account ID for execute transaction
-    pub fn lock_acc(&self, account_id: AccountId) {
-        self.accs.lock().insert(account_id, 0);
-    }
-
-    /// verify that account is being used 
-    pub fn acc_is_use(&self, account_id: &AccountId) -> bool {
-        self.accs.lock().contains_key(account_id)
-    }
-
-    /// Unlock account 
-    pub fn unlock_acc(&self, account_id: &AccountId) {
-        self.accs.lock().remove(account_id);
-    }
-
-    /// Unclock all
-    pub fn clear(&self) {
-        self.accs.lock().clear();
-    }
-}
-
 /// Struct RouteMessage. Stored peedId of thew node received message
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RouteMessage {
     pub peer: usize,
     pub msg: Message
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum QueuedMessage {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum QueuedMessageInternal {
     Message(Message),
     RouteMessage(RouteMessage)
 }
 
-impl Default for QueuedMessage {
-    fn default() -> Self {
-        QueuedMessage::Message(Message::default())
-    }
-}
-
-impl QueuedMessage {
+impl QueuedMessageInternal {
     pub fn message(&self) -> &Message {
-        match &self {
-            QueuedMessage::Message(ref msg) => msg,
-            QueuedMessage::RouteMessage(ref r_msg) => &r_msg.msg,
+        match self {
+            QueuedMessageInternal::Message(ref msg) => msg,
+            QueuedMessageInternal::RouteMessage(ref r_msg) => &r_msg.msg,
         }
     }
 
     pub fn message_mut(&mut self) -> &mut Message {
         match self {
-            QueuedMessage::Message(ref mut msg) => msg,
-            QueuedMessage::RouteMessage(ref mut r_msg) => &mut r_msg.msg,
+            QueuedMessageInternal::Message(ref mut msg) => msg,
+            QueuedMessageInternal::RouteMessage(ref mut r_msg) => &mut r_msg.msg,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QueuedMessage {
+    internal: QueuedMessageInternal,
+    hash: UInt256,
+}
+
+impl Default for QueuedMessage {
+    fn default() -> Self {
+        Self::with_message(Message::default()).unwrap()
+    }
+}
+
+impl PartialOrd for QueuedMessage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for QueuedMessage {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // All messages without LT will be at the end of the queue
+        let result = self.message().lt()
+            .unwrap_or(u64::max_value())
+            .cmp(&other.message().lt().unwrap_or(u64::max_value()));
+        if result == Ordering::Equal {
+            return self.hash.cmp(&other.hash);
+        }
+        result
+    }
+}
+
+impl QueuedMessage {
+    pub fn with_message(message: Message) -> Result<Self> {
+        Self::new(QueuedMessageInternal::Message(message))
+    }
+
+    pub fn with_route_message(message: RouteMessage) -> Result<Self> {
+        Self::new(QueuedMessageInternal::RouteMessage(message))
+    }
+
+    fn new(internal: QueuedMessageInternal) -> Result<Self> {
+        let hash = internal.message().serialize()?.repr_hash();
+        Ok(Self {
+            internal,
+            hash,
+        })
+    }
+
+    pub fn message(&self) -> &Message {
+        self.internal.message()
+    }
+
+    pub fn message_mut(&mut self) -> &mut Message {
+        self.internal.message_mut()
     }
 }
 
 impl Serializable for QueuedMessage {
     fn write_to(&self, cell: &mut BuilderData) -> Result<()> {
-        match self {
-            QueuedMessage::Message(msg) => {
+        match &self.internal {
+            QueuedMessageInternal::Message(msg) => {
                 cell.append_bits(0b1001, 4)?;
                 msg.write_to(cell)?;
             },
-            QueuedMessage::RouteMessage(rm) => {
+            QueuedMessageInternal::RouteMessage(rm) => {
                 cell.append_bits(0b0110, 4)?;
                 (rm.peer as u64).write_to(cell)?;
                 rm.msg.write_to(cell)?;
@@ -640,17 +657,17 @@ impl Deserializable for QueuedMessage {
         let tag = slice.get_next_int(4)? as usize;
         match tag {
             0b1001 => {
-                *self = QueuedMessage::Message(Message::construct_from(slice)?);
+                *self = Self::with_message(Message::construct_from(slice)?)?;
             },
             0b0110 => {
                 let mut peer: u64 = 0;
                 let mut msg = Message::default();
                 peer.read_from(slice)?;
                 msg.read_from(slice)?;
-                *self = QueuedMessage::RouteMessage(RouteMessage{
+                *self = Self::with_route_message(RouteMessage{
                     peer: peer as usize,
                     msg
-                });
+                })?;
             },
             _ => (),
         }
@@ -660,13 +677,13 @@ impl Deserializable for QueuedMessage {
 }
 
 /// This FIFO accumulates inbound messages from all types of receivers.
-/// The struct maigh be used from many threads. It provides internal mutability.
+/// The struct might be used from many threads. It provides internal mutability.
 pub struct InMessagesQueue {
     shard_id: ShardIdent,
-    storage: Mutex<VecDeque<QueuedMessage>>,
+    storage: Mutex<BTreeSet<QueuedMessage>>,
     out_storage: Mutex<VecDeque<QueuedMessage>>,
     db: Option<Arc<Box<dyn DocumentsDb>>>,
-    used_accs: UsedAccounts,
+    used_accs: Mutex<HashSet<AccountId>>,
     capacity: usize,
     ready_to_process: AtomicBool,
 }
@@ -678,9 +695,9 @@ impl InMessagesQueue {
     pub fn new(shard_id: ShardIdent, capacity: usize) -> Self {
         InMessagesQueue { 
             shard_id,
-            storage: Mutex::new(VecDeque::new()), 
+            storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
-            used_accs: UsedAccounts::new(), 
+            used_accs: Mutex::new(HashSet::new()),
             db: None,
             capacity, 
             ready_to_process: AtomicBool::new(false),
@@ -690,9 +707,9 @@ impl InMessagesQueue {
     pub fn with_db(shard_id: ShardIdent, capacity: usize, db: Arc<Box<dyn DocumentsDb>>) -> Self {
         InMessagesQueue { 
             shard_id, 
-            storage: Mutex::new(VecDeque::new()), 
+            storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
-            used_accs: UsedAccounts::new(), 
+            used_accs: Mutex::new(HashSet::new()),
             db: Some(db),
             capacity,
             ready_to_process: AtomicBool::new(false),
@@ -752,7 +769,7 @@ impl InMessagesQueue {
             return Err(msg);
         }
 
-        storage.push_back(msg.clone());
+        storage.insert(msg.clone());
         debug!(target: "node", "Queued message: {:?}", msg.message());
 
         // write message into kafka with "queued" status
@@ -784,7 +801,7 @@ impl InMessagesQueue {
             }
         }
         debug!(target: "node", "Priority queued message: {:?}", msg.message());
-        storage.push_front(msg);
+        storage.insert(msg);
 
         Ok(())
 
@@ -793,7 +810,13 @@ impl InMessagesQueue {
     /// Extract oldest message from queue.
     pub fn dequeue(&self) -> Option<QueuedMessage> {
         let mut storage = self.storage.lock();
-        storage.pop_front()
+        let first = if let Some(first) = storage.iter().next() {
+            first.clone()
+        } else {
+            return None;
+        };
+        storage.remove(&first);
+        Some(first)
     }
 
     /// Extract oldest message from out_queue.
@@ -805,15 +828,19 @@ impl InMessagesQueue {
     /// Extract oldest message from queue if message account not using in executor
     pub fn dequeue_first_unused(&self) -> Option<QueuedMessage> {
         let mut storage = self.storage.lock();
+        let used_accs = self.used_accs.lock();
         // iterate from front and find unused account message
-        storage.iter().position(|msg| 
-            msg.message().int_dst_account_id().map(|acc_id| !self.used_accs.acc_is_use(&acc_id)).unwrap_or(false)
-        )
-        .and_then(|index| storage.remove(index))
-        // .map(|message| {
-        //     Self::print_message(message.message());
-        //     message
-        // })
+        let result = storage.iter().find(|msg| {
+            msg.message().int_dst_account_id()
+                .map(|acc_id| !used_accs.contains(&acc_id))
+                .unwrap_or(false)
+        }).cloned();
+
+        if let Some(ref msg) = result {
+            storage.remove(msg);
+        }
+
+        result
     }
 
     pub fn print_message(msg: &Message) {
@@ -827,7 +854,7 @@ impl InMessagesQueue {
     }
 
     pub fn is_full(&self) -> bool {
-        self.storage.lock().len() >= self.capacity
+        dbg!(self.len()) >= self.capacity
     }
 
     /// The length of queue.
@@ -837,17 +864,17 @@ impl InMessagesQueue {
 
     /// lock account message for dequeue
     pub fn lock_account(&self, account_id: AccountId) {
-        self.used_accs.lock_acc(account_id);
+        self.used_accs.lock().insert(account_id);
     }
 
     /// unlock account mesages for dequeue
     pub fn unlock_account(&self, account_id: &AccountId) {
-        self.used_accs.unlock_acc(account_id);
+        self.used_accs.lock().remove(account_id);
     }
 
     /// Unlock all accounts
     pub fn locks_clear(&self) {
-        self.used_accs.clear();
+        self.used_accs.lock().clear();
     }
   
 }

@@ -7,6 +7,7 @@ FROM alpine:latest as build-kit
 RUN apk update; \
     apk add \
         bash bash-completion \
+        dos2unix \
         cmake \
         clang clang-libs clang-dev \
         curl ca-certificates zlib-dev\
@@ -25,30 +26,14 @@ RUN apk update; \
 RUN ssh-keygen -q -P "" -f ~/.ssh/id_rsa; \
     ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-
-###   STAGE cargo-init
-FROM build-kit as cargo-init
 ENV PKG_CONFIG_ALLOW_CROSS=1
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 WORKDIR /ton-node
 COPY . .
 
+ARG FEATURES="disable-tests"
 
-###   STAGE cargo-test
-FROM cargo-init as cargo-test
-ARG FEATURES="ci_run"
-
-WORKDIR /ton-node/poa
-RUN source $HOME/.cargo/env && cargo test
-
-WORKDIR /ton-node/ton_node
-RUN source $HOME/.cargo/env && cargo test --features ${FEATURES}
-
-
-###   STAGE cargo-build
-FROM cargo-init as cargo-build
-RUN source $HOME/.cargo/env && cargo build --release
-
+RUN dos2unix /ton-node/ton_node/build.sh && chmod +x /ton-node/ton_node/build.sh && /ton-node/ton_node/build.sh $FEATURES
 
 ###   STAGE final-image
 FROM alpine:3.10 as final-image
@@ -59,10 +44,10 @@ RUN apk update; \
     apk add libgcc libstdc++;
 
 # ton-node
-COPY --from=cargo-build \
+COPY --from=build-kit \
     /ton-node/target/release/${BIN_TARGET} \
     /node/ton-node
-COPY --from=cargo-build \
+COPY --from=build-kit \
     /ton-node/config/log_cfg.yml \
     /ton-node/config/cfg_startup \
     /ton-node/config/key01 \
@@ -71,7 +56,7 @@ COPY --from=cargo-build \
     /node/
 
 # create-msg
-COPY --from=cargo-build \
+COPY --from=build-kit \
     /ton-node/target/release/create-msg \
     /node/create-msg/create-msg
 

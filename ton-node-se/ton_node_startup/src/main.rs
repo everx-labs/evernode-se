@@ -26,7 +26,7 @@ mod types;
 
 use clap::{App, Arg};
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -133,7 +133,8 @@ fn start_node(config: &str) -> NodeResult<()> {
         config.boot,
         adnl_config,
         receivers,
-        Some(db)
+        Some(db),
+        PathBuf::from("./"),
     )?;
 
     init_ton_node_handlers(&ton);
