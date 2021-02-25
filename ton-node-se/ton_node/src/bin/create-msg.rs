@@ -32,7 +32,7 @@ fn run() -> Result<(), ()> {
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
             Arg::with_name("type")
-                .help("Type od message: transafer funds (transfer), deploy account code and data (deploy)")
+                .help("Type of message: transfer funds (transfer), deploy account code and data (deploy)")
                 .long("type")
                 .required(true)
                 .takes_value(true)
@@ -40,8 +40,7 @@ fn run() -> Result<(), ()> {
         )
         .arg(
             Arg::with_name("src")
-                .help("sourc
-                e account address")
+                .help("source account address")
                 .long("src")
                 .required(false)
                 .takes_value(true)
@@ -118,8 +117,8 @@ fn run() -> Result<(), ()> {
                 println!("destination address is invalid. Address can be only 32 byte hex string");
                 return Err(());
             }
-            let source_vec = hex::decode(src).expect("source addres is invalid hex string");
-            let dest_vec = hex::decode(dst).expect("source addres is invalid hex string");
+            let source_vec = hex::decode(src).expect("source address is invalid hex string");
+            let dest_vec = hex::decode(dst).expect("source address is invalid hex string");
 
             let message = MsgCreator::create_external_transfer_funds_message(
                 0, 
@@ -135,7 +134,7 @@ fn run() -> Result<(), ()> {
             bag.write_to(&mut file, false).expect("Error write message to file");
             file.flush().expect("Error flush out file");   
 
-            println!("BoC succsessfully saved: {}", out);
+            println!("BoC successfully saved: {}", out);
         },
         "deploy" => {
             if !args.is_present("src") || !args.is_present("code") {
@@ -148,7 +147,7 @@ fn run() -> Result<(), ()> {
                 println!("source address is invalid. Address can be only 32 byte hex string");
                 return Err(());
             }
-            let source_vec = hex::decode(src).expect("source addres is invalid hex string");
+            let source_vec = hex::decode(src).expect("source address is invalid hex string");
             let code_file_name: String = args.value_of("code").unwrap().parse().expect("Error parse code file name");
             let code_str = std::fs::read_to_string(code_file_name).expect("Error read code file");
             
@@ -181,7 +180,7 @@ fn run() -> Result<(), ()> {
             bag.write_to(&mut file, false).expect("Error write message to file");
             file.flush().expect("Error flush out file");   
 
-            println!("BoC succsessfully saved: {}", out);
+            println!("BoC successfully saved: {}", out);
         },
         _ => {
             println!("Invalid type option");
