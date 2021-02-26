@@ -32,7 +32,9 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 tonlabs/local-no
 ```
 
 To check that SE has been installed successfully check its local playground at http://0.0.0.0/graphql. 
-For Windows, use http://127.0.0.1/ or http://localhost/graphql. 
+For Windows, use http://127.0.0.1/graphql or http://localhost/graphql. 
+
+If you specify another port then add it to the local url http://0.0.0.0:port/graphql
 
 [Find out more about GraphQL API](https://docs.ton.dev/86757ecb2/p/793337-graphql-api). 
 
