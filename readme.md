@@ -1,8 +1,23 @@
 # TON OS Startup Edition
+Local blockchain for DApp development and testing.  
 
 **Have a question? Get quick help in our channel:**
 
 [![Channel on Telegram](https://img.shields.io/badge/chat-on%20telegram-9cf.svg)](https://t.me/ton_sdk) 
+
+- [TON OS Startup Edition](#ton-os-startup-edition)
+  - [What is TON OS Startup Edition?](#what-is-ton-os-startup-edition)
+  - [Use-cases](#use-cases)
+  - [How to install](#how-to-install)
+    - [Pre-requisites](#pre-requisites)
+    - [Instal via TONDEV Development Environment](#instal-via-tondev-development-environment)
+    - [Install via docker command](#install-via-docker-command)
+  - [How to connect to TON OS SE Graphql API from SDK](#how-to-connect-to-ton-os-se-graphql-api-from-sdk)
+  - [TON OS SE components:](#ton-os-se-components)
+  - [How to build docker image locally](#how-to-build-docker-image-locally)
+    - [Linux/Mac:](#linuxmac)
+    - [Windows:](#windows)
+  - [License](#license)
 
 ## What is TON OS Startup Edition?
 
