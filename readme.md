@@ -1,5 +1,5 @@
 # TON OS Startup Edition
-Local blockchain for DApp development and testing.  
+Local blockchain for Free TON DApp development and testing.  
 
 **Have a question? Get quick help in our channel:**
 
