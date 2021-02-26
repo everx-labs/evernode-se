@@ -28,3 +28,5 @@ block-signer-config.json
 /ton-node-se/pub-key
 /ton-node-se/log_cfg.yml
 /ton-node-se/tonos-se-tests
+docker/.DS_Store
+readme.html
