@@ -17,7 +17,6 @@ Local blockchain for Free TON DApp development and testing.
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
-  - [License](#license)
 
 ## What is TON OS Startup Edition?
 
@@ -94,7 +93,3 @@ To build docker image, run from the repository root:
 ```commandline
 build.cmd
 ```
-
-## License
-
-View [license](https://github.com/tonlabs/TON-SDK/blob/master/LICENSE) information for the software contained in this repository.
