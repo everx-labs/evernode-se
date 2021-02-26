@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.24.13 Feb 26, 2021
+### Fixed
+- Documentation update
+
 ## 0.24.12 Feb 18, 2021
 ### Fixed
 - Internal messages are sent in correct order regarding LT
