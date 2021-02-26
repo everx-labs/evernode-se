@@ -6,9 +6,9 @@
 
 ## What is TON OS Startup Edition?
 
-TONOS Startup Edition (SE) is a local blockchain that developer can run on their machine in one click.  
+TON OS Startup Edition (SE) is a local blockchain that developer can run on their machine in one click.  
 
-At the moment we publish TONOS SE only as a [docker image](https://hub.docker.com/r/tonlabs/local-node). 
+At the moment we publish TON OS SE only as a [docker image](https://hub.docker.com/r/tonlabs/local-node). 
 We plan to provide simple installers for MacOS, Win, Linux without docker by the end of Q1 2021.
 
 See the [TON Labs TON OS SE documentation](https://docs.ton.dev/86757ecb2/p/19d886-ton-os-se) for detailed information.
@@ -17,13 +17,24 @@ See the [TON Labs TON OS SE documentation](https://docs.ton.dev/86757ecb2/p/19d8
 ## Use-cases
 - Test your applications locally
 - Test your contracts
-- Run TONOS remotely on a server and test your application from different devices
+- Run TON OS remotely on a server and test your application from different devices
 
 ## How to install
 ### Pre-requisites
 - Latest [Docker](https://www.docker.com/get-started) installed
 
 **Attention!** [Docker daemon](https://www.docker.com/get-started) must be running. 
+
+### Instal via TONDEV Development Environment
+If you have [TONDEV installed globally on your machine](https://github.com/tonlabs/tondev), run this command
+
+```commandline
+$ tondev se start
+```
+[Checkout other TON OS SE commands accessible from TONDEV](https://docs.ton.dev/86757ecb2/p/54722f-tonos-se). 
+You can also access these commands from [TONDEV VS Code Extension](https://github.com/tonlabs/tondev-vscode).
+
+### Install via docker command
 
 Run this command 
 
@@ -34,7 +45,7 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 tonlabs/local-no
 To check that SE has been installed successfully check its local playground at http://0.0.0.0/graphql. 
 For Windows, use http://127.0.0.1/graphql or http://localhost/graphql. 
 
-If you specify another port then add it to the local url http://0.0.0.0:port/graphql
+If you specified another port then add it to the local url http://0.0.0.0:port/graphql
 
 [Find out more about GraphQL API](https://docs.ton.dev/86757ecb2/p/793337-graphql-api). 
 
