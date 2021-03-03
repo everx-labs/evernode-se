@@ -72,7 +72,7 @@ static ACCOUNTS_COUNT: u8 = 255;
 impl MessagesReceiver for StubReceiver {
     fn run(&mut self, queue: Arc<InMessagesQueue>) -> NodeResult<()> {
         if self.block_seqno == 1 {
-            Self::deploy_giver(self.workchain_id, &queue)?;
+            Self::deploy_givers(self.workchain_id, &queue)?;
         }
 
         if self.timeout == 0 {
@@ -122,6 +122,7 @@ impl MessagesReceiver for StubReceiver {
 
 const GIVER_GRAMS: u128 = 5_000_000_000_000_000_000;
 const GIVER_ABI1_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi1_deploy_msg.boc");
+const GIVER_ABI2_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi2_deploy_msg.boc");
 
 #[allow(dead_code)]
 impl StubReceiver {
@@ -174,24 +175,40 @@ impl StubReceiver {
         Self::create_account_message(workchain_id, account_id, code, SliceData::new_empty().into_cell(), None)
     }
 
-    fn deploy_giver(workchain_id: i8, queue: &InMessagesQueue) -> NodeResult<()> {
-        let queue_with_retry = |mut message| {
-            while let Err(msg) = queue.queue(message) {
-                message = msg;
-                std::thread::sleep(std::time::Duration::from_micros(100));
-            }
-        };
+    fn deploy_givers(workchain_id: i8, queue: &InMessagesQueue) -> NodeResult<()> {
+        Self::deploy_giver(workchain_id, GIVER_ABI1_DEPLOY_MSG, 1, queue)?;
+        Self::deploy_giver(workchain_id, GIVER_ABI2_DEPLOY_MSG, 3, queue)?;
 
-        let (giver_msg, giver_addr) = Self::create_giver_deploy_message(workchain_id, GIVER_ABI1_DEPLOY_MSG);
+        Ok(())
+    }
+
+    fn deploy_giver(
+        workchain_id: i8,
+        deploy_msg_boc: &[u8],
+        transfer_lt: u64,
+        queue: &InMessagesQueue
+    ) -> NodeResult<AccountId> {
+        let (giver_msg, giver_addr) =
+            Self::create_giver_deploy_message(workchain_id, deploy_msg_boc);
         let transfer_msg = Self::create_transfer_message(
             workchain_id,
             giver_addr.clone(),
             giver_addr.clone(),
             GIVER_GRAMS,
-            0
+            transfer_lt
         );
-        queue_with_retry(QueuedMessage::with_message(transfer_msg)?);
-        queue_with_retry(QueuedMessage::with_message(giver_msg)?);
+        Self::queue_with_retry(queue, transfer_msg)?;
+        Self::queue_with_retry(queue, giver_msg)?;
+
+        Ok(giver_addr)
+    }
+
+    fn queue_with_retry(queue: &InMessagesQueue, message: Message) -> NodeResult<()> {
+        let mut message = QueuedMessage::with_message(message)?;
+        while let Err(msg) = queue.queue(message) {
+            message = msg;
+            std::thread::sleep(std::time::Duration::from_micros(100));
+        }
 
         Ok(())
     }
