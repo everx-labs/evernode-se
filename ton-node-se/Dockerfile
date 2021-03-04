@@ -55,11 +55,6 @@ COPY --from=build-kit \
     /ton-node/ton_node/entrypoint \
     /node/
 
-# create-msg
-COPY --from=build-kit \
-    /ton-node/target/release/create-msg \
-    /node/create-msg/create-msg
-
 WORKDIR /node
 
 EXPOSE 3030
