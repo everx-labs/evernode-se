@@ -76,8 +76,8 @@ To connect to local blockchain from your application [specify localhost in SDK C
 * [TON Labs implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
 * [ArangoDB database](https://www.arangodb.com/)
 * [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
-* [Pre-deployed Giver](https://docs.ton.dev/86757ecb2/p/00f9a3-ton-os-se-giver)
-
+* [Pre-deployed simple Giver, ABI v1](https://docs.ton.dev/86757ecb2/p/00f9a3-ton-os-se-giver)
+* [Pre-deployed high-performance Giver, ABI v2](contracts)
 
 ## How to build docker image locally
 
