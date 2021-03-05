@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.25.0 Mar 05, 2021
+### New
+- [New high-load Giver with ABI Version 2](contracts) is supported. Now you can run your tests in parallel, giver supports up to 100 parallel requests at a time (previous giver had timestamp-based replay protection which didn't allow often access)
+
 ## 0.24.13 Feb 26, 2021
 ### Fixed
 - Documentation update

@@ -13,7 +13,7 @@ Local blockchain for Free TON DApp development and testing.
     - [Instal via TONDEV Development Environment](#instal-via-tondev-development-environment)
     - [Install via docker command](#install-via-docker-command)
   - [How to connect to TON OS SE Graphql API from SDK](#how-to-connect-to-ton-os-se-graphql-api-from-sdk)
-  - [TON OS SE components:](#ton-os-se-components)
+  - [TON OS SE components](#ton-os-se-components)
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
@@ -71,13 +71,12 @@ If you specified another port then add it to the local url http://0.0.0.0:port/g
 To connect to local blockchain from your application [specify localhost in SDK Client network config](https://docs.ton.dev/86757ecb2/p/5328db-tonclient).
 
 
-## TON OS SE components:
+## TON OS SE components
 
 * [TON Labs implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
 * [ArangoDB database](https://www.arangodb.com/)
 * [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
-* [Pre-deployed Giver](https://docs.ton.dev/86757ecb2/p/00f9a3-ton-os-se-giver)
-
+* [Pre-deployed high-performance Giver, ABI v2](contracts)
 
 ## How to build docker image locally
 
