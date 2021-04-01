@@ -62,7 +62,7 @@ debug!("VALIDATOR SET {:?}", vals);
                 if let Err(res) = self.db.put_message(
                     msg.message().clone(), 
                     MessageProcessingStatus::Refused, 
-                    None, None)
+                    None, None, None)
                 {
                     warn!(target: "node", "reflect message reject to DB(1). error: {}", res);
                 }
@@ -372,7 +372,7 @@ debug!(target: "node", "SEND ROUTING MSG {} -> {}", self.validator_index(), next
             let _res = db.put_message(
                 in_msg.clone(), 
                 MessageProcessingStatus::Preliminary, 
-                transaction_id.clone(), None
+                transaction_id.clone(), Some(transaction.now()), None
             )?;
         }
 
@@ -380,7 +380,7 @@ debug!(target: "node", "SEND ROUTING MSG {} -> {}", self.validator_index(), next
             db.put_message(
                 msg, 
                 MessageProcessingStatus::Preliminary, 
-                transaction_id.clone(), None
+                transaction_id.clone(), None, None
             ).map_err(|_| failure::format_err!("put_to_db error"))?;
             Ok(true)
         })?;
