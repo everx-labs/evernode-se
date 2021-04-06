@@ -70,13 +70,18 @@ If you specified another port then add it to the local url http://0.0.0.0:port/g
 
 To connect to local blockchain from your application [specify localhost in SDK Client network config](https://docs.ton.dev/86757ecb2/p/5328db-tonclient).
 
-
 ## TON OS SE components
 
 * [TON Labs implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
 * [ArangoDB database](https://www.arangodb.com/)
 * [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
+* [TON-live explorer](https://ton.live)
 * [Pre-deployed high-performance Giver, ABI v2](contracts)
+
+## TON-live explorer
+
+TON-live explorer runs on the same IP and port as TON OS SE, just open http://ip_address:port (e.g. http://127.0.0.1)
+
 
 ## How to build docker image locally
 

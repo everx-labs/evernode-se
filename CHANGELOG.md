@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.27.0 Apr 14, 2021
+### New
+- [TON-live explorer](https://ton.live). You can explore blocks, transactions, accounts and messages of your TON OS SE 
+
 ## 0.26.1 Apr 14, 2021
 ### Fixed
 - Transaction could be lost if it was created near the end of block producing interval.
