@@ -353,7 +353,7 @@ impl DocumentsDb for ArangoHelper {
     }
 
     fn put_message(&self, message: Message, status: MessageProcessingStatus,
-        transaction_id: Option<TransactionId>, block_id: Option<BlockId>) 
+        transaction_id: Option<TransactionId>, transaction_now: Option<u32>, block_id: Option<BlockId>)
         -> NodeResult<()> {
 
         let cell = message.serialize()?;
@@ -363,7 +363,7 @@ impl DocumentsDb for ArangoHelper {
             id: cell.repr_hash(),
             block_id,
             transaction_id,
-            transaction_now: None, // TODO: check here
+            transaction_now,
             status,
             boc,
             proof: None

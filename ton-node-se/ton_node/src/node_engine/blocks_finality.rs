@@ -373,7 +373,8 @@ debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
                     // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
                     // msg.prepare_boc_for_json()?;
                     let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
-                    let res = db.put_message(msg, msg_status, transaction_id, Some(block_id.clone()));
+                    let transaction_now = in_msg.read_transaction()?.map(|transaction| transaction.now());
+                    let res = db.put_message(msg, msg_status, transaction_id, transaction_now, Some(block_id.clone()));
                     if res.is_err() {
                         warn!(target: "node", "reflect message to DB(1). error: {}", res.unwrap_err());
                     }
@@ -389,7 +390,7 @@ debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
                     // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
                     // msg1.prepare_boc_for_json()?;
                     let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
-                    let res = db.put_message(msg, msg_status, transaction_id, Some(block_id.clone()));
+                    let res = db.put_message(msg, msg_status, transaction_id, None, Some(block_id.clone()));
                     if res.is_err() {
                         warn!(target: "node", "reflect message to DB(2). error: {}", res.unwrap_err());
                     }
