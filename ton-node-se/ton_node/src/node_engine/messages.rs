@@ -375,7 +375,7 @@ let now = Instant::now();
 
             if let Some(msg) = self.queue.dequeue_first_unused() {
 
-                let res = self.db.put_message(msg.message().clone(), MessageProcessingStatus::Processing, None, None);
+                let res = self.db.put_message(msg.message().clone(), MessageProcessingStatus::Processing, None, None, None);
                 if res.is_err() {
                     warn!(target: "node", "generate_block_multi reflect to db failed. error: {}", res.unwrap_err());
                 }
@@ -774,7 +774,7 @@ impl InMessagesQueue {
 
         // write message into kafka with "queued" status
         if let Some(db) = self.db.as_ref() {
-            let res = db.put_message(msg.message().clone(), MessageProcessingStatus::Queued, None, None);
+            let res = db.put_message(msg.message().clone(), MessageProcessingStatus::Queued, None, None, None);
             if res.is_err() {
                 log::error!(target: "node", "failed reflect to db queue message to internal queue. error: {}", res.unwrap_err());
             }
@@ -795,7 +795,7 @@ impl InMessagesQueue {
 
         // write message into kafka with "queued" status
         if let Some(db) = self.db.as_ref() {
-            let res = db.put_message(msg.message().clone(), MessageProcessingStatus::Queued, None, None);
+            let res = db.put_message(msg.message().clone(), MessageProcessingStatus::Queued, None, None, None);
             if res.is_err() {
                 log::error!(target: "node", "failed reflect to db queue message to internal priority queue. error: {}", res.unwrap_err());
             }

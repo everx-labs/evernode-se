@@ -466,7 +466,8 @@ pub trait DocumentsDb: Send + Sync {
     fn put_deleted_account(&self, workchain_id: i32, account_id: AccountId) -> NodeResult<()>;
     fn put_block(&self, block: Block, status: BlockProcessingStatus) -> NodeResult<()>;
     fn put_message(&self, msg: Message, status: MessageProcessingStatus,
-        transaction_id: Option<UInt256>, block_id: Option<UInt256>) -> NodeResult<()>;
+        transaction_id: Option<UInt256>, transaction_now: Option<u32>,
+        block_id: Option<UInt256>) -> NodeResult<()>;
     fn put_transaction(&self, tr: Transaction, status: TransactionProcessingStatus, 
         block_id: Option<UInt256>, workchain_id: i32) -> NodeResult<()>;
     fn has_delivery_problems(&self) -> bool;
@@ -486,10 +487,8 @@ impl DocumentsDb for DocumentsDbMock {
         Ok(()) 
     }
 
-    fn put_message(&self, _: Message, _: MessageProcessingStatus, _: Option<UInt256>, _: Option<UInt256>) 
-        -> NodeResult<()> {
-        Ok(())
-    }
+    fn put_message(&self, _: Message, _: MessageProcessingStatus, _: Option<UInt256>, _: Option<u32>,
+        _: Option<UInt256>) -> NodeResult<()> { Ok(()) }
 
     fn put_transaction(&self, _: Transaction, _: TransactionProcessingStatus, 
         _: Option<UInt256>, _: i32) -> NodeResult<()> {
