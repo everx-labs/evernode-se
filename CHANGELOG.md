@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.26.1 Apr 09, 2021
+### Fixed
+- Transaction can be lost if it is created near the end of block producing interval.
+
 ## 0.26.0 Apr 08, 2021
 ### Fixed
 - External inbound messages now have `created_at` field filled.
