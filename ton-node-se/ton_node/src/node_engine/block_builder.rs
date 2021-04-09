@@ -324,9 +324,10 @@ impl BlockBuilder {
         let sender = self.sender.lock();
         if let Some(sender) = sender.as_ref() {
             self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
-            return sender.send(BuilderIn::Append{ in_msg, out_msgs }).is_ok();
+            sender.send(BuilderIn::Append{ in_msg, out_msgs }).is_ok()
+        } else {
+            false
         }
-        return false
     }
 
     ///
@@ -336,9 +337,10 @@ impl BlockBuilder {
         let sender = self.sender.lock();
         if let Some(sender) = sender.as_ref() {
             self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
-            return sender.send(BuilderIn::AppendSerialized{ value }).is_ok();
+            sender.send(BuilderIn::AppendSerialized{ value }).is_ok()
+        } else {
+            false
         }
-        return true
     }
 
     ///
