@@ -33,56 +33,5 @@
         "messages_collection": "messages",
         "transactions_collection": "transactions",
         "accounts_collection": "accounts"
-    },
-    "blockchain_config": {
-        "storage_prices": [
-            {
-                "utime_since": 0,
-                "bit_price_ps": 1,
-                "cell_price_ps": 500,
-                "mc_bit_price_ps": 1000,
-                "mc_cell_price_ps": 500000
-            }
-        ],
-        "gas_prices": {
-            "mc": {
-                "gas_price": 10000,
-                "flat_gas_limit": 1000,
-                "gas_limit": 1000000,
-                "special_gas_limit": 100000000,
-                "gas_credit": 10000,
-                "block_gas_limit": 11000000,
-                "freeze_due_limit": 100000000,
-                "delete_due_limit": 1000000000
-            },
-            "wc": {
-                "gas_price": 1000,
-                "flat_gas_limit": 1000,
-                "gas_limit": 1000000,
-                "special_gas_limit": 1000000,
-                "gas_credit": 10000,
-                "block_gas_limit": 10000000,
-                "freeze_due_limit": 100000000,
-                "delete_due_limit": 1000000000
-            }
-        },
-        "forward_prices": {
-            "mc": {
-                "lump_price": 10000000,
-                "bit_price": 655360000,
-                "cell_price": 65536000000,
-                "ihr_price_factor": 98304,
-                "first_frac": 21845,
-                "next_frac": 21845
-            },
-            "wc": {
-                "lump_price": 1000000,
-                "bit_price": 65536000,
-                "cell_price": 6553600000,
-                "ihr_price_factor": 98304,
-                "first_frac": 21845,
-                "next_frac": 21845
-            }
-        }
     }
 }
