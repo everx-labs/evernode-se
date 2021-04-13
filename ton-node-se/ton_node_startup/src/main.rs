@@ -36,7 +36,7 @@ use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 use ton_node::node_engine::ton_node_engine::TonNodeEngine;
 use ton_node::node_engine::ton_node_handlers::init_ton_node_handlers;
 use ed25519_dalek::{Keypair};
-use ton_node::node_engine::config::NodeConfig;
+use ton_node::node_engine::config::{NodeConfig, blockchain_config_from_json};
 use std::fs;
 use types::{ArangoHelper, KafkaProxyMsgReceiver};
 
@@ -70,6 +70,14 @@ fn run() -> Result<(), ()> {
                 .takes_value(true)
                 .max_values(1),
         )
+        .arg(
+            Arg::with_name("blockchain-config")
+                .help("blockchain configuration file name")
+                .long("blockchain-config")
+                .required(true)
+                .takes_value(true)
+                .max_values(1),
+        )
         // .arg(
         //     Arg::with_name("localhost")
         //         .help("Localhost connectivity only")
@@ -99,17 +107,22 @@ fn run() -> Result<(), ()> {
         env!("BUILD_GIT_DATE"),
         env!("BUILD_GIT_BRANCH"));
 
-    let err = start_node(args.value_of("config").unwrap_or_default());
+    let err = start_node(
+        args.value_of("config").unwrap_or_default(),
+        args.value_of("blockchain-config").unwrap_or_default()
+    );
     log::error!(target: "node", "{:?}", err);
 
     Ok(())
 }
 
-fn start_node(config: &str) -> NodeResult<()> {
+fn start_node(config: &str, blockchain_config: &str) -> NodeResult<()> {
 
-    let json = fs::read_to_string(Path::new(config))?;
+    let config_json = fs::read_to_string(Path::new(config))?;
+    let (config, public_keys) = parse_config(&config_json);
 
-    let (config, public_keys) = get_config_params(&json);
+    let blockchain_config_json = fs::read_to_string(Path::new(blockchain_config))?;
+    let blockchain_config = blockchain_config_from_json(&blockchain_config_json)?;
 
     let keypair = fs::read(Path::new(&config.private_key))
         .expect(&format!("Error reading key file {}", config.private_key));
@@ -133,6 +146,7 @@ fn start_node(config: &str) -> NodeResult<()> {
         config.boot,
         adnl_config,
         receivers,
+        blockchain_config,
         Some(db),
         PathBuf::from("./"),
     )?;
@@ -146,7 +160,7 @@ fn start_node(config: &str) -> NodeResult<()> {
     }
 }
 
-pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {
+pub fn parse_config(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {
     match NodeConfig::parse(json) {
         Ok(config) => match config.import_keys() {
             Ok(keys) => (config, keys),
