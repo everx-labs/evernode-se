@@ -1,7 +1,6 @@
 use parking_lot::{Mutex, Condvar};
 use std::mem;
 use std::sync::{Arc};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{ channel, Sender, Receiver };
 use std::thread;
 use std::time::{Duration, Instant};
@@ -50,7 +49,6 @@ struct BlockData {
     p1: Duration,
     p2: Duration,
     p3: Duration,
-    counter: AtomicUsize
 }
 
 impl BlockData {
@@ -140,7 +138,6 @@ impl BlockBuilder {
             p1: Duration::new(0, 0),
             p2: Duration::new(0, 0),
             p3: Duration::new(0, 0),
-            counter: AtomicUsize::new(0)
         }));
 
         let block = BlockBuilder {
@@ -171,7 +168,6 @@ impl BlockBuilder {
             match msg {
                 BuilderIn::Append{ in_msg, out_msgs } => {
                     let mut block_data = current_block_data.lock();
-                    block_data.counter.fetch_sub(1, Ordering::SeqCst);
                     if let Err(err) = Self::append_messages(&mut block_data, &in_msg, out_msgs) {
                         log::error!("error append messages {}", err);
                     }
@@ -280,8 +276,6 @@ impl BlockBuilder {
         account_blocks.add_serialized_transaction(&value.transaction, &value.transaction_cell)?;
         block_data.block_extra.write_account_blocks(&account_blocks)?;
 
-        block_data.counter.fetch_sub(1, Ordering::SeqCst);
-
         // calculate ValueFlow
         // imported increase to in-value
         if let Some(in_value) = value.imported_value {
@@ -321,26 +315,22 @@ impl BlockBuilder {
     /// Add transaction to block
     ///
     pub fn add_transaction(&self, in_msg: Arc<InMsg>, out_msgs: Vec<OutMsg>) -> bool {
-        let result = if let Some(sender) = self.sender.lock().as_ref() {
+        if let Some(sender) = self.sender.lock().as_ref() {
             sender.send(BuilderIn::Append{ in_msg, out_msgs }).is_ok()
         } else {
             false
-        };
-        self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
-        return result;
+        }
     }
 
     ///
     /// Add serialized transaction to block
     ///  
     pub fn add_serialized_transaction(&self, value: AppendSerializedContext ) -> bool {
-        let result = if let Some(sender) = self.sender.lock().as_ref() {
+        if let Some(sender) = self.sender.lock().as_ref() {
             sender.send(BuilderIn::AppendSerialized{ value }).is_ok()
         } else {
             false
-        };
-        self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
-        return result;
+        }
     }
 
     ///
@@ -381,12 +371,10 @@ impl BlockBuilder {
         new_shard_state: &ShardStateUnsplit
     ) -> Result<(Block, usize)> {
 
-let mut time = [0u128; 4];
+let mut time = [0u128; 3];
 let now = Instant::now();
 
         let mut block_data = self.current_block_data.lock();
-time[3] = block_data.counter.load(Ordering::SeqCst) as u128;
-
 
         self.brake_block_builder_thread();
         self.stop_event.wait(&mut block_data);
@@ -449,8 +437,8 @@ let now = Instant::now();
 time[2] = now.elapsed().as_micros();
 
 info!(target: "profiler", 
-    "Block builder time: {} / {} / {} / {}", 
-    time[0], time[1], time[2], time[3],
+    "Block builder time: {} / {} / {}", 
+    time[0], time[1], time[2]
 );
 info!(target: "profiler", 
     "Block builder thread time: {} / {} / {}", 
