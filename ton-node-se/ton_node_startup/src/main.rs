@@ -36,7 +36,7 @@ use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 use ton_node::node_engine::ton_node_engine::TonNodeEngine;
 use ton_node::node_engine::ton_node_handlers::init_ton_node_handlers;
 use ed25519_dalek::{Keypair};
-use ton_node::node_engine::config::{NodeConfig, blockchain_config_from_json};
+use ton_node::node_engine::config::{NodeConfig, blockchain::blockchain_config_from_json};
 use std::fs;
 use types::{ArangoHelper, KafkaProxyMsgReceiver};
 

@@ -33,19 +33,19 @@
   "forward_prices": {
     "mc": {
       "lump_price": 10000000,
-      "bit_price": 655360000,
-      "cell_price": 65536000000,
-      "ihr_price_factor": 98304,
-      "first_frac": 21845,
-      "next_frac": 21845
+      "bit_price": 10000,
+      "cell_price": 1000000,
+      "ihr_price_factor": 1.5,
+      "first_frac": 0.33333333,
+      "next_frac": 0.33333333
     },
     "wc": {
       "lump_price": 1000000,
-      "bit_price": 65536000,
-      "cell_price": 6553600000,
-      "ihr_price_factor": 98304,
-      "first_frac": 21845,
-      "next_frac": 21845
+      "bit_price": 1000,
+      "cell_price": 100000,
+      "ihr_price_factor": 1.5,
+      "first_frac": 0.33333333,
+      "next_frac": 0.33333333
     }
   },
   "fundamental_smc_addresses": [
