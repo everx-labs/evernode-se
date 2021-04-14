@@ -1,6 +1,5 @@
 use adnl::config::AdnlServerConfigJson;
 use ed25519_dalek::PublicKey;
-//use poa::engines::validator_set::PublicKeyListImport;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -107,17 +106,6 @@ pub mod blockchain {
         }
     }
 
-    trait ToFixedPoint {
-        fn to_fixed_point(&self) -> u64;
-    }
-
-    impl ToFixedPoint for f64 {
-        #[inline]
-        fn to_fixed_point(&self) -> u64 {
-            (self * (1 << 16) as f64).round() as u64
-        }
-    }
-
     serde_mirror! {
         StoragePrices, StoragePricesJson {
             utime_since: u32,
@@ -130,7 +118,7 @@ pub mod blockchain {
 
     #[derive(Deserialize)]
     struct GasLimitsPricesJson {
-        gas_price: f64,
+        gas_price: u64,
         flat_gas_limit: u64,
         gas_limit: u64,
         special_gas_limit: u64,
@@ -143,7 +131,7 @@ pub mod blockchain {
     impl Into<GasLimitsPrices> for GasLimitsPricesJson {
         fn into(self) -> GasLimitsPrices {
             let mut result = GasLimitsPrices {
-                gas_price: self.gas_price.to_fixed_point(),
+                gas_price: self.gas_price << 16,
                 gas_limit: self.gas_limit,
                 special_gas_limit: self.special_gas_limit,
                 gas_credit: self.gas_credit,
@@ -151,7 +139,7 @@ pub mod blockchain {
                 freeze_due_limit: self.freeze_due_limit,
                 delete_due_limit: self.delete_due_limit,
                 flat_gas_limit: self.flat_gas_limit,
-                flat_gas_price: (self.flat_gas_limit as f64 * self.gas_price).round() as u64,
+                flat_gas_price: self.flat_gas_limit * self.gas_price,
                 max_gas_threshold: 0
             };
 
@@ -167,26 +155,14 @@ pub mod blockchain {
         wc: GasLimitsPricesJson,
     }
 
-    #[derive(Deserialize)]
-    struct MsgForwardPricesJson {
-        lump_price: u64,
-        bit_price: f64,
-        cell_price: f64,
-        ihr_price_factor: f64,
-        first_frac: f64,
-        next_frac: f64,
-    }
-
-    impl Into<MsgForwardPrices> for MsgForwardPricesJson {
-        fn into(self) -> MsgForwardPrices {
-            MsgForwardPrices {
-                lump_price: self.lump_price,
-                bit_price: self.bit_price.to_fixed_point(),
-                cell_price: self.cell_price.to_fixed_point(),
-                ihr_price_factor: self.ihr_price_factor.to_fixed_point() as u32,
-                first_frac: self.first_frac.to_fixed_point() as u16,
-                next_frac: self.next_frac.to_fixed_point() as u16,
-            }
+    serde_mirror! {
+        MsgForwardPrices, MsgForwardPricesJson {
+            lump_price: u64,
+            bit_price: u64,
+            cell_price: u64,
+            ihr_price_factor: u32,
+            first_frac: u16,
+            next_frac: u16,
         }
     }
 
