@@ -1,7 +1,6 @@
 use parking_lot::{Mutex, Condvar};
 use std::mem;
 use std::sync::{Arc};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{ channel, Sender, Receiver };
 use std::thread;
 use std::time::{Duration, Instant};
@@ -36,7 +35,6 @@ enum BuilderIn {
     AppendSerialized {
         value: AppendSerializedContext,
     },
-    Close,
 }
 
 ///
@@ -46,13 +44,11 @@ struct BlockData {
     block_info: BlockInfo,
     block_extra: BlockExtra,
     value_flow: ValueFlow,
-    stopped: bool,
     //log_time_gen: LogicalTimeGenerator,
     end_lt: u64,    // biggest logical time of all messages
     p1: Duration,
     p2: Duration,
     p3: Duration,
-    counter: AtomicUsize
 }
 
 impl BlockData {
@@ -73,10 +69,9 @@ impl BlockData {
 /// BlockBuilder structure
 ///
 pub struct BlockBuilder {
-    sender: Option<Arc<Mutex<Sender<BuilderIn>>>>,
+    sender: Mutex<Option<Sender<BuilderIn>>>,
     current_block_data: Arc<Mutex<BlockData>>,
     stop_event: Arc<Condvar>,
-    stopped: AtomicBool,
     block_gen_utime: UnixTime32,
     start_lt: u64,
 }
@@ -139,20 +134,15 @@ impl BlockBuilder {
             block_info: block_info,
             block_extra: BlockExtra::default(),
             value_flow: ValueFlow::default(),
-            stopped: false,
             end_lt: 0,
             p1: Duration::new(0, 0),
             p2: Duration::new(0, 0),
             p3: Duration::new(0, 0),
-            counter: AtomicUsize::new(0)
         }));
 
-        let sender = Arc::new(Sender::clone(&sender));
-
         let block = BlockBuilder {
-            sender: Some(Arc::new(Mutex::new(Sender::clone(&sender)))),
+            sender: Mutex::new(Some(sender)),
             stop_event: stop_event.clone(),
-            stopped: AtomicBool::new(false),
             current_block_data: current_block_data.clone(),
             block_gen_utime,
             start_lt,
@@ -176,17 +166,8 @@ impl BlockBuilder {
         for msg in receiver {
             let now = Instant::now();
             match msg {
-                BuilderIn::Close => {
-                    let mut block_data = current_block_data.lock();
-                    // set end logical time - logical time of last message of last transaction
-                    let end_lt = block_data.end_lt;
-                    block_data.block_info.set_end_lt(end_lt);
-                    block_data.stopped = true;
-                    break;
-                },
                 BuilderIn::Append{ in_msg, out_msgs } => {
                     let mut block_data = current_block_data.lock();
-                    block_data.counter.fetch_sub(1, Ordering::SeqCst);
                     if let Err(err) = Self::append_messages(&mut block_data, &in_msg, out_msgs) {
                         log::error!("error append messages {}", err);
                     }
@@ -202,6 +183,11 @@ impl BlockBuilder {
         }
         let d = n.elapsed();
         current_block_data.lock().p3 = d; 
+
+        let mut block_data = current_block_data.lock();
+        // set end logical time - logical time of last message of last transaction
+        let end_lt = block_data.end_lt;
+        block_data.block_info.set_end_lt(end_lt);
 
         stop_event.notify_one();
     }
@@ -290,8 +276,6 @@ impl BlockBuilder {
         account_blocks.add_serialized_transaction(&value.transaction, &value.transaction_cell)?;
         block_data.block_extra.write_account_blocks(&account_blocks)?;
 
-        block_data.counter.fetch_sub(1, Ordering::SeqCst);
-
         // calculate ValueFlow
         // imported increase to in-value
         if let Some(in_value) = value.imported_value {
@@ -331,43 +315,30 @@ impl BlockBuilder {
     /// Add transaction to block
     ///
     pub fn add_transaction(&self, in_msg: Arc<InMsg>, out_msgs: Vec<OutMsg>) -> bool {
-        if !self.stopped.load(Ordering::SeqCst) {
-            if let Some(sender) = &self.sender {
-                self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
-                if sender.lock().send(BuilderIn::Append{ in_msg, out_msgs }).is_err() {
-                    return false
-                }
-            }
-            return true
+        if let Some(sender) = self.sender.lock().as_ref() {
+            sender.send(BuilderIn::Append{ in_msg, out_msgs }).is_ok()
+        } else {
+            false
         }
-        false
     }
 
     ///
     /// Add serialized transaction to block
     ///  
     pub fn add_serialized_transaction(&self, value: AppendSerializedContext ) -> bool {
-        if !self.stopped.load(Ordering::SeqCst) {
-            if let Some(sender) = &self.sender {
-                self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
-                if sender.lock().send(BuilderIn::AppendSerialized{ value }).is_err() {
-                    return false
-                }
-            }
-            return true
+        if let Some(sender) = self.sender.lock().as_ref() {
+            sender.send(BuilderIn::AppendSerialized{ value }).is_ok()
+        } else {
+            false
         }
-        false
     }
 
     ///
     /// Stop processing messages thread.
     ///
     fn brake_block_builder_thread(&self) {
-        if let Some(sender) = &self.sender {
-            if sender.lock().send(BuilderIn::Close).is_err() {
-                error!(target: "node", "try to break builder, but it is already broken");
-            }
-        }
+        let mut sender = self.sender.lock();
+        *sender = None;
     }
 
     ///
@@ -400,24 +371,16 @@ impl BlockBuilder {
         new_shard_state: &ShardStateUnsplit
     ) -> Result<(Block, usize)> {
 
-let mut time = [0u128; 6];
-let now = Instant::now();        
+let mut time = [0u128; 3];
+let now = Instant::now();
 
-        self.stopped.store(true, Ordering::SeqCst);
+        let mut block_data = self.current_block_data.lock();
+
         self.brake_block_builder_thread();
-        self.stopped.store(true, Ordering::Relaxed);
+        self.stop_event.wait(&mut block_data);
 
 time[0] = now.elapsed().as_micros();
-let now = Instant::now();      
-  
-        let mut block_data = self.current_block_data.lock();
-time[5] = block_data.counter.load(Ordering::SeqCst) as u128;
-        while !block_data.stopped {
-            self.stop_event.wait(&mut block_data);
-        }
-
-time[1] = now.elapsed().as_micros();
-let now = Instant::now();        
+let now = Instant::now();
 
         // merkle updates for account_blocks calculating
         let mut account_blocks = vec![];
@@ -460,7 +423,7 @@ info!(target: "ton_block", "want to remove shard state {}", str2);
             &old_ss_root,
             &new_ss_root)?;
 
-time[2] = now.elapsed().as_micros();
+time[1] = now.elapsed().as_micros();
 let now = Instant::now();        
 
         let block = Block::with_params(
@@ -471,15 +434,11 @@ let now = Instant::now();
             mem::take(&mut block_data.block_extra),
         )?;
 
-time[3] = now.elapsed().as_micros();
-let now = Instant::now();        
+time[2] = now.elapsed().as_micros();
 
-        // Let's calc blocks's id and save it in struct while block is accesed as mutable
-
-time[4] = now.elapsed().as_micros();
 info!(target: "profiler", 
-    "Block builder time: {} / {} / {} / {} / {} / {}", 
-    time[0], time[1], time[2], time[3], time[4], time[5]
+    "Block builder time: {} / {} / {}", 
+    time[0], time[1], time[2]
 );
 info!(target: "profiler", 
     "Block builder thread time: {} / {} / {}", 
