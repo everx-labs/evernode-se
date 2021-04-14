@@ -900,7 +900,9 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
 
                 let inmsg = Arc::new(if rng.gen() { inmsg_int} else { inmsg_ex });
                 // builder can stop earler than writing threads it is not a problem here
-                builder_clone.add_transaction(inmsg, vec![out_msg1, out_msg2]);
+                if !builder_clone.add_transaction(inmsg, vec![out_msg1, out_msg2]) {
+                    break;
+                }
                 
                 thread::sleep(Duration::from_millis(1)); // emulate timeout working TVM
             }

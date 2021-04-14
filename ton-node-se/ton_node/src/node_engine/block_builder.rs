@@ -321,26 +321,26 @@ impl BlockBuilder {
     /// Add transaction to block
     ///
     pub fn add_transaction(&self, in_msg: Arc<InMsg>, out_msgs: Vec<OutMsg>) -> bool {
-        let sender = self.sender.lock();
-        if let Some(sender) = sender.as_ref() {
-            self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
+        let result = if let Some(sender) = self.sender.lock().as_ref() {
             sender.send(BuilderIn::Append{ in_msg, out_msgs }).is_ok()
         } else {
             false
-        }
+        };
+        self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
+        return result;
     }
 
     ///
     /// Add serialized transaction to block
     ///  
     pub fn add_serialized_transaction(&self, value: AppendSerializedContext ) -> bool {
-        let sender = self.sender.lock();
-        if let Some(sender) = sender.as_ref() {
-            self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
+        let result = if let Some(sender) = self.sender.lock().as_ref() {
             sender.send(BuilderIn::AppendSerialized{ value }).is_ok()
         } else {
             false
-        }
+        };
+        self.current_block_data.lock().counter.fetch_add(1, Ordering::SeqCst);
+        return result;
     }
 
     ///
