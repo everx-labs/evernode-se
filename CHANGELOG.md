@@ -1,7 +1,7 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.26.1 Apr 09, 2021
+## 0.26.1 Apr 14, 2021
 ### Fixed
 - Transaction could be lost if it was created near the end of block producing interval.
 
