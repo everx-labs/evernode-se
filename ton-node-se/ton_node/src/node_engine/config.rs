@@ -43,7 +43,7 @@ macro_rules! serde_mirror {
         struct $mirror_name {
             $($field_name: $field_type,)*
         }
-        impl Into<$name> for &$mirror_name {
+        impl Into<$name> for $mirror_name {
             fn into(self) -> $name {
                 $name {
                     $($field_name: self.$field_name,)*
@@ -75,7 +75,7 @@ struct GasLimitsPricesJson {
     delete_due_limit: u64,
 }
 
-impl Into<GasLimitsPrices> for &GasLimitsPricesJson {
+impl Into<GasLimitsPrices> for GasLimitsPricesJson {
     fn into(self) -> GasLimitsPrices {
         let mut result = GasLimitsPrices {
             gas_price: self.gas_price << 16,
@@ -135,24 +135,24 @@ struct BlockchainConfigJson {
 }
 
 impl BlockchainConfigJson {
-    pub fn to_config_params(&self) -> ton_types::Result<ConfigParams> {
+    pub fn convert_to_config_params(self) -> ton_types::Result<ConfigParams> {
         let mut result = ConfigParams::default();
 
         let mut config_param_18 = ConfigParam18::default();
-        for price in self.storage_prices.iter() {
+        for price in self.storage_prices.into_iter() {
             config_param_18.insert(&price.into())?;
         }
         result.set_config(ConfigParamEnum::ConfigParam18(config_param_18))?;
 
-        result.set_config(ConfigParamEnum::ConfigParam20((&self.gas_prices.mc).into()))?;
-        result.set_config(ConfigParamEnum::ConfigParam21((&self.gas_prices.wc).into()))?;
+        result.set_config(ConfigParamEnum::ConfigParam20(self.gas_prices.mc.into()))?;
+        result.set_config(ConfigParamEnum::ConfigParam21(self.gas_prices.wc.into()))?;
 
-        result.set_config(ConfigParamEnum::ConfigParam24((&self.forward_prices.mc).into()))?;
-        result.set_config(ConfigParamEnum::ConfigParam25((&self.forward_prices.wc).into()))?;
+        result.set_config(ConfigParamEnum::ConfigParam24(self.forward_prices.mc.into()))?;
+        result.set_config(ConfigParamEnum::ConfigParam25(self.forward_prices.wc.into()))?;
 
         let mut fundamental_smc_addr = FundamentalSmcAddresses::default();
-        for addr in self.fundamental_smc_addresses.iter() {
-            fundamental_smc_addr.add_key(&UInt256::from_str(addr)?)?;
+        for addr in self.fundamental_smc_addresses {
+            fundamental_smc_addr.add_key(&UInt256::from_str(&addr)?)?;
         }
 
         result.set_config(ConfigParamEnum::ConfigParam31(ConfigParam31 {
@@ -160,7 +160,7 @@ impl BlockchainConfigJson {
         }))?;
 
         result.set_config(ConfigParamEnum::ConfigParam8(ConfigParam8 {
-            global_version: (&self.global_version).into()
+            global_version: self.global_version.into()
         }))?;
 
         Ok(result)
@@ -169,7 +169,7 @@ impl BlockchainConfigJson {
 
 pub fn blockchain_config_from_json(json: &str) -> ton_types::Result<BlockchainConfig> {
     let blockchain_config_json: BlockchainConfigJson = serde_json::from_str(json)?;
-    let config_params = blockchain_config_json.to_config_params()?;
+    let config_params = blockchain_config_json.convert_to_config_params()?;
     BlockchainConfig::with_config(config_params)
 }
 
