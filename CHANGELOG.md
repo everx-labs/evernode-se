@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.27.0 Apr 15, 2021
+### New
+- Blockchain configuration (config params) support.
+- Ability to change the default blockchain configuration.
+
 ## 0.26.0 Apr 08, 2021
 ### Fixed
 - External inbound messages now have `created_at` field filled.

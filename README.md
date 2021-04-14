@@ -17,6 +17,7 @@ Local blockchain for Free TON DApp development and testing.
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
+  - [How to change the blockchain configuration](#how-to-change-the-blockchain-configuration)
 
 ## What is TON OS Startup Edition?
 
@@ -91,4 +92,23 @@ To build docker image, run from the repository root:
 ### Windows:
 ```commandline
 build.cmd
+```
+
+## How to change the blockchain configuration
+TON OS SE loads the blockchain configuration (config params) during its start from the configuration file 
+[blockchain.conf.json](docker/ton-node/blockchain.conf.json) instead of special smart contract, which is stores 
+various config params in the real networks.
+
+In order to change some of these params, do the following:
+1. Get [blockchain.conf.json](docker/ton-node/blockchain.conf.json) file and store it to the host's filesystem 
+   accessible by docker. In our example we store it at `/home/user/blockchain.conf.json`.
+2. Edit the downloaded file, changing parameters you need. If one of the parameters is omitted or renamed, 
+   TON OS SE will not start.
+3. Create a new docker container, overriding its configuration file 
+   (its path in the image is `/ton-node/blockchain.conf.json`) with the file from the host's filesystem. 
+   Change `/home/user/blockchain.conf.json` to correct path pointing to the edited blockchain configuration file:
+```commandline
+$ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
+     -v /home/user/blockchain.conf.json:/ton-node/blockchain.conf.json \
+     tonlabs/local-node
 ```
