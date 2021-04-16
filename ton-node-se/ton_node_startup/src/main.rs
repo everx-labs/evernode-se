@@ -21,6 +21,7 @@ extern crate router;
 extern crate base64;
 extern crate adnl;
 extern crate ton_block_json;
+extern crate ton_executor;
 
 mod types;
 
@@ -36,9 +37,14 @@ use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 use ton_node::node_engine::ton_node_engine::TonNodeEngine;
 use ton_node::node_engine::ton_node_handlers::init_ton_node_handlers;
 use ed25519_dalek::{Keypair};
-use ton_node::node_engine::config::{NodeConfig, blockchain::blockchain_config_from_json};
+use ton_node::node_engine::config::NodeConfig;
 use std::fs;
 use types::{ArangoHelper, KafkaProxyMsgReceiver};
+use ton_executor::BlockchainConfig;
+
+#[cfg(test)]
+#[path = "../../../ton-node-se/tonos-se-tests/unit/test_node_se.rs"]
+mod tests;
 
 fn main() {
     run().expect("Error run node");
@@ -175,3 +181,10 @@ pub fn parse_config(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {
         },
     }
 }
+
+pub fn blockchain_config_from_json(json: &str) -> ton_types::Result<BlockchainConfig> {
+    let map = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&json)?;
+    let config_params = ton_block_json::parse_config(&map)?;
+    BlockchainConfig::with_config(config_params)
+}
+
