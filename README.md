@@ -66,7 +66,7 @@ If you specified another port then add it to the local url http://0.0.0.0:port/g
 
 ## How to change the blockchain configuration
 TON OS SE loads the blockchain configuration (config params) during its start from the configuration file 
-[blockchain.conf.json](docker/ton-node/blockchain.conf.json) instead of special smart contract, which is stores 
+[blockchain.conf.json](docker/ton-node/blockchain.conf.json) instead of special smart contract, which stores 
 various config params in the real networks.
 
 In order to change some of these params, do the following:
