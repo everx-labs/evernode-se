@@ -1,0 +1,49 @@
+body {
+    height:100vh;
+    margin: 0;
+}
+
+a {
+    text-decoration: none;
+}
+
+#spinner-container {
+    display: flex;
+    height: 100vh;
+    margin: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+#spinner {
+    height: 24px;
+    width: 24px;
+    animation: spinner-rotation 3000ms linear infinite;
+}
+
+@keyframes spinner-rotation {
+    0% {
+        transform: rotate(0deg);
+    }
+    8% {
+        transform: rotate(60deg);
+    }
+    32% {
+        transform: rotate(80deg);
+    }
+    40% {
+        transform: rotate(180deg);
+    }
+    64% {
+        transform: rotate(200deg);
+    }
+    72% {
+        transform: rotate(300deg);
+    }
+    96% {
+        transform: rotate(320deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}

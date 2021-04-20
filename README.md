@@ -15,13 +15,14 @@ Local blockchain for Free TON DApp development and testing.
   - [How to change the blockchain configuration](#how-to-change-the-blockchain-configuration)
   - [How to connect to TON OS SE Graphql API from SDK](#how-to-connect-to-ton-os-se-graphql-api-from-sdk)
   - [TON OS SE components](#ton-os-se-components)
+  - [TON Live explorer](#ton-live-explorer)
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
 
 ## What is TON OS Startup Edition?
 
-TON OS Startup Edition (SE) is a local blockchain that developer can run on their machine in one click.  
+TON OS Startup Edition (SE) is a local blockchain that developer can run on their machine in one click.   
 
 At the moment we publish TON OS SE only as a [docker image](https://hub.docker.com/r/tonlabs/local-node). 
 We plan to provide simple installers for MacOS, Win, Linux without docker by the end of Q1 2021.
@@ -89,13 +90,18 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
 
 To connect to local blockchain from your application [specify localhost in SDK Client network config](https://docs.ton.dev/86757ecb2/p/5328db-tonclient).
 
-
 ## TON OS SE components
 
 * [TON Labs implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
 * [ArangoDB database](https://www.arangodb.com/)
 * [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
+* [TON-live explorer](https://ton.live)
 * [Pre-deployed high-performance Giver, ABI v2](contracts)
+
+## TON Live explorer
+
+TON Live explorer runs on the same IP and port as TON OS SE, just open http://ip_address:port (e.g. http://127.0.0.1)
+
 
 ## How to build docker image locally
 

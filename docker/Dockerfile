@@ -54,6 +54,7 @@ RUN chmod +x /q-server/entrypoint; \
 WORKDIR /honcho-cfg
 RUN /arango/entrypoint init
 COPY nginx.conf.d /etc/nginx/nginx.conf
+COPY ton-live/web /var/www
 
 EXPOSE 80
 EXPOSE 3000 
