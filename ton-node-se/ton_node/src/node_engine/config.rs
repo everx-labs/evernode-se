@@ -1,6 +1,5 @@
 use adnl::config::AdnlServerConfigJson;
 use ed25519_dalek::PublicKey;
-//use poa::engines::validator_set::PublicKeyListImport;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;

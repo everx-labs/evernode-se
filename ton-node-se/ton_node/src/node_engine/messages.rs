@@ -33,15 +33,18 @@ pub struct MessagesProcessor<T>  where
     queue: Arc<InMessagesQueue>,
     shard_id: ShardIdent,
     db: Arc<Box<dyn DocumentsDb>>,
+    blockchain_config: BlockchainConfig,
     executors: Arc<Mutex<HashMap<AccountId, Arc<Mutex<OrdinaryTransactionExecutor>>>>>,
 }
 
 impl<T> MessagesProcessor<T> where
     T: TransactionsStorage + Send + Sync + 'static,
 {
-    pub fn with_params(queue: Arc<InMessagesQueue>, 
+    pub fn with_params(
+        queue: Arc<InMessagesQueue>,
         tr_storage: Arc<T>, 
         shard_id: ShardIdent,
+        blockchain_config: BlockchainConfig,
         db: Arc<Box<dyn DocumentsDb>>,
     ) -> Self {
         // make clone for changes
@@ -52,9 +55,9 @@ impl<T> MessagesProcessor<T> where
             queue,
             shard_id,
             db,
+            blockchain_config,
             executors: Arc::new(Mutex::new(HashMap::new())),
         }
-  
     }
 
     /// loop-back message to InQueue or send to OutMsgQueue of shard
@@ -245,6 +248,7 @@ impl<T> MessagesProcessor<T> where
 
 
     fn execute_thread(
+        blockchain_config: BlockchainConfig,
         shard_id: &ShardIdent,
         queue: Arc<InMessagesQueue>,
         tr_storage: Arc<T>,
@@ -260,7 +264,7 @@ impl<T> MessagesProcessor<T> where
         // TODO it is possible to make account immutable,  
         // because in executor it is cloned for MerkleUpdate creation
         if !executors.lock().contains_key(acc_id) {
-            let e = OrdinaryTransactionExecutor::new(BlockchainConfig::default());
+            let e = OrdinaryTransactionExecutor::new(blockchain_config);
             executors.lock().insert(acc_id.clone(), Arc::new(Mutex::new(e)));
         }
 
@@ -390,8 +394,10 @@ let now = Instant::now();
                 let executors = self.executors.clone();
                 let builder = builder.clone();
                 let shard_state = new_shard_state.clone();
+                let blockchain_config = self.blockchain_config.clone();
                 let th = move || {
                     let res = Self::execute_thread(
+                        blockchain_config,
                         &shard_id, 
                         queue.clone(), 
                         storage, 
