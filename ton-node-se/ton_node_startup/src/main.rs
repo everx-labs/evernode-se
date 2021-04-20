@@ -43,7 +43,7 @@ use types::{ArangoHelper, KafkaProxyMsgReceiver};
 use ton_executor::BlockchainConfig;
 
 #[cfg(test)]
-#[path = "../../../ton-node-se/tonos-se-tests/unit/test_node_se.rs"]
+#[path = "../../tonos-se-tests/unit/test_node_se.rs"]
 mod tests;
 
 fn main() {
