@@ -367,37 +367,47 @@ debug!("FINBLK {:?}", hashes);
                 let extra = block.read_extra()?;
                 let workchain_id = block.read_info()?.shard().workchain_id();
 
-                extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
-                    let msg = in_msg.read_message()?;
-debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
-                    // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
-                    // msg.prepare_boc_for_json()?;
-                    let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
-                    let transaction_now = in_msg.read_transaction()?.map(|transaction| transaction.now());
-                    let res = db.put_message(msg, msg_status, transaction_id, transaction_now, Some(block_id.clone()));
-                    if res.is_err() {
-                        warn!(target: "node", "reflect message to DB(1). error: {}", res.unwrap_err());
-                    }
-                    Ok(true)
-                })?;
+                if msg_status == MessageProcessingStatus::Finalized {
+                    extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
+                        let msg = in_msg.read_message()?;
+                        debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
+                        // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
+                        // msg.prepare_boc_for_json()?;
+                        let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
+                        let transaction_now = in_msg.read_transaction()?.map(|transaction| transaction.now());
+                        db.put_message(
+                            msg,
+                            MessageProcessingStatus::Finalized,
+                            transaction_id,
+                            transaction_now,
+                            Some(block_id.clone())
+                        ).map_err(|err| warn!(target: "node", "reflect message to DB(1). error: {}", err))
+                            .ok();
+                        Ok(true)
+                    })?;
 
-                debug!(target: "node", "in_msg_descr.iterate - success");
+                    debug!(target: "node", "in_msg_descr.iterate - success");
 
-
-                extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
-                    let msg = out_msg.read_message()?.unwrap();
+                    extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
+                        let msg = out_msg.read_message()?.unwrap();
 debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
-                    // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
-                    // msg1.prepare_boc_for_json()?;
-                    let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
-                    let res = db.put_message(msg, msg_status, transaction_id, None, Some(block_id.clone()));
-                    if res.is_err() {
-                        warn!(target: "node", "reflect message to DB(2). error: {}", res.unwrap_err());
-                    }
-                    Ok(true)
-                })?;
+                        // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
+                        // msg1.prepare_boc_for_json()?;
+                        let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
+                        db.put_message(
+                            msg,
+                            MessageProcessingStatus::Finalized,
+                            transaction_id,
+                            None,
+                            Some(block_id.clone())
+                        ).map_err(|err| warn!(target: "node", "reflect message to DB(2). error: {}", err))
+                            .ok();
+                        Ok(true)
+                    })?;
 
-                debug!(target: "node", "out_msg_descr.iterate - success");
+                    debug!(target: "node", "out_msg_descr.iterate - success");
+                }
+
 
                 let mut changed_acc = HashSet::new();
 

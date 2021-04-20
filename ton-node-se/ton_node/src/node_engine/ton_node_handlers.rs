@@ -59,13 +59,6 @@ debug!("VALIDATOR SET {:?}", vals);
 
             // Drop inbound external message if no validators
             if (vals.len() == 0) && msg.message().is_inbound_external() {
-                if let Err(res) = self.db.put_message(
-                    msg.message().clone(), 
-                    MessageProcessingStatus::Refused, 
-                    None, None, None)
-                {
-                    warn!(target: "node", "reflect message reject to DB(1). error: {}", res);
-                }
                 continue;
             }
 
@@ -366,25 +359,6 @@ debug!(target: "node", "SEND ROUTING MSG {} -> {}", self.validator_index(), next
         db: Arc<Box<dyn DocumentsDb>>,
         transaction: Transaction,
         account: Option<Account>, workchain_id: i32) -> NodeResult<()> {
-
-        let transaction_id = transaction.hash().ok();
-        if let Ok(Some(in_msg)) = transaction.read_in_msg() {
-            let _res = db.put_message(
-                in_msg.clone(), 
-                MessageProcessingStatus::Preliminary, 
-                transaction_id.clone(), Some(transaction.now()), None
-            )?;
-        }
-
-        transaction.iterate_out_msgs(&mut |msg| {
-            db.put_message(
-                msg, 
-                MessageProcessingStatus::Preliminary, 
-                transaction_id.clone(), None, None
-            ).map_err(|_| failure::format_err!("put_to_db error"))?;
-            Ok(true)
-        })?;
-
         db.put_transaction(
             transaction, 
             TransactionProcessingStatus::Preliminary, 
