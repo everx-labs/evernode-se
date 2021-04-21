@@ -41,5 +41,12 @@ http {
             add_header 'Access-Control-Allow-Headers' 'X-Requested-With, Content-Type, Authorization';
             add_header 'Access-Control-Expose-Headers' 'X-Requested-With, Content-Type, Authorization';
         }
+        include /etc/nginx/mime.types;                                                                 
+        types {                                                                                        
+            application/wasm wasm;                                                                     
+        }                                                                                              
+        rewrite /landing.html / last;                                                                  
+        rewrite /landing / last;     
+        root /var/www;
     }
 }

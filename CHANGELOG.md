@@ -1,6 +1,13 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.27.0 Apr 20, 2021
+### New
+- Support of blockchain config parameters.
+- Ability to change the default blockchain config parameters.
+- [TON live explorer](https://ton.live) running on the same IP and port as TON OS SE, just open http://ip_address:port (e.g. http://127.0.0.1).   
+  You can explore blocks, transactions, accounts and messages of your TON OS SE 
+
 ## 0.26.1 Apr 14, 2021
 ### Fixed
 - Transaction could be lost if it was created near the end of block producing interval.

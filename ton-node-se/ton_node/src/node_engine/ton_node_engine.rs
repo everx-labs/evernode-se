@@ -16,6 +16,7 @@ use std::time::Duration;
 use ton_api::ton::ton_engine::{NetworkProtocol, network_protocol::*};
 use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
 use tokio::{prelude::Future, runtime::Runtime};
+use ton_executor::BlockchainConfig;
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
@@ -173,6 +174,7 @@ impl TonNodeEngine {
         boot_list: Vec<String>,
         adnl_config: AdnlServerConfig,
         receivers: Vec<Box<dyn MessagesReceiver>>,
+        blockchain_config: BlockchainConfig,
         documents_db: Option<Box<dyn DocumentsDb>>,
         storage_path: PathBuf,
     ) -> NodeResult<Self> {
@@ -257,7 +259,8 @@ impl TonNodeEngine {
                     queue.clone(), 
                     storage.clone(), 
                     shard.clone(),
-                    documents_db.clone(), 
+                    blockchain_config,
+                    documents_db.clone(),
                 )
             )),
             finalizer: block_finality.clone(),
@@ -286,37 +289,6 @@ impl TonNodeEngine {
         })
     }
 
-    /// Construct new engine for selected shard
-    /// with given time to generate block candidate
-    // TODO need to delete this method - it is only for tests now
-    #[cfg(test)]
-    pub fn with_config(config_file_name: &str) -> NodeResult<Self> {
-        
-        let json = std::fs::read_to_string(std::path::Path::new(config_file_name))?;
-        let (config, public_keys) = get_config_params(&json);
-
-        let keypair = std::fs::read(std::path::Path::new(&config.private_key))
-            .expect(&format!("Error reading key file {}", config.private_key));
-        let private_key = Keypair::from_bytes(&keypair).unwrap();
-        let adnl_config = AdnlServerConfig::from_json_config(&config.adnl);
-
-        TonNodeEngine::with_params( 
-            config.shard_id_config().shard_ident(),
-            false,
-            config.port,
-            config.node_index, 
-            config.poa_validators,
-            config.poa_interval,
-            private_key,
-            public_keys,
-            config.boot,
-            adnl_config,
-            vec!(),
-            None,
-            PathBuf::from("../target"),
-        )
-    }
-   
     pub fn interval(&self) -> usize {
         self.interval
     }

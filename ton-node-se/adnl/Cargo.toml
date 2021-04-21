@@ -38,8 +38,4 @@ client = []
 server = ["stream-cancel", "lazy_static"]
 test_client = ["clap", "client", "lazy_static", "log4rs"]
 
-[[bin]]
-name = "adnl_test_client"
-path = "bin/test_client/main.rs"
-required-features = ["test_client"]
 

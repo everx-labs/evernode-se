@@ -1,7 +1,7 @@
 [package]
 build = "../build/build.rs"
 name = "ton_node_startup"
-version = "0.26.1"
+version = "0.27.0"
 
 [dependencies]
 clap = "2.32.0"
@@ -10,6 +10,7 @@ log4rs = "0.8.3"
 ton_node = { path = "../ton_node", features = ["startup_node"], package = "ton_node_old" }
 ton_block = { git = "https://github.com/tonlabs/ton-labs-block.git" }
 ton_block_json = { git = "https://github.com/tonlabs/ton-labs-block-json.git" }
+ton_executor = { git = "https://github.com/tonlabs/ton-labs-executor.git" }
 ton_types = { git = "https://github.com/tonlabs/ton-labs-types.git" }
 ton_vm = { git = "https://github.com/tonlabs/ton-labs-vm.git" }
 ed25519-dalek = "1.0.0-pre.4"
