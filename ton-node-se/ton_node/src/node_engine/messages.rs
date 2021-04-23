@@ -375,6 +375,8 @@ let now = Instant::now();
                 seq_no, prev_ref, 0, Option::None,
                 required_block_at));
         
+        let mut is_empty = true;
+        
         while start_time.elapsed() < timeout {
 
             if let Some(msg) = self.queue.dequeue_first_unused() {
@@ -416,6 +418,7 @@ let now = Instant::now();
 
                 pool.execute(th);
 
+                is_empty = false;
             } else {
                 thread::sleep(Duration::from_nanos(100));
             }
@@ -428,7 +431,7 @@ let time0 = now.elapsed().as_micros();
         self.executors.lock().clear();
         self.queue.locks_clear();
         
-        if !builder.is_empty() {
+        if !is_empty {
             let new_shard_state = std::mem::take(&mut *new_shard_state.lock());
             let (block, count) = builder.finalize_block(shard_state, &new_shard_state)?;
 info!(target: "profiler", 
