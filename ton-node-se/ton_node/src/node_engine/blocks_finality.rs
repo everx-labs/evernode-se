@@ -120,10 +120,7 @@ debug!("FINBLK {:?}", hashes);
                     sb.block.block().clone(),
                     sb.shard_state.clone(),
                     is_sync,
-                    BlockProcessingStatus::Finalized,
-                    MessageProcessingStatus::Finalized,
-                    TransactionProcessingStatus::Finalized
-                ); 
+                );
 
                 if res.is_err() {
                    warn!(target: "node", "reflect_block_in_db(Finalized) error: {:?}", res.unwrap_err());
@@ -350,9 +347,7 @@ debug!("FINBLK {:?}", hashes);
         block: Block,
         shard_state: Arc<ShardStateUnsplit>,
         is_sync: bool, 
-        block_status: BlockProcessingStatus,
-        msg_status: MessageProcessingStatus,
-        tr_status: TransactionProcessingStatus) -> NodeResult<()> {
+    ) -> NodeResult<()> {
         
         if !is_sync {
             if let Some(db) = self.db.clone() {
@@ -367,46 +362,42 @@ debug!("FINBLK {:?}", hashes);
                 let extra = block.read_extra()?;
                 let workchain_id = block.read_info()?.shard().workchain_id();
 
-                if msg_status == MessageProcessingStatus::Finalized {
-                    extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
-                        let msg = in_msg.read_message()?;
-                        debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
-                        // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
-                        // msg.prepare_boc_for_json()?;
-                        let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
-                        let transaction_now = in_msg.read_transaction()?.map(|transaction| transaction.now());
-                        db.put_message(
-                            msg,
-                            MessageProcessingStatus::Finalized,
-                            transaction_id,
-                            transaction_now,
-                            Some(block_id.clone())
-                        ).map_err(|err| warn!(target: "node", "reflect message to DB(1). error: {}", err))
-                            .ok();
-                        Ok(true)
-                    })?;
+                extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
+                    let msg = in_msg.read_message()?;
+                    debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
+                    // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
+                    // msg.prepare_boc_for_json()?;
+                    let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
+                    let transaction_now = in_msg.read_transaction()?.map(|transaction| transaction.now());
+                    db.put_message(
+                        msg,
+                        transaction_id,
+                        transaction_now,
+                        Some(block_id.clone())
+                    ).map_err(|err| warn!(target: "node", "reflect message to DB(1). error: {}", err))
+                        .ok();
+                    Ok(true)
+                })?;
 
-                    debug!(target: "node", "in_msg_descr.iterate - success");
+                debug!(target: "node", "in_msg_descr.iterate - success");
 
-                    extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
-                        let msg = out_msg.read_message()?.unwrap();
+                extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
+                    let msg = out_msg.read_message()?.unwrap();
 debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
-                        // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
-                        // msg1.prepare_boc_for_json()?;
-                        let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
-                        db.put_message(
-                            msg,
-                            MessageProcessingStatus::Finalized,
-                            transaction_id,
-                            None,
-                            Some(block_id.clone())
-                        ).map_err(|err| warn!(target: "node", "reflect message to DB(2). error: {}", err))
-                            .ok();
-                        Ok(true)
-                    })?;
+                    // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
+                    // msg1.prepare_boc_for_json()?;
+                    let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
+                    db.put_message(
+                        msg,
+                        transaction_id,
+                        None,
+                        Some(block_id.clone())
+                    ).map_err(|err| warn!(target: "node", "reflect message to DB(2). error: {}", err))
+                        .ok();
+                    Ok(true)
+                })?;
 
-                    debug!(target: "node", "out_msg_descr.iterate - success");
-                }
+                debug!(target: "node", "out_msg_descr.iterate - success");
 
 
                 let mut changed_acc = HashSet::new();
@@ -423,7 +414,7 @@ debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_st
                             orig_status = Some(transaction.orig_status.clone());
                         }
                         end_status = Some(transaction.end_status.clone());
-                        if let Err(err) = db.put_transaction(transaction, tr_status, Some(block_id.clone()), workchain_id) {
+                        if let Err(err) = db.put_transaction(transaction, Some(block_id.clone()), workchain_id) {
                             warn!(target: "node", "reflect transaction to DB. error: {}", err);
                         }
                         Ok(true)
@@ -459,7 +450,7 @@ debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_st
 
                 debug!(target: "node", "accounts.iterate - success");
 
-                db.put_block(block, block_status.clone())?;
+                db.put_block(block)?;
             }
         }
         Ok(())
@@ -492,20 +483,6 @@ debug!(target: "node", "NO-BLOCK {:?}", finality_hash);
     {
         info!(target: "node", "FINALITY: add block. hash: {:?}", block_hash);
         info!(target: "node", "FINALITY:    block seq_no: {:?}", sblock.block().read_info()?.seq_no());
-
-debug!(target: "node", "PUT-BLOCK {:?}", finality_hash);        
-        let res = self.reflect_block_in_db(
-            sblock.block().clone(),
-            shard_state.clone(),
-            is_sync,
-            BlockProcessingStatus::Proposed,
-            MessageProcessingStatus::Proposed,
-            TransactionProcessingStatus::Proposed
-        );
-
-        if res.is_err() {
-            warn!(target: "node", "reflect_block_in_db(Proposed) error: {:?}", res.unwrap_err());
-        }
 
         let sb = Box::new(ShardBlock::with_block_and_state(
             sblock,
@@ -627,28 +604,6 @@ debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
     /// reset block finality
     /// clean all maps, load last finalized data
     fn reset(&mut self) -> NodeResult<()> {
-        {
-            let mut prev_shard_state = Arc::new(ShardStateUnsplit::default());
-            let prev_seq_no = self.current_block.seq_no - 1; // take previous seq_no, this func will not be called if current seq_no=0
-            let prev_sb = self.blocks_by_no.get(&prev_seq_no); // get previous ShardState, 
-            if prev_sb.is_some() {
-                prev_shard_state = self.stored_to_loaded(prev_sb.unwrap().clone())?.shard_state.clone();
-            }
-
-            // update states in DB and restore previous state of accounts
-            let res = self.reflect_block_in_db(
-                self.current_block.block.block().clone(),
-                prev_shard_state,
-                false,
-                BlockProcessingStatus::Refused,
-                MessageProcessingStatus::Refused,
-                TransactionProcessingStatus::Refused
-            );
-
-            if res.is_err() {
-                warn!(target: "node", "reflect_block_in_db(Refused) error: {:?}", res.unwrap_err());
-            }
-        }
         self.current_block = self.last_finalized_block.clone();
         // remove files from disk
         for (hash, _sb) in self.blocks_by_hash.iter() {

@@ -335,13 +335,13 @@ impl ArangoHelper {
 }
 
 impl DocumentsDb for ArangoHelper {
-    fn put_block(&self, block: Block, status: BlockProcessingStatus) -> NodeResult<()> {
+    fn put_block(&self, block: Block) -> NodeResult<()> {
         let cell = block.serialize()?;
         let boc = serialize_toc(&cell)?;
         let set = BlockSerializationSet {
             block,
             id: cell.repr_hash(),
-            status,
+            status: BlockProcessingStatus::Finalized,
             boc
         };
 
@@ -352,7 +352,7 @@ impl DocumentsDb for ArangoHelper {
         Ok(())
     }
 
-    fn put_message(&self, message: Message, status: MessageProcessingStatus,
+    fn put_message(&self, message: Message,
         transaction_id: Option<TransactionId>, transaction_now: Option<u32>, block_id: Option<BlockId>)
         -> NodeResult<()> {
 
@@ -364,7 +364,7 @@ impl DocumentsDb for ArangoHelper {
             block_id,
             transaction_id,
             transaction_now,
-            status,
+            status: MessageProcessingStatus::Finalized,
             boc,
             proof: None
         };
@@ -376,7 +376,7 @@ impl DocumentsDb for ArangoHelper {
         Ok(())
     }
 
-    fn put_transaction(&self, transaction: Transaction, status: TransactionProcessingStatus, 
+    fn put_transaction(&self, transaction: Transaction,
         block_id: Option<BlockId>, workchain_id: i32) -> NodeResult<()> {
 
         let cell = transaction.serialize()?;
@@ -384,7 +384,7 @@ impl DocumentsDb for ArangoHelper {
         let set = TransactionSerializationSet {
             transaction,
             id: cell.repr_hash(),
-            status,
+            status: TransactionProcessingStatus::Finalized,
             block_id,
             workchain_id,
             boc,

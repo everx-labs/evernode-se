@@ -15,11 +15,11 @@ use std::thread::{JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ton_labs_assembler::compile_code;
 use ton_block::{
-    Account, BlkPrevInfo, Block, BlockProcessingStatus, CommonMsgInfo, 
+    Account, BlkPrevInfo, Block,  CommonMsgInfo,
     CurrencyCollection, ExtBlkRef, ExternalInboundMessageHeader, GetRepresentationHash, 
-    Grams, InternalMessageHeader, Message, MessageProcessingStatus, 
+    Grams, InternalMessageHeader, Message,
     MsgAddressExt, MsgAddressInt, Serializable, Deserializable, ShardStateUnsplit, 
-    ShardIdent, StateInit, Transaction, TransactionProcessingStatus, SignedBlock,
+    ShardIdent, StateInit, Transaction, SignedBlock,
 };
 use ton_types::{ Cell, SliceData };
 use ton_types::types::{ UInt256, AccountId, ByteOrderRead };
@@ -464,12 +464,23 @@ pub trait MessagesReceiver: Send {
 pub trait DocumentsDb: Send + Sync {
     fn put_account(&self, acc: Account) -> NodeResult<()>;
     fn put_deleted_account(&self, workchain_id: i32, account_id: AccountId) -> NodeResult<()>;
-    fn put_block(&self, block: Block, status: BlockProcessingStatus) -> NodeResult<()>;
-    fn put_message(&self, msg: Message, status: MessageProcessingStatus,
-        transaction_id: Option<UInt256>, transaction_now: Option<u32>,
-        block_id: Option<UInt256>) -> NodeResult<()>;
-    fn put_transaction(&self, tr: Transaction, status: TransactionProcessingStatus, 
-        block_id: Option<UInt256>, workchain_id: i32) -> NodeResult<()>;
+    fn put_block(&self, block: Block) -> NodeResult<()>;
+
+    fn put_message(
+        &self,
+        msg: Message,
+        transaction_id: Option<UInt256>,
+        transaction_now: Option<u32>,
+        block_id: Option<UInt256>
+    ) -> NodeResult<()>;
+
+    fn put_transaction(
+        &self,
+        tr: Transaction,
+        block_id: Option<UInt256>,
+        workchain_id: i32
+    ) -> NodeResult<()>;
+
     fn has_delivery_problems(&self) -> bool;
 }
 
@@ -483,14 +494,14 @@ impl DocumentsDb for DocumentsDbMock {
         Ok(())
     }
 
-    fn put_block(&self, _: Block, _: BlockProcessingStatus) -> NodeResult<()> {
+    fn put_block(&self, _: Block) -> NodeResult<()> {
         Ok(()) 
     }
 
-    fn put_message(&self, _: Message, _: MessageProcessingStatus, _: Option<UInt256>, _: Option<u32>,
+    fn put_message(&self, _: Message, _: Option<UInt256>, _: Option<u32>,
         _: Option<UInt256>) -> NodeResult<()> { Ok(()) }
 
-    fn put_transaction(&self, _: Transaction, _: TransactionProcessingStatus, 
+    fn put_transaction(&self, _: Transaction,
         _: Option<UInt256>, _: i32) -> NodeResult<()> {
         Ok(()) 
     }
