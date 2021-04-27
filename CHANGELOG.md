@@ -3,8 +3,7 @@ All notable changes to this project will be documented in this file.
 
 ## 0.27.1 Apr 28, 2021
 ### Fixed
-- Blocks, transactions and messages now stored into ArangoDB only when finalized, like in real networks. 
-  This eliminates multiple duplicate subscription events.
+- Subscriptions for blocks, transactions and messages do not trigger multiple times any more.
 
 ## 0.27.0 Apr 20, 2021
 ### New
