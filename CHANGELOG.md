@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.27.1 Apr 28, 2021
+### Fixed
+- Blocks, transactions and messages now stored into ArangoDB only when finalized, like in real networks. 
+  This eliminates multiple duplicate subscription events.
+
 ## 0.27.0 Apr 20, 2021
 ### New
 - Support of blockchain config parameters.
