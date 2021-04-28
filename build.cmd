@@ -12,6 +12,7 @@ echo.
 echo *** Building TON Node SE ***
 echo.
 docker build ^
+    --no-cache ^
     --build-arg BIN_TARGET="%BIN_TARGET%" ^
     --tag %TON_NODE% ^
     ton-node-se ^
@@ -21,6 +22,7 @@ echo.
 echo *** Building TONOS SE image ***
 echo.
 docker build ^
+    --no-cache ^
     --build-arg TON_NODE="%TON_NODE%" ^
     --build-arg Q_SERVER_GITHUB_REPO="%Q_SERVER_GITHUB_REPO%" ^
     --build-arg Q_SERVER_GITHUB_REV="%Q_SERVER_GITHUB_REV%" ^
