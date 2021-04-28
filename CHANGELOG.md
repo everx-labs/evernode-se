@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.27.1 Apr 28, 2021
+### Fixed
+- Subscriptions for blocks, transactions and messages do not trigger multiple times any more.
+
 ## 0.27.0 Apr 20, 2021
 ### New
 - Support of blockchain config parameters.

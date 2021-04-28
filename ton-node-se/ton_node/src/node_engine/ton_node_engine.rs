@@ -260,7 +260,6 @@ impl TonNodeEngine {
                     storage.clone(), 
                     shard.clone(),
                     blockchain_config,
-                    documents_db.clone(),
                 )
             )),
             finalizer: block_finality.clone(),
