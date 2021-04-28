@@ -30,9 +30,6 @@ pub fn init_ton_node_handlers(ton: &TonNodeEngine) {
 
     let request = networkprotocol::SendMessageRequest::default();
     ton.register_response_callback(request.into_boxed(), TonNodeEngine::process_request_send_message);
-
-    let request = networkprotocol::ReflectToDbRequest::default();
-    ton.register_response_callback(request.into_boxed(), TonNodeEngine::process_request_reflect_to_db);
 }
 
 impl TonNodeEngine {
@@ -59,13 +56,6 @@ debug!("VALIDATOR SET {:?}", vals);
 
             // Drop inbound external message if no validators
             if (vals.len() == 0) && msg.message().is_inbound_external() {
-                if let Err(res) = self.db.put_message(
-                    msg.message().clone(), 
-                    MessageProcessingStatus::Refused, 
-                    None, None, None)
-                {
-                    warn!(target: "node", "reflect message reject to DB(1). error: {}", res);
-                }
                 continue;
             }
 
@@ -360,69 +350,6 @@ debug!(target: "node", "SEND ROUTING MSG {} -> {}", self.validator_index(), next
             _ => node_err!(NodeErrorKind::TlIncompatiblePacketType)
 
         }
-    }
-
-    pub fn reflect_transaction_to_db(
-        db: Arc<Box<dyn DocumentsDb>>,
-        transaction: Transaction,
-        account: Option<Account>, workchain_id: i32) -> NodeResult<()> {
-
-        let transaction_id = transaction.hash().ok();
-        if let Ok(Some(in_msg)) = transaction.read_in_msg() {
-            let _res = db.put_message(
-                in_msg.clone(), 
-                MessageProcessingStatus::Preliminary, 
-                transaction_id.clone(), Some(transaction.now()), None
-            )?;
-        }
-
-        transaction.iterate_out_msgs(&mut |msg| {
-            db.put_message(
-                msg, 
-                MessageProcessingStatus::Preliminary, 
-                transaction_id.clone(), None, None
-            ).map_err(|_| failure::format_err!("put_to_db error"))?;
-            Ok(true)
-        })?;
-
-        db.put_transaction(
-            transaction, 
-            TransactionProcessingStatus::Preliminary, 
-            None,
-            workchain_id
-        )?;
-
-        if let Some(account) = account {
-            db.put_account(account)?;
-        }
-        
-        Ok(())
-    }
-
-    fn process_request_reflect_to_db(&self, _io: &dyn NetworkContext, _peer: &PeerId, request: NetworkProtocol) -> NodeResult<NetworkProtocol> {
-        match request {
-            NetworkProtocol::TonEngine_NetworkProtocol_ReflectToDbRequest(request) => {
-                //info!(target: "node", "!!!! Send Reflect to DB Request !!!!");
-                
-                let transaction = Transaction::construct_from_bytes(&request.transaction.0)?;
-                let mut workchain_id = 0;
-                let mut acc = None;
-                if !request.account.0.is_empty() {
-                    let account = Account::construct_from_bytes(&request.account.0)?;
-                    workchain_id = account.get_addr().map(|addr| addr.get_workchain_id()).unwrap_or_default();
-                    acc = Some(account);
-                }
-
-                // TODO write transaction to DB with prelimitary state
-                Self::reflect_transaction_to_db(self.db.clone(), transaction, acc, workchain_id)?;
-            }
-            _ => return node_err!(NodeErrorKind::TlIncompatiblePacketType),
-
-        };
-        Ok(networkprotocol::ReflectToDbResponse{
-            id: 0,
-            result: 0,
-        }.into_boxed())
     }
 }
 

@@ -32,7 +32,6 @@ pub struct MessagesProcessor<T>  where
     tr_storage: Arc<T>,
     queue: Arc<InMessagesQueue>,
     shard_id: ShardIdent,
-    db: Arc<Box<dyn DocumentsDb>>,
     blockchain_config: BlockchainConfig,
     executors: Arc<Mutex<HashMap<AccountId, Arc<Mutex<OrdinaryTransactionExecutor>>>>>,
 }
@@ -45,7 +44,6 @@ impl<T> MessagesProcessor<T> where
         tr_storage: Arc<T>, 
         shard_id: ShardIdent,
         blockchain_config: BlockchainConfig,
-        db: Arc<Box<dyn DocumentsDb>>,
     ) -> Self {
         // make clone for changes
         //let shard_state_new = shard_state.lock().unwrap().clone();
@@ -54,7 +52,6 @@ impl<T> MessagesProcessor<T> where
             tr_storage,
             queue,
             shard_id,
-            db,
             blockchain_config,
             executors: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -380,12 +377,6 @@ let now = Instant::now();
         while start_time.elapsed() < timeout {
 
             if let Some(msg) = self.queue.dequeue_first_unused() {
-
-                let res = self.db.put_message(msg.message().clone(), MessageProcessingStatus::Processing, None, None, None);
-                if res.is_err() {
-                    warn!(target: "node", "generate_block_multi reflect to db failed. error: {}", res.unwrap_err());
-                }
-
                 let acc_id = msg.message().int_dst_account_id().unwrap();
 
                 // lock account in queue
@@ -780,14 +771,6 @@ impl InMessagesQueue {
 
         storage.insert(msg.clone());
         debug!(target: "node", "Queued message: {:?}", msg.message());
-
-        // write message into kafka with "queued" status
-        if let Some(db) = self.db.as_ref() {
-            let res = db.put_message(msg.message().clone(), MessageProcessingStatus::Queued, None, None, None);
-            if res.is_err() {
-                log::error!(target: "node", "failed reflect to db queue message to internal queue. error: {}", res.unwrap_err());
-            }
-        }
   
         Ok(())
 
@@ -795,25 +778,16 @@ impl InMessagesQueue {
 
     /// Include message into begin queue
     fn priority_queue(&self, msg: QueuedMessage) -> std::result::Result<(), QueuedMessage> {
-
         if !self.is_message_to_current_node(msg.message()) {
             return self.route_message_to_other_node(msg);
         }
 
         let mut storage = self.storage.lock();
-
-        // write message into kafka with "queued" status
-        if let Some(db) = self.db.as_ref() {
-            let res = db.put_message(msg.message().clone(), MessageProcessingStatus::Queued, None, None, None);
-            if res.is_err() {
-                log::error!(target: "node", "failed reflect to db queue message to internal priority queue. error: {}", res.unwrap_err());
-            }
-        }
-        debug!(target: "node", "Priority queued message: {:?}", msg.message());
+        let msg_str = format!("{:?}", msg.message());
         storage.insert(msg);
+        debug!(target: "node", "Priority queued message: {}", msg_str);
 
         Ok(())
-
     }
 
     /// Extract oldest message from queue.
