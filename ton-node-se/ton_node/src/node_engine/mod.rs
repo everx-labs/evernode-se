@@ -72,7 +72,7 @@ static ACCOUNTS_COUNT: u8 = 255;
 impl MessagesReceiver for StubReceiver {
     fn run(&mut self, queue: Arc<InMessagesQueue>) -> NodeResult<()> {
         if self.block_seqno == 1 {
-            Self::deploy_givers(self.workchain_id, &queue)?;
+            Self::deploy_contracts(self.workchain_id, &queue)?;
         }
 
         if self.timeout == 0 {
@@ -120,9 +120,11 @@ impl MessagesReceiver for StubReceiver {
     }
 }
 
-const GIVER_GRAMS: u128 = 5_000_000_000_000_000_000;
+const GIVER_BALANCE: u128 = 5_000_000_000_000_000_000;
+const MULTISIG_BALANCE: u128 = 1_000_000_000_000_000;
 const GIVER_ABI1_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi1_deploy_msg.boc");
 const GIVER_ABI2_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi2_deploy_msg.boc");
+const MULTISIG_DEPLOY_MSG: &[u8] = include_bytes!("../../data/safemultisig_deploy_msg.boc");
 
 #[allow(dead_code)]
 impl StubReceiver {
@@ -175,32 +177,34 @@ impl StubReceiver {
         Self::create_account_message(workchain_id, account_id, code, SliceData::new_empty().into_cell(), None)
     }
 
-    fn deploy_givers(workchain_id: i8, queue: &InMessagesQueue) -> NodeResult<()> {
-        Self::deploy_giver(workchain_id, GIVER_ABI1_DEPLOY_MSG, 1, queue)?;
-        Self::deploy_giver(workchain_id, GIVER_ABI2_DEPLOY_MSG, 3, queue)?;
+    fn deploy_contracts(workchain_id: i8, queue: &InMessagesQueue) -> NodeResult<()> {
+        Self::deploy_contract(workchain_id, GIVER_ABI1_DEPLOY_MSG, GIVER_BALANCE, 1, queue)?;
+        Self::deploy_contract(workchain_id, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE, 3, queue)?;
+        Self::deploy_contract(workchain_id, MULTISIG_DEPLOY_MSG, MULTISIG_BALANCE, 5, queue)?;
 
         Ok(())
     }
 
-    fn deploy_giver(
+    fn deploy_contract(
         workchain_id: i8,
         deploy_msg_boc: &[u8],
+        initial_balance: u128,
         transfer_lt: u64,
         queue: &InMessagesQueue
     ) -> NodeResult<AccountId> {
-        let (giver_msg, giver_addr) =
-            Self::create_giver_deploy_message(workchain_id, deploy_msg_boc);
+        let (deploy_msg, deploy_addr) =
+            Self::create_contract_deploy_message(workchain_id, deploy_msg_boc);
         let transfer_msg = Self::create_transfer_message(
             workchain_id,
-            giver_addr.clone(),
-            giver_addr.clone(),
-            GIVER_GRAMS,
+            deploy_addr.clone(),
+            deploy_addr.clone(),
+            initial_balance,
             transfer_lt
         );
         Self::queue_with_retry(queue, transfer_msg)?;
-        Self::queue_with_retry(queue, giver_msg)?;
+        Self::queue_with_retry(queue, deploy_msg)?;
 
-        Ok(giver_addr)
+        Ok(deploy_addr)
     }
 
     fn queue_with_retry(queue: &InMessagesQueue, message: Message) -> NodeResult<()> {
@@ -213,12 +217,12 @@ impl StubReceiver {
         Ok(())
     }
 
-    fn create_giver_deploy_message(workchain_id: i8, giver_boc: &[u8]) -> (Message, AccountId) {
-        let mut msg = Message::construct_from_bytes(giver_boc).unwrap();
+    fn create_contract_deploy_message(workchain_id: i8, msg_boc: &[u8]) -> (Message, AccountId) {
+        let mut msg = Message::construct_from_bytes(msg_boc).unwrap();
         if let CommonMsgInfo::ExtInMsgInfo(ref mut header) = msg.header_mut() {
             match header.dst {
                 MsgAddressInt::AddrStd(ref mut addr) => addr.workchain_id = workchain_id,
-                _ => panic!("Giver deploy message has invalid destination address")
+                _ => panic!("Contract deploy message has invalid destination address")
             }
         }
 
@@ -256,6 +260,7 @@ impl StubReceiver {
 
         msg
     }
+
     // create transfer funds message for initialize balance
     pub fn create_transfer_message(
         workchain_id: i8, 
