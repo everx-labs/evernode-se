@@ -1,9 +1,12 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.28.0 Apr 29, 2021
+## 0.28.0 May 14, 2021
 ### New
-- Predeployed [SafeMultisigWallet](contracts/safe_multisig) contract with 1 million tokens. 
+- Predeployed [SafeMultisigWallet](contracts/safe_multisig) contract with 1 million tokens.
+- Improved logging. Added TVM log (tvm.log file).
+### Fixed
+- Crashes of logging in docker.
 
 ## 0.27.1 Apr 28, 2021
 ### Fixed
