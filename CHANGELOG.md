@@ -3,7 +3,9 @@ All notable changes to this project will be documented in this file.
 
 ## 0.28.0 Apr 29, 2021
 ### New
-- Predeployed [SafeMultisigWallet](contracts/safe_multisig) contract with 1 million tokens. 
+- Predeployed [SafeMultisigWallet](contracts/safe_multisig) contract with 1 million tokens.
+### Fixed
+- Contract freezing on receiving bounceable message when balance is zero.
 
 ## 0.27.1 Apr 28, 2021
 ### Fixed
