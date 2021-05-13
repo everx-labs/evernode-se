@@ -3,5 +3,4 @@ set -x
 set -e
 
 cd /ton-node
-exec /node/ton-node --config ./ton-node.conf.json --blockchain-config ./blockchain.conf.json >> /var/log/ton-node.log 2>>/var/log/ton-node.err
-
+exec /node/ton-node --config ./ton-node.conf.json --blockchain-config ./blockchain.conf.json
