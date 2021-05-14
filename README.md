@@ -1,4 +1,5 @@
 # TON OS Startup Edition
+
 Local blockchain for Free TON DApp development and testing.  
 
 **Have a question? Get quick help in our channel:**
@@ -13,6 +14,7 @@ Local blockchain for Free TON DApp development and testing.
     - [Instal via TONDEV Development Environment](#instal-via-tondev-development-environment)
     - [Install via docker command](#install-via-docker-command)
   - [How to change the blockchain configuration](#how-to-change-the-blockchain-configuration)
+  - [How to work with logs](#how-to-work-with-logs)
   - [How to connect to TON OS SE Graphql API from SDK](#how-to-connect-to-ton-os-se-graphql-api-from-sdk)
   - [TON OS SE components](#ton-os-se-components)
   - [TON Live explorer](#ton-live-explorer)
@@ -31,17 +33,21 @@ See the [TON Labs TON OS SE documentation](https://docs.ton.dev/86757ecb2/p/19d8
 
 
 ## Use-cases
+
 - Test your applications locally
 - Test your contracts
 - Run TON OS remotely on a server and test your application from different devices
 
 ## How to install
+
 ### Pre-requisites
+
 - Latest [Docker](https://www.docker.com/get-started) installed
 
 **Attention!** [Docker daemon](https://www.docker.com/get-started) must be running. 
 
 ### Instal via TONDEV Development Environment
+
 If you have [TONDEV installed globally on your machine](https://github.com/tonlabs/tondev), run this command
 
 ```commandline
@@ -66,6 +72,7 @@ If you specified another port then add it to the local url http://0.0.0.0:port/g
 [Find out more about GraphQL API](https://docs.ton.dev/86757ecb2/p/793337-graphql-api). 
 
 ## How to change the blockchain configuration
+
 TON OS SE loads the blockchain configuration (config params) during its start from the configuration file 
 [blockchain.conf.json](docker/ton-node/blockchain.conf.json) instead of special smart contract, which stores 
 various config params in the real networks.
@@ -83,6 +90,42 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
      -v /home/user/blockchain.conf.json:/ton-node/blockchain.conf.json \
      tonlabs/local-node
 ```
+
+## How to work with logs
+
+By default, TON OS SE logs the most of the information to the console, which is accessible by the next command:
+```commandline
+$ docker logs local-node
+```
+
+More verbose logging is configured to `/ton-node/log/` directory inside the running docker container. 
+By default, there are two files: `ton-node.log` for all logging and `tvm.log` for tracing of TVM execution: 
+code, stack, control registers, gas, etc.
+
+Logging configuration is stored in `/ton-node/log_cfg.yml` file. In order to change the default logging verbosity of 
+other parameters, you can configure logging in several ways:
+1. In the running container by changing `/ton-node/log_cfg.yml` file:
+
+```commandline
+$ docker exec -it local-node bash
+bash-5.0# vi /ton-node/log_cfg.yml
+```
+(in order to exit from VI editor with saving changes press the `ESC` key, then type `:wq` and press the `ENTER` key)
+
+Note: `log_cfg.yml` file is normally scanned for changes every 30 seconds, so all changes made to this file in running 
+      container will be applied only after the scan.
+
+Note: after recreation of the container, all changes made in its files will be lost, so use the second way, if you need 
+      to keep them. 
+
+2. Before starting of the container, download and edit a copy of [log_cfg.yml](./docker/ton-node/log_cfg.yml) file, then 
+   mount this file to container's file system in `docker run` command:
+```commandline
+$ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
+     -v /home/user/log_cfg.yml:/ton-node/log_cfg.yml \
+     tonlabs/local-node
+```
+After starting of TON OS SE, you can edit this file in your file system without restart.
 
 ## How to connect to TON OS SE Graphql API from SDK
 
@@ -109,11 +152,13 @@ In order to build and use TON OS Startup Edition you need Docker.
 To build docker image, run from the repository root:
 
 ### Linux/Mac:
+
 ```commandline
 ./build.sh
 ```
 
 ### Windows:
+
 ```commandline
 build.cmd
 ```
