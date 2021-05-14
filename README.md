@@ -22,6 +22,7 @@ Local blockchain for Free TON DApp development and testing.
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
 
+
 ## What is TON OS Startup Edition?
 
 TON OS Startup Edition (SE) is a local blockchain that developer can run on their machine in one click.   
@@ -37,6 +38,7 @@ See the [TON Labs TON OS SE documentation](https://docs.ton.dev/86757ecb2/p/19d8
 - Test your applications locally
 - Test your contracts
 - Run TON OS remotely on a server and test your application from different devices
+
 
 ## How to install
 
@@ -55,6 +57,7 @@ $ tondev se start
 ```
 [Checkout other TON OS SE commands accessible from TONDEV](https://docs.ton.dev/86757ecb2/p/54722f-tonos-se). 
 You can also access these commands from [TONDEV VS Code Extension](https://github.com/tonlabs/tondev-vscode).
+
 
 ### Install via docker command
 
@@ -127,11 +130,15 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
 ```
 After starting of TON OS SE, you can edit this file in your file system without restart.
 
+More information about log4rs configuration [in the log4rs documentation](https://docs.rs/log4rs/1.0.0/log4rs/).
+
+
 ## How to connect to TON OS SE Graphql API from SDK
 
 **Attention** at the moment there are a few [differences in SE behaviour comparing with a real TON blockchain](https://docs.ton.dev/86757ecb2/p/683279-difference-in-behaviour). Read about them before you start implemennting. Please note that we plan to upgrade the SE behaviour in the next releases so that it will work the same way as a real network.  
 
 To connect to local blockchain from your application [specify localhost in SDK Client network config](https://docs.ton.dev/86757ecb2/p/5328db-tonclient).
+
 
 ## TON OS SE components
 
@@ -140,6 +147,7 @@ To connect to local blockchain from your application [specify localhost in SDK C
 * [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
 * [TON-live explorer](https://ton.live)
 * [Pre-deployed high-performance Giver, ABI v2](contracts)
+
 
 ## TON Live explorer
 
@@ -150,6 +158,7 @@ TON Live explorer runs on the same IP and port as TON OS SE, just open http://ip
 
 In order to build and use TON OS Startup Edition you need Docker.
 To build docker image, run from the repository root:
+
 
 ### Linux/Mac:
 
