@@ -37,9 +37,8 @@ loggers:
 
   # TVM messages
   tvm:
-    level: debug
+    level: trace
     appenders:
-      - stdout
       - tvm_logfile
 
   ## Next targets for PoA:
