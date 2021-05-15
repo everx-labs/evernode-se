@@ -5,13 +5,19 @@ appenders:
   stdout:
     kind: console
     encoder:
-      pattern: "{l}: {m}{n}"
+      pattern: "{l} [{h({t})}]: {m}{n}"
 
   logfile:
     kind: file
-    path: "log/output.log"
+    path: "log/ton-node.log"
     encoder:
-      pattern: "{d} - {l}: {m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S.%f)} {l} [{h({t})}]: {m}{n}"
+
+  tvm_logfile:
+    kind: file
+    path: "log/tvm.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S.%f)} {l} [{h({t})}]: {m}{n}"
 
 root:
   level: debug
@@ -19,55 +25,35 @@ root:
     - logfile
 
 loggers:
-  # node messages
+  # TON Node messages
   node:
     level: debug
     appenders:
       - stdout
 
-  # adnl messages
+  # ADNL messages
   adnl:
-    level: trace
-    appenders:
-      - stdout
+    level: off
 
-  # block messages
-  ton_block:
-    level: debug
-    appenders:
-      - stdout
-
-  # block messages
-  executor:
-    level: debug
-    appenders:
-      - stdout      
-
-  # tvm messages
+  # TVM messages
   tvm:
-    level: warn
-    appenders:
-      - stdout
-
-  #next targets for poa
-  poa:
-    level: debug
-    appenders:
-      - stdout
-  engine:
     level: trace
     appenders:
-      - stdout
-  network:
-    level: warn
-    appenders:
-      - stdout
-  shutdown:
-    level: debug
+      - tvm_logfile
+
+  ## Next targets for PoA:
+  poa:
+    level: off
+
+  engine:
+    level: error
     appenders:
       - stdout
 
-  librdkafka:
+  network:
+    level: off
+
+  shutdown:
     level: warn
     appenders:
       - stdout
