@@ -35,9 +35,10 @@ loggers:
   adnl:
     level: off
 
-  # TVM messages
+  # TVM messages. Switching level to `trace` will give you a lot of information about contracts execution,
+  # but can significantly slow down the node and increase disk usage.
   tvm:
-    level: trace
+    level: debug
     appenders:
       - tvm_logfile
 
