@@ -17,6 +17,10 @@ RUN npm install --production
 FROM ${TON_NODE} as ton-node
 
 FROM arangodb:3.6
+
+ENV LANG=en_US.UTF-8
+ENV PYTHONIOENCODING=utf-8
+
 RUN rm /entrypoint.sh
 
 COPY --from=q-server-build /home/ /home/

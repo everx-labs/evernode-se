@@ -404,7 +404,7 @@ debug!("GETNEW");
         let step = self.poa_context.lock().engine.get_current_step() as usize;
         let self_last_step = self.last_step.load(AtomicOrdering::SeqCst);
         if self_last_step == step {
-            debug!(target: "node", "step not change");
+            // debug!(target: "node", "step not change");
             BlockData::None
         } else if self.is_active_on_step(step, self.current_shard_id(), self.validator_index())
 //            && ((step % self.validators()) == self.validator_index() as usize)

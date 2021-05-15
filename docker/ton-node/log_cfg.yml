@@ -5,13 +5,19 @@ appenders:
   stdout:
     kind: console
     encoder:
-      pattern: "{l}: {m}{n}"
+      pattern: "{l} [{h({t})}]: {m}{n}"
 
   logfile:
     kind: file
-    path: "log/output.log"
+    path: "log/ton-node.log"
     encoder:
-      pattern: "{d} - {l}: {m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S.%f)} {l} [{h({t})}]: {m}{n}"
+
+  tvm_logfile:
+    kind: file
+    path: "log/tvm.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S.%f)} {l} [{h({t})}]: {m}{n}"
 
 root:
   level: debug
@@ -19,55 +25,36 @@ root:
     - logfile
 
 loggers:
-  # node messages
+  # TON Node messages
   node:
     level: debug
     appenders:
       - stdout
 
-  # adnl messages
+  # ADNL messages
   adnl:
-    level: trace
-    appenders:
-      - stdout
+    level: off
 
-  # block messages
-  ton_block:
-    level: debug
-    appenders:
-      - stdout
-
-  # block messages
-  executor:
-    level: debug
-    appenders:
-      - stdout      
-
-  # tvm messages
+  # TVM messages. Switching level to `trace` will give you a lot of information about contracts execution,
+  # but can significantly slow down the node and increase disk usage.
   tvm:
-    level: warn
+    level: debug
     appenders:
-      - stdout
+      - tvm_logfile
 
-  #next targets for poa
+  ## Next targets for PoA:
   poa:
-    level: debug
-    appenders:
-      - stdout
+    level: off
+
   engine:
-    level: trace
-    appenders:
-      - stdout
-  network:
-    level: warn
-    appenders:
-      - stdout
-  shutdown:
-    level: debug
+    level: error
     appenders:
       - stdout
 
-  librdkafka:
+  network:
+    level: off
+
+  shutdown:
     level: warn
     appenders:
       - stdout
