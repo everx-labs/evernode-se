@@ -1,13 +1,17 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.28.0 May 14, 2021
+## 0.28.0 May 15, 2021
 ### New
 - Predeployed [SafeMultisigWallet](contracts/safe_multisig) contract with 1 million tokens.
 - [Improved logging. Added TVM log (tvm.log file)](README.md#how-to-work-with-logs).
 ### Fixed
 - Contract freezing on receiving bounceable message when balance is zero.
 - Crashes of logging in docker.
+
+## 0.27.2 Apr 28, 2021
+### Fixed
+-  Transaction could be lost if it was created near the end of block producing interval. Again
 
 ## 0.27.1 Apr 28, 2021
 ### Fixed
