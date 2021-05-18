@@ -45,8 +45,7 @@ http {
         types {                                                                                        
             application/wasm wasm;                                                                     
         }                                                                                              
-        rewrite /landing.html / last;                                                                  
-        rewrite /landing / last;     
+        try_files /index.html =404;
         root /var/www;
     }
 }
