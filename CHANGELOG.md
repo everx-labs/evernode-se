@@ -1,7 +1,7 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.28.0 May 18, 2021
+## 0.28.1 May 18, 2021
 ### Fixed
 - reloading any page (except `/` and `/landing` page) failed with 404 error
 
