@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.0 May 18, 2021
+### Fixed
+- reloading any page (except `/` and `/landing` page) failed with 404 error
+
 ## 0.28.0 May 15, 2021
 ### New
 - Predeployed [SafeMultisigWallet](contracts/safe_multisig) contract with 1 million tokens.
