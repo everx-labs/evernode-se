@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.2 May 18, 2021
+### Fixed
+- Fixed previous bugfix. If you still have an error running TON Live explorer, clear your browser cache. 
+
 ## 0.28.1 May 18, 2021
 ### Fixed
 - reloading any page (except `/` and `/landing` page) failed with 404 error
