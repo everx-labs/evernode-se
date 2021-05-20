@@ -435,13 +435,11 @@ debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_st
                     if changed_acc.contains(&id) {
                         // acc.account.prepare_proof_for_json(&state_root)?;
                         // acc.account.prepare_boc_for_json()?;
-                        match acc.read_account()? {
-                            Account::AccountNone => {
-                                error!(target: "node", "something gone wrong with account {:x}", id);
-                            }
-                            acc => if let Err(err) = db.put_account(acc) {
-                                warn!(target: "node", "reflect account to DB. error: {}", err);
-                            }         
+                        let acc = acc.read_account()?;
+                        if acc.is_none() {
+                            error!(target: "node", "something gone wrong with account {:x}", id);
+                        } else if let Err(err) = db.put_account(acc) {
+                            warn!(target: "node", "reflect account to DB. error: {}", err);
                         }
                     }
                     Ok(true)
