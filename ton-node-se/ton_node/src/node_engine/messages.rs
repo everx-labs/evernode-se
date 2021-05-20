@@ -223,7 +223,7 @@ impl<T> MessagesProcessor<T> where
                         description.compute_ph = TrComputePhase::Vm(vm_phase);
                     }
                     Some(ExecutorError::NoFundsToImportMsg) => {
-                        description.compute_ph = if account == Account::AccountNone {
+                        description.compute_ph = if account.is_none() {
                             TrComputePhase::skipped(ComputeSkipReason::NoState)
                         } else {
                             TrComputePhase::skipped(ComputeSkipReason::NoGas)
@@ -285,7 +285,7 @@ info!(target: "profiler", "Transaction time: {} micros", now.elapsed().as_micros
 let now = Instant::now();
         // update or remove shard account in new shard state
         let acc = Account::construct_from_cell(acc_root)?;
-        if acc != Account::AccountNone {
+        if !acc.is_none() {
             let shard_acc = ShardAccount::with_params(&acc, transaction.hash()?, transaction.logical_time())?;
             new_shard_state.lock().insert_account(&acc_id.get_bytestring(0).into(), &shard_acc)?;
         } else {
