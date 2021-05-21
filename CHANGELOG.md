@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.3 May 20, 2021
+### Fixed
+- Made code ready for planned updates in dependant repositories
+
 ## 0.28.2 May 18, 2021
 ### Fixed
 - Fixed previous bugfix. If you still have an error running TON Live explorer, clear your browser cache. 
