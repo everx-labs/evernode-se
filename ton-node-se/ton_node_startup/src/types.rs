@@ -156,8 +156,8 @@ impl KafkaProxyMsgReceiver {
             }
             Ok(cell) => cell,
         };
-        if message_cell.repr_hash() != UInt256::from(id) {
-            return Err(format!("Error: calculated message's hash doesn't correnpond given key"))
+        if message_cell.repr_hash() != UInt256::from_slice(&id) {
+            return Err(format!("Error: calculated message's hash doesn't correspond given key"))
         }
 
         let mut message = Message::default();

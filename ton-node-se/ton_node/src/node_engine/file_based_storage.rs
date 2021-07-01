@@ -149,7 +149,7 @@ impl FileBasedStorage {
         let ssi = ShardStateInfo::with_params(
             Self::key_by_seqno(block.block().read_info()?.seq_no(), block.block().read_info()?.vert_seq_no()),
             block.block().read_info()?.end_lt(),
-            UInt256::from(block.block_hash().as_slice())
+            block.block_hash().clone()
         );
 
         let (mut shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &block.block().read_info()?.shard())?;
