@@ -200,14 +200,14 @@ impl<T> MessagesProcessor<T> where
         let result = executor.execute_with_libs_and_params(
             Some(&msg),
             acc_root,
-            ExecuteParams::new(
-                HashmapE::default(),
-                block_at,
+            ExecuteParams {
+                state_libs: HashmapE::default(),
+                block_unixtime: block_at,
                 block_lt,
-                Arc::clone(&lt),
-                UInt256::default(),
+                last_tr_lt: Arc::clone(&lt),
                 debug,
-            ),
+                ..ExecuteParams::default()
+            },
         );
         match result {
             Ok(transaction) => Ok((transaction, lt.load(AtomicOrdering::Relaxed))),
