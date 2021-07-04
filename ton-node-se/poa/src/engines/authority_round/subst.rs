@@ -14,7 +14,7 @@ use std::path::{Path};
 use std::str::FromStr;
 use std::sync::Arc;
 use ton_block::{Block, GetRepresentationHash, SignedBlock};
-use ton_types::{HashmapType, UInt256};
+use ton_types::HashmapType;
 
 use engines::{EpochTransition, EthEngine};
 use engines::block_reward::RewardKind;
@@ -2595,7 +2595,7 @@ impl OrdinaryHeader {
 		let block_hash = match self.ton_block {
 			TONBlock::Signed(ref block) => {
 				debug!(target: "engine", "BARE_HASH: signed block");
-				UInt256::from(block.block_hash().clone())
+				block.block_hash().clone()
 			},
 			TONBlock::Unsigned(ref block) => {
 				debug!(target: "engine", "BARE_HASH: unsigned block");

@@ -549,7 +549,7 @@ impl TestStorage {
         hash.extend_from_slice(&(shard_ident.shard_prefix_with_tag()).to_be_bytes());
         hash.extend_from_slice(&(seq_no).to_be_bytes());
         hash.extend_from_slice(&(vert_seq_no).to_be_bytes());
-        UInt256::from(hash)
+        UInt256::from_slice(&hash)
     }
 }
 
@@ -605,7 +605,7 @@ impl BlocksStorage for TestStorage {
     fn save_block(&self, block: &SignedBlock) -> NodeResult<()>{
         let info = block.block().read_info()?;
         let hash = Self::get_hash_from_ident_and_seq(&info.shard(), info.seq_no(), info.vert_seq_no());
-        self.blocks.try_borrow_mut().unwrap().insert(UInt256::from(hash), block.clone());
+        self.blocks.try_borrow_mut().unwrap().insert(hash, block.clone());
         Ok(())
     }
 

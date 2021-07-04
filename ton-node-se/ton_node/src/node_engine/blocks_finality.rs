@@ -726,7 +726,7 @@ impl ShardBlock {
 
         let mut hasher = Sha256::new();
 		hasher.input(block_data.as_slice());
-		let file_hash = UInt256::from(hasher.result().to_vec());
+		let file_hash = UInt256::from_slice(&hasher.result().to_vec());
 
         Self {
             seq_no: key_by_seqno(sblock.block().read_info().unwrap().seq_no(), sblock.block().read_info().unwrap().vert_seq_no()),

@@ -11,6 +11,7 @@ use ton_api::ton::adnl::message::message::Query;
 use ton_block::{Deserializable, Message, MerkleProof};
 use ton_types::cells_serialization::{BagOfCells, serialize_toc};
 use ton_types::{BuilderData};
+use std::convert::TryInto;
 
 impl AdnlServerHandler for TonNodeEngine {
     fn process_query(&self, q: &Box<Query>) -> AdnlResult<Vec<u8>> {
@@ -114,7 +115,8 @@ impl TonNodeEngine {
 
         let mut hasher = Sha256::new();
         hasher.input(block_data.as_slice());
-        let file_hash = UInt256::from(hasher.result().to_vec());
+        let hash: [u8; 32] = hasher.result().to_vec().try_into().unwrap();
+        let file_hash = UInt256::from(hash);
         assert_eq!(file_hash, UInt256::from(block_info.id.file_hash.0));
 
         let shard = self.current_shard_id();

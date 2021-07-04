@@ -18,8 +18,8 @@ use ton_block::{
     OutMsg, OutMsgNew, MsgEnvelope, Grams, OutMsgQueueKey, InMsg,
     OutMsgImmediately, OutMsgExternal
 };
-use ton_executor::{BlockchainConfig, ExecutorError, OrdinaryTransactionExecutor, TransactionExecutor};
-use ton_types::{BuilderData, SliceData, IBitstring, Result, AccountId, serialize_toc, HashmapRemover};
+use ton_executor::{BlockchainConfig, ExecutorError, OrdinaryTransactionExecutor, TransactionExecutor, ExecuteParams};
+use ton_types::{BuilderData, SliceData, IBitstring, Result, AccountId, serialize_toc, HashmapRemover, HashmapE};
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_messages.rs"]
@@ -197,8 +197,17 @@ impl<T> MessagesProcessor<T> where
         let (block_at, block_lt) = builder.at_and_lt();
         let last_lt = std::cmp::max(acc_last_lt, block_lt);
         let lt = Arc::new(AtomicU64::new(last_lt + 1));
-        let result = executor.execute(
-            Some(&msg), acc_root, block_at, block_lt, lt.clone(), debug
+        let result = executor.execute_with_libs_and_params(
+            Some(&msg),
+            acc_root,
+            ExecuteParams {
+                state_libs: HashmapE::default(),
+                block_unixtime: block_at,
+                block_lt,
+                last_tr_lt: Arc::clone(&lt),
+                debug,
+                ..ExecuteParams::default()
+            },
         );
         match result {
             Ok(transaction) => Ok((transaction, lt.load(AtomicOrdering::Relaxed))),
@@ -287,7 +296,7 @@ let now = Instant::now();
         let acc = Account::construct_from_cell(acc_root)?;
         if !acc.is_none() {
             let shard_acc = ShardAccount::with_params(&acc, transaction.hash()?, transaction.logical_time())?;
-            new_shard_state.lock().insert_account(&acc_id.get_bytestring(0).into(), &shard_acc)?;
+            new_shard_state.lock().insert_account(&UInt256::from_slice(&acc_id.get_bytestring(0)), &shard_acc)?;
         } else {
             let mut shard_state = new_shard_state.lock();
             let mut accounts = shard_state.read_accounts()?;
