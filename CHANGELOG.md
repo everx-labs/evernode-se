@@ -1,6 +1,12 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.29.0 Jul 05, 2021
+### Fixed
+- [tvm.rawReserve](https://github.com/tonlabs/TON-Solidity-Compiler/blob/master/API.md#tvmrawreserve) function now correctly reacts on flag 12 = 8 + 4.
+- [rnd.next](https://github.com/tonlabs/TON-Solidity-Compiler/blob/master/API.md#rndnext) now returns correct random number.
+- Fixed compilation errors.
+
 ## 0.28.3 May 20, 2021
 ### Fixed
 - Made code ready for planned updates in dependant repositories
