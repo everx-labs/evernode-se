@@ -3,8 +3,7 @@ All notable changes to this project will be documented in this file.
 
 ## 0.28.4 Jul 07, 2021
 ### Fixed
-- [tvm.rawReserve](https://github.com/tonlabs/TON-Solidity-Compiler/blob/master/API.md#tvmrawreserve) function now correctly reacts on flag `12 = 8 + 4`.
-- [rnd.next](https://github.com/tonlabs/TON-Solidity-Compiler/blob/master/API.md#rndnext) now returns correct random number. Use `rnd.shuffle()` before `rnd.next()` on TON OS SE. In the next releases we will improve it to work the same way as in the real network.
+- [tvm.rawReserve](https://github.com/tonlabs/TON-Solidity-Compiler/blob/master/API.md#tvmrawreserve) function now correctly reacts on all flags.
 
 ## 0.28.3 May 20, 2021
 ### Fixed
