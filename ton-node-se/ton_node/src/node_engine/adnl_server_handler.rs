@@ -10,7 +10,6 @@ use ton_api::ton::{int256, lite_server, rpc, TLObject, ton_node};
 use ton_api::ton::adnl::message::message::Query;
 use ton_block::{Deserializable, Message, MerkleProof};
 use ton_types::cells_serialization::{BagOfCells, serialize_toc};
-use ton_types::{BuilderData};
 use std::convert::TryInto;
 
 impl AdnlServerHandler for TonNodeEngine {
@@ -101,13 +100,12 @@ impl TonNodeEngine {
             )?;
         let block = sblock.block();
         let mut block_data = vec![];
-        let mut builder = BuilderData::new();
-        block.write_to(&mut builder)
+        let cell = block.serialize()
             .map_err(|err| 
                 adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
             )?;
 
-        let bag = BagOfCells::with_root(&builder.into());
+        let bag = BagOfCells::with_root(&cell);
         bag.write_to(&mut block_data, false)
             .map_err(|err| 
                 adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
@@ -158,7 +156,7 @@ impl TonNodeEngine {
         
         let shard = self.current_shard_id();
         let last_shard_state = finalizer.get_last_shard_state();
-        let last_shard_root: Cell = last_shard_state.write_to_new_cell()?.into();
+        let last_shard_root = last_shard_state.serialize()?;
         let acc = last_shard_state.read_accounts()?
         .account(&AccountId::from(acc_info.account.id.0))?;
         
@@ -180,17 +178,14 @@ impl TonNodeEngine {
                 )?;
 
             let block = signed_block.block();
-            let block_root = block.write_to_new_cell()
+            let block_root = block.serialize()
                 .map_err(|err| 
                     adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
                 )?;
             let block_root: Cell = block_root.into();
 
-            let block_info_root = block.read_info()?.write_to_new_cell()
-                .map_err(|err| 
-                    adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
-                )?;
-            let block_info_cells = BagOfCells::with_root(&block_info_root.into())
+            let block_info_root = block.info_cell();
+            let block_info_cells = BagOfCells::with_root(&block_info_root)
                 .withdraw_cells();
 
             let is_include = |h: &ton_types::UInt256| {
@@ -205,7 +200,7 @@ impl TonNodeEngine {
                         "block proof: ".to_string() + &err.to_string())
                     )
                 )?;
-            let block_proof_root = block_proof.write_to_new_cell()
+            let block_proof_root = block_proof.serialize()
                 .map_err(|err| 
                     adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
                 )?;
@@ -224,14 +219,14 @@ impl TonNodeEngine {
                         "account proof: ".to_string() + &err.to_string())
                     )
                 )?;
-            let acc_proof_root = acc_proof.write_to_new_cell()
+            let acc_proof_root = acc_proof.serialize()
                 .map_err(|err| 
                     adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
                 )?;
             
             // Proof contains 2 roots with 2 proofs
             let proof_bag = BagOfCells::with_roots(
-                vec![&block_proof_root.into(), &acc_proof_root.into()]
+                vec![&block_proof_root.into(), &acc_proof_root]
              );
             
             //println!("*** proof_bag\n{}\n", proof_bag);
