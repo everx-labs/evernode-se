@@ -16,9 +16,7 @@ use ton_block::Serializable;
 use ton_client::abi::{Abi, CallSet, DeploySet, encode_message, FunctionHeader, ParamsOfEncodeMessage, Signer};
 use ton_client::ClientContext;
 use ton_client::crypto::KeyPair;
-use ton_types::{
-    AccountId, BagOfCells
-};
+use ton_types::{AccountId, BagOfCells, SliceData};
 
 use ton_node_old::node_engine::StubReceiver as MsgCreator;
 
@@ -71,13 +69,13 @@ async fn main() {
 
             let message = MsgCreator::create_external_transfer_funds_message(
                 0,
-                AccountId::from(source_vec),
-                AccountId::from(dest_vec),
+                AccountId::from(SliceData::new(source_vec)),
+                AccountId::from(SliceData::new(dest_vec)),
                 value,
                 0);
 
             let b = message.write_to_new_cell().expect("Error write message to tree of cells");
-            let bag = BagOfCells::with_root(&b.into());
+            let bag = BagOfCells::with_root(&b.into_cell().expect("Error write message to tree of cells"));
 
             let mut file = File::create(out.clone()).expect("Error create out file");
             bag.write_to(&mut file, false).expect("Error write message to file");

@@ -102,7 +102,7 @@ debug!("FINBLK {:?}", hashes);
                     hash: sb.block_hash.clone(),
                 };
                 let mut shard = vec![];
-                BagOfCells::with_root(&sb.shard_state.write_to_new_cell()?.into())
+                BagOfCells::with_root(&sb.shard_state.serialize()?.into())
                     .write_to(&mut shard, false)?;
                 // save shard state
                 self.shard_state_storage.save_serialized_shardstate_ex(
@@ -594,7 +594,7 @@ debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
     /// get number of last finalized shard
     fn get_last_finality_shard_hash(&self) -> NodeResult<(u64, UInt256)> {
         // TODO avoid serilization there
-        let cell: Cell = self.last_finalized_block.shard_state.write_to_new_cell()?.into();
+        let cell: Cell = self.last_finalized_block.shard_state.serialize()?.into();
         
         Ok((self.last_finalized_block.seq_no, cell.repr_hash()))
     }
@@ -721,7 +721,7 @@ impl ShardBlock {
         let mut block_data = vec![];
         let mut builder = BuilderData::new();
         sblock.block().write_to(&mut builder).unwrap(); // TODO process result
-        let bag = BagOfCells::with_root(&builder.into());
+        let bag = BagOfCells::with_root(&builder.into_cell().unwrap());
         bag.write_to(&mut block_data, false).unwrap(); // TODO process result
 
         let mut hasher = Sha256::new();
@@ -747,7 +747,7 @@ impl ShardBlock {
         buf.append(&mut self.block_hash.as_slice().to_vec());
         buf.append(&mut self.file_hash.as_slice().to_vec());
 
-        BagOfCells::with_root(&self.shard_state.write_to_new_cell()?.into())
+        BagOfCells::with_root(&self.shard_state.serialize()?.into())
             .write_to(&mut buf, false)?;
 
         let mut block_buf = Vec::new();
@@ -852,7 +852,7 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
                 let mut outmsg2 = Message::with_ext_out_header(eomh);
                 *outmsg2.body_mut() = Some(SliceData::new(vec![0x02;120]));
 
-                let tr_cell: Cell = transaction.write_to_new_cell().unwrap().into();
+                let tr_cell: Cell = transaction.serialize().unwrap().into();
 
                 let out_msg1 = OutMsg::new(
                     &MsgEnvelope::with_message_and_fee(&outmsg1, 9u32.into()).unwrap(),

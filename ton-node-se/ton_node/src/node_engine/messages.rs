@@ -461,7 +461,7 @@ info!(target: "profiler",
 
     fn get_out_msgs_from_transaction(shard_id: &ShardIdent, transaction: &Transaction, reimport: &InMsg) -> NodeResult<Vec<OutMsg>> {
         let mut res = vec![];
-        let tr_cell: Cell = transaction.write_to_new_cell()?.into();
+        let tr_cell: Cell = transaction.serialize()?.into();
         transaction.iterate_out_msgs(|ref msg| {
             res.push(if msg.is_internal() {
                 if shard_id.contains_address(&msg.dst().unwrap())? {

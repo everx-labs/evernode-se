@@ -107,7 +107,9 @@ impl TonNodeEngine {
                 adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
             )?;
 
-        let bag = BagOfCells::with_root(&builder.into());
+        let bag = BagOfCells::with_root(&builder.into_cell().map_err(|err|
+            adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
+        )?);
         bag.write_to(&mut block_data, false)
             .map_err(|err| 
                 adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
@@ -158,7 +160,7 @@ impl TonNodeEngine {
         
         let shard = self.current_shard_id();
         let last_shard_state = finalizer.get_last_shard_state();
-        let last_shard_root: Cell = last_shard_state.write_to_new_cell()?.into();
+        let last_shard_root: Cell = last_shard_state.serialize()?;
         let acc = last_shard_state.read_accounts()?
         .account(&AccountId::from(acc_info.account.id.0))?;
         
@@ -184,13 +186,19 @@ impl TonNodeEngine {
                 .map_err(|err| 
                     adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
                 )?;
-            let block_root: Cell = block_root.into();
+            let block_root: Cell = block_root.into_cell().map_err(|err|
+                adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
+            )?;
 
             let block_info_root = block.read_info()?.write_to_new_cell()
                 .map_err(|err| 
                     adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
                 )?;
-            let block_info_cells = BagOfCells::with_root(&block_info_root.into())
+            let block_info_cells = BagOfCells::with_root(&block_info_root.into_cell()
+                .map_err(|err|
+                    adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
+                )?
+            )
                 .withdraw_cells();
 
             let is_include = |h: &ton_types::UInt256| {
@@ -231,7 +239,16 @@ impl TonNodeEngine {
             
             // Proof contains 2 roots with 2 proofs
             let proof_bag = BagOfCells::with_roots(
-                vec![&block_proof_root.into(), &acc_proof_root.into()]
+                vec![
+                    &block_proof_root.into_cell()
+                        .map_err(|err|
+                            adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
+                        )?
+                    , &acc_proof_root.into_cell()
+                        .map_err(|err|
+                            adnl_err!(AdnlErrorKind::QueryProcessingFailed(err.to_string()))
+                        )?
+                ]
              );
             
             //println!("*** proof_bag\n{}\n", proof_bag);
