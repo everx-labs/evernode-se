@@ -1,6 +1,6 @@
 ARG TON_NODE
 
-FROM node:12-buster as q-server-build
+FROM node:14-buster as q-server-build
 
 ARG Q_SERVER_GITHUB_REPO
 ARG Q_SERVER_GITHUB_REV
@@ -12,7 +12,9 @@ USER node
 WORKDIR /home/node
 RUN git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO ton-q-server
 WORKDIR /home/node/ton-q-server
-RUN npm install --production
+RUN npm ci; \
+    npm run tsc; \
+    npm ci --production
 
 FROM ${TON_NODE} as ton-node
 
