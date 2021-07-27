@@ -190,7 +190,7 @@ impl TonNodeEngine {
 
             let is_include = |h: &ton_types::UInt256| {
                 info!(target: "adnl", "process_get_account_state 200 {}", h);
-                h == block_root.reference(2).unwrap().repr_hash() || // Merkle update root
+                h == &block_root.reference(2).unwrap().repr_hash() || // Merkle update root
                 block_info_cells.contains_key(h)
             };
 
@@ -209,8 +209,8 @@ impl TonNodeEngine {
             let second_ref = last_shard_root.reference(2).unwrap().repr_hash();
             let is_include = |h: &ton_types::UInt256| {
                 info!(target: "adnl", "process_get_account_state 218 {}", h);
-                &h == &second_ref || // part of  ShardStateUnsplit in separate cell ^[ ... ]
-                &h == &acc_repr_hash
+                h == &second_ref || // part of  ShardStateUnsplit in separate cell ^[ ... ]
+                h == &acc_repr_hash
             };
             let acc_proof = MerkleProof::create(
                 &last_shard_root, &is_include)
