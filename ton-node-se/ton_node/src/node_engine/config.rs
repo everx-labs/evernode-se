@@ -1,4 +1,3 @@
-use adnl::config::AdnlServerConfigJson;
 use ed25519_dalek::PublicKey;
 use serde::Deserialize;
 use std::fs;
@@ -39,7 +38,6 @@ pub struct NodeConfig {
     keys: Vec<String>,
     pub boot: Vec<String>,
     shard_id: ShardIdConfig,
-    pub adnl: AdnlServerConfigJson,
     kafka_msg_recv: serde_json::Value,
     document_db: serde_json::Value,
 }

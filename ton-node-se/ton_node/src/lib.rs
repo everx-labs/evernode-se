@@ -1,7 +1,6 @@
 #![recursion_limit = "128"]
 
 // External 
-extern crate aes_ctr;
 extern crate bytes;
 extern crate clap;
 extern crate curve25519_dalek;
@@ -32,8 +31,6 @@ extern crate x25519_dalek;
 extern crate tokio_io_timeout;
 
 // Domestic
-#[macro_use]
-extern crate adnl;
 extern crate poa;
 extern crate ton_api;
 // #[macro_use]

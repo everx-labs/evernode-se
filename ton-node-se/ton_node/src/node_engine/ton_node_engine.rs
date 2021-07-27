@@ -1,4 +1,3 @@
-use adnl::{config::AdnlServerConfig, server::AdnlServer};
 use super::*;
 #[allow(deprecated)]
 use crate::error::NodeResult;
@@ -8,14 +7,12 @@ use poa::engines::authority_round::subst::{Client, EngineClient, EthereumMachine
 use poa::engines::authority_round::{AuthorityRound, AuthorityRoundParams};
 use poa::engines::validator_set::{/*PublicKeyListImport,*/ SimpleList};
 use poa::engines::Engine;
-use std::mem;
 use std::cmp::Ordering;
 use std::io::ErrorKind;
 use std::sync::{atomic::Ordering as AtomicOrdering, atomic::{AtomicBool, AtomicUsize}, Arc};
 use std::time::Duration;
 use ton_api::ton::ton_engine::{NetworkProtocol, network_protocol::*};
 use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
-use tokio::{prelude::Future, runtime::Runtime};
 use ton_executor::BlockchainConfig;
 
 #[cfg(test)]
@@ -86,9 +83,6 @@ pub struct TonNodeEngine {
     #[cfg(test)]
     pub test_counter_out: Arc<Mutex<u32>>,
 
-    pub adnl_config: AdnlServerConfig,
-    pub adnl_runtime: Arc<Mutex<Option<Runtime>>>,
-
     routing_table: RoutingTable,
 
     pub db: Arc<Box<dyn DocumentsDb>>,
@@ -108,13 +102,6 @@ impl TonNodeEngine {
         self.service
                 .register_protocol(self.clone(), *b"tvm", &[(1u8, 20u8)])
                 .unwrap();
-
-        let mut rt = self.adnl_runtime.lock();
-        
-        match AdnlServer::listen(self.adnl_config.clone(), self.clone()) {
-            Ok(adnl) => *rt = Some(adnl),
-            Err(err) => warn!(target: "node", "Error start ADNL server. {:?}", err)
-        }
 
         let node = self.clone();
         if node.local {
@@ -147,15 +134,6 @@ impl TonNodeEngine {
 
     pub fn stop(self: Arc<Self>) -> NodeResult<()> {
         self.service.stop();
-
-        let rt = mem::take(&mut *self.adnl_runtime.lock());
-        if let Some(rt) = rt{
-            rt.shutdown_now()
-                .wait().map_err(|e| 
-                    log::error!("Error shutdown tokio adnl runtime. {:?}", e)
-                ).expect("Error shutdown tokio adnl runtime");
-            info!(target: "node", "ADNL runtime shutdown successfully");
-        }
         info!(target: "node","TONNodeEngine stoped.");
         Ok(())
     }
@@ -172,7 +150,6 @@ impl TonNodeEngine {
         private_key: Keypair,
         public_keys: Vec<ed25519_dalek::PublicKey>,
         boot_list: Vec<String>,
-        adnl_config: AdnlServerConfig,
         receivers: Vec<Box<dyn MessagesReceiver>>,
         blockchain_config: BlockchainConfig,
         documents_db: Option<Box<dyn DocumentsDb>>,
@@ -279,9 +256,6 @@ impl TonNodeEngine {
             test_counter_out: Arc::new(Mutex::new(0)),
             #[cfg(test)]
             test_counter_in: Arc::new(Mutex::new(0)),
-
-            adnl_config,
-            adnl_runtime: Arc::new(Mutex::new(None)),
 
             db: documents_db,
             routing_table: RoutingTable::new(shard)
