@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.5 Jul 19, 2021
+### Fixed
+- Build with new version q-server 0.41.0
+
 ## 0.28.4 Jul 07, 2021
 ### Fixed
 - [tvm.rawReserve](https://github.com/tonlabs/TON-Solidity-Compiler/blob/master/API.md#tvmrawreserve) function now correctly reacts on all flags.
