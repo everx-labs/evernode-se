@@ -3,7 +3,6 @@ extern crate ethcore_network as network;
 // use poa::error::PoaError;
 use std::io;
 // use tvm::types::Exception;
-use adnl::error::AdnlError;
 
 error_chain! {
 
@@ -12,7 +11,6 @@ error_chain! {
     }
 
     foreign_links {
-        Adnl(AdnlError);
         Eth(network::Error);
         Io(io::Error);
     }

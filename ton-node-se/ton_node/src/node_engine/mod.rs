@@ -43,7 +43,6 @@ pub mod ton_node_engine;
 use self::ton_node_engine::*;
 
 pub mod ton_node_handlers;
-pub mod adnl_server_handler;
 
 pub mod config;
 use self::config::*;

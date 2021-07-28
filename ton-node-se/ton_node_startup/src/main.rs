@@ -19,7 +19,6 @@ extern crate serde_json;
 extern crate serde_derive;
 extern crate router;
 extern crate base64;
-extern crate adnl;
 extern crate ton_block_json;
 extern crate ton_executor;
 
@@ -32,7 +31,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use ton_node::error::NodeResult;
-use adnl::config::AdnlServerConfig;
 use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 use ton_node::node_engine::ton_node_engine::TonNodeEngine;
 use ton_node::node_engine::ton_node_handlers::init_ton_node_handlers;
@@ -134,8 +132,6 @@ fn start_node(config: &str, blockchain_config: &str) -> NodeResult<()> {
         .expect(&format!("Error reading key file {}", config.private_key));
     let private_key = Keypair::from_bytes(&keypair).unwrap();
 
-    let adnl_config = AdnlServerConfig::from_json_config(&config.adnl);
-
     let db: Box<dyn DocumentsDb> = Box::new(ArangoHelper::from_config(&config.document_db_config())?);
     let receivers: Vec<Box<dyn MessagesReceiver>> = vec!(
             Box::new(KafkaProxyMsgReceiver::from_config(&config.kafka_msg_recv_config())?));
@@ -150,7 +146,6 @@ fn start_node(config: &str, blockchain_config: &str) -> NodeResult<()> {
         private_key,
         public_keys,
         config.boot,
-        adnl_config,
         receivers,
         blockchain_config,
         Some(db),
