@@ -2,7 +2,7 @@
 
 This directory contains Giver v2 (ABI v2) contract. This giver is recommended over Giver v1.
 
-In TON OS SE this giver is predeployed at `0:b5e9240fc2d2f1ff8cbb1d1dee7fb7cae155e5f6320e585fcc685698994a19a5` address 
+In TON OS SE this giver is predeployed at `0:ece57bcc6c530283becbbd8a3b24d3c5987cdddc3c8b7b33be6e4a6312490415` address 
 and its initial balance is about 5 billion tokens. 
 
 ## Keys:
@@ -19,7 +19,7 @@ parameters:
 
 ### Using tonos-cli:
 ```commandline
-tonos-cli call 0:b5e9240fc2d2f1ff8cbb1d1dee7fb7cae155e5f6320e585fcc685698994a19a5 \
+tonos-cli call 0:ece57bcc6c530283becbbd8a3b24d3c5987cdddc3c8b7b33be6e4a6312490415 \
     sendTransaction '{"dest":"<address>","value":<nanotokens>,"bounce":false}' \
     --abi GiverV2.abi.json \
     --sign GiverV2.keys.json  
