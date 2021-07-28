@@ -54,13 +54,13 @@ struct BlockData {
 impl BlockData {
     fn insert_serialized_in_msg(&mut self, msg_cell: &Cell, fees: &ImportFees ) -> Result<()> {
         let mut in_msg_dscr = self.block_extra.read_in_msg_descr()?;
-        in_msg_dscr.insert_serialized(&msg_cell.repr_hash().write_to_new_cell()?.into(), &msg_cell.into(), fees)?;
+        in_msg_dscr.insert_serialized(&msg_cell.repr_hash().serialize()?.into(), &msg_cell.into(), fees)?;
         self.block_extra.write_in_msg_descr(&in_msg_dscr)
     }
 
     fn insert_serialized_out_msg(&mut self, msg_cell: &Cell, exported: &CurrencyCollection) -> Result<()> {
         let mut out_msg_descr = self.block_extra.read_out_msg_descr()?;
-        out_msg_descr.insert_serialized(&msg_cell.repr_hash().write_to_new_cell()?.into(), &msg_cell.into(), exported)?;
+        out_msg_descr.insert_serialized(&msg_cell.repr_hash().serialize()?.into(), &msg_cell.into(), exported)?;
         self.block_extra.write_out_msg_descr(&out_msg_descr)
     }
 }

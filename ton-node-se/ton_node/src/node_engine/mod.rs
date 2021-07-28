@@ -304,7 +304,7 @@ impl StubReceiver {
         );
 
         *msg.body_mut() = Some(Self::create_transfer_int_header(workchain_id, src, dst, value)
-            .write_to_new_cell()
+            .serialize()
             .unwrap()
             .into()
         );

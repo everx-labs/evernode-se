@@ -333,9 +333,9 @@ impl ShardStateStorage for FileBasedStorage {
         let (mut shard_path, _blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
         shard_path.push("shard_state.block");
 
-        let builder = shard_state.write_to_new_cell()?;
+        let cell = shard_state.serialize()?;
         let mut file = File::create(shard_path.as_path())?;
-        serialize_tree_of_cells(&builder.into(), &mut file)?;
+        serialize_tree_of_cells(&cell, &mut file)?;
         file.flush()?;
         Ok(())
     }
@@ -364,8 +364,8 @@ impl ShardStateStorage for FileBasedStorage {
         if shard_data.is_some() {
             file.write_all(shard_data.unwrap().as_slice())?;
         } else {
-            let builder = shard_state.write_to_new_cell()?;
-            serialize_tree_of_cells(&builder.into(), &mut file)?;
+            let cell = shard_state.serialize()?;
+            serialize_tree_of_cells(&cell, &mut file)?;
         }
         file.flush()?;
 
