@@ -5,7 +5,7 @@ version = "0.0.4"
 description = "ADNL library"
 
 [dependencies]
-aes-ctr = "^0.3.0"
+aes-ctr = "^0.6.0"
 arrayref = "0.3.5"
 base64 = "0.10.1"
 bytes = "0.4.12"
