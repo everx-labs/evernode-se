@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.6 Jul 27, 2021
+### Fixed
+- Removed useless adnl to fix the build process.
+
 ## 0.28.5 Jul 19, 2021
 ### Fixed
 - Build with new version q-server 0.41.0

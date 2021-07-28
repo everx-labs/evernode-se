@@ -1030,7 +1030,7 @@ time.push(now.elapsed().as_micros());
         self.sync_limit.store(0, AtomicOrdering::SeqCst);
     }
 
-    ///  stop synchronization
+    ///  start synchronization
     fn start_sync(&self) -> bool {
         let res = self.is_synchronize.compare_exchange(false, true, AtomicOrdering::SeqCst, AtomicOrdering::SeqCst);
         info!(target: "node", "Start synchronization = {}!", res.is_ok());

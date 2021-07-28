@@ -6,7 +6,6 @@ version = "0.0.1"
 [dependencies]
 
 # External
-aes-ctr = "0.3.0"
 base64 = "0.10.1"
 bytes = "0.4.12"
 clap = "2.33.0"
@@ -32,7 +31,6 @@ x25519-dalek = "^0.5.2"
 tokio-io-timeout = "0.3.1"
 
 # Domestic
-adnl = { path = "../adnl", features = ["server"] }
 poa = { path = "../poa" }
 ton_api = { git = "https://github.com/tonlabs/ton-labs-tl.git", package = "ton_api" }
 ton_block = { git = "https://github.com/tonlabs/ton-labs-block.git" }
