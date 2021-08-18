@@ -24,7 +24,7 @@ use ton_node_old::node_engine::StubReceiver as MsgCreator;
 
 #[tokio::main]
 async fn main() {
-    let args = clap_app!("create-msg" =>
+    let args = clap_app!(create_msg =>
         (version: &*format!("{}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
             env!("CARGO_PKG_VERSION"),
             env!("BUILD_GIT_COMMIT"),
@@ -53,8 +53,8 @@ async fn main() {
         .setting(AppSettings::ArgRequiredElseHelp)
         .get_matches();
 
-    let (subcommand, args) = args.subcommand()
-        .expect("Specify SUBCOMMAND: transfer or deploy");
+    let (subcommand, args) = args.subcommand();
+    let args = args.expect("Specify SUBCOMMAND: transfer or deploy");
     let out = args.value_of("OUTPUT")
         .expect("Specify OUTPUT file name");
     match subcommand {
