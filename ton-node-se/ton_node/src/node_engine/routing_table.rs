@@ -55,13 +55,13 @@ impl RoutingTable {
     }
 
     /// Insert new item to table
-    pub fn insert(&self, info: NodeInfo, peer_id: usize) -> Option<usize> {
-        self.route_by_peer.lock().insert(peer_id, info.clone());
+    pub fn insert(&self, info: NodeInfo, peer: usize) -> Option<usize> {
+        self.route_by_peer.lock().insert(peer, info.clone());
         let wv = WcVal { wc: info.shard.workchain_id(), val: info.validator_index };
-        let sp = ShardPeer { shard: info.shard, peer: peer_id };
+        let sp = ShardPeer { shard: info.shard.clone(), peer };
         self.route_by_wcval.lock().entry(wv).or_insert(vec![]).push(sp);
         
-        self.route_by_info.lock().insert(info, peer_id)
+        self.route_by_info.lock().insert(info, peer)
     }
 
     /// Delete record from routing table
@@ -76,7 +76,7 @@ impl RoutingTable {
 
     fn remove_from_wcval(&self, info: &NodeInfo, peer: usize) {
         let wv = WcVal { wc: info.shard.workchain_id(), val: info.validator_index };
-        let sp = ShardPeer { shard: info.shard, peer: peer };
+        let sp = ShardPeer { shard: info.shard.clone(), peer };
         let index = self
             .route_by_wcval
             .lock()
