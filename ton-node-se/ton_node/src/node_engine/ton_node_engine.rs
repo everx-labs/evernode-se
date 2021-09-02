@@ -166,7 +166,7 @@ impl TonNodeEngine {
 
         let documents_db = Arc::new(documents_db.unwrap_or_else(|| Box::new(DocumentsDbMock)));
         
-        let queue = Arc::new(InMessagesQueue::with_db(shard, 10000, documents_db.clone()));
+        let queue = Arc::new(InMessagesQueue::with_db(shard.clone(), 10000, documents_db.clone()));
 
         let storage = Arc::new(Storage::with_path(shard.clone(), storage_path.clone())?);
         let block_finality = Arc::new(Mutex::new(
