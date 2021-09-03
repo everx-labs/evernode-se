@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.6 Jul 28, 2021
+### Fixed
+- Predeployed fixed version of Giver V2 (with the new address). The old version of giver left at the same old address 
+  for backward compatibility.
+
 ## 0.28.6 Jul 27, 2021
 ### Fixed
 - Removed useless adnl to fix the build process.
