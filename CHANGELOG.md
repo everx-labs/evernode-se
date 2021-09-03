@@ -1,7 +1,7 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.28.6 Jul 28, 2021
+## 0.28.7 Sep 5, 2021
 ### Fixed
 - Predeployed fixed version of Giver V2 (with the new address). The old version of giver left at the same old address 
   for backward compatibility.
