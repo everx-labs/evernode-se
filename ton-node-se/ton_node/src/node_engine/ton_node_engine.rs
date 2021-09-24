@@ -75,7 +75,7 @@ pub struct TonNodeEngine {
     timers: Arc<Mutex<HashMap<TimerToken, TimerHandler>>>,
     requests: Arc<Mutex<HashMap<PeerId, HashMap<u32, RequestCallback>>>>,
 
-    responses: Arc<Mutex<HashMap<NetworkProtocol, ResponseCallback>>>,
+    responses: Arc<Mutex<Vec<(NetworkProtocol, ResponseCallback)>>>,
     is_network_enabled: bool,
     service: Arc<NetworkService>,
     #[cfg(test)]
@@ -250,7 +250,7 @@ impl TonNodeEngine {
             peer_list: Arc::new(Mutex::new(vec![])),
             timers_count: AtomicUsize::new(0),
             timers: Arc::new(Mutex::new(HashMap::new())),
-            responses: Arc::new(Mutex::new(HashMap::new())),
+            responses: Arc::new(Mutex::new(Vec::new())),
             requests: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(test)]
             test_counter_out: Arc::new(Mutex::new(0)),
@@ -412,7 +412,7 @@ impl TonNodeEngine {
                 let request = deserialize::<NetworkProtocol>(&mut &data[4..]);
                 
                 let funcs = self.responses.lock().iter()
-                    .filter(|(key, _val)| variant_eq(key.clone(), &request))
+                    .filter(|(key, _val)| variant_eq(key, &request))
                     .map(|(_key, val)| val.clone()).collect::<Vec<ResponseCallback>>();
 
                 if funcs.len() == 1 {
@@ -509,7 +509,7 @@ impl TonNodeEngine {
         responce: NetworkProtocol,
         callback: ResponseCallback)
     {
-        self.responses.lock().insert(responce, callback);
+        self.responses.lock().push((responce, callback));
     }
 
     fn disconnected_internal(&self, io: &dyn NetworkContext, peer: &PeerId ) -> NodeResult<()> {
