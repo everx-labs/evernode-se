@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.9 Sep 24, 2021
+### Fixed
+- Internal fixes in order to fix building.
+
 ## 0.28.8 Sep 22, 2021
 ### Fixed
 - Build with new version q-server 0.43.0
