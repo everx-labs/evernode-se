@@ -9,7 +9,7 @@ use std::io::{ErrorKind, Read, Seek, Write};
 use std::path::PathBuf;
 use ton_block::{InMsg, OutMsg, AccountStatus, ExtOutMessageHeader, MsgEnvelope};
 use ton_block::{HashmapAugType, BlkPrevInfo, Deserializable, ShardIdent};
-use ton_types::{UInt256, deserialize_tree_of_cells, BagOfCells};
+use ton_types::{UInt256, deserialize_tree_of_cells};
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_block_finality.rs"]
@@ -101,9 +101,7 @@ debug!("FINBLK {:?}", hashes);
                     lt: info.end_lt(),
                     hash: sb.block_hash.clone(),
                 };
-                let mut shard = vec![];
-                BagOfCells::with_root(&sb.shard_state.serialize()?)
-                    .write_to(&mut shard, false)?;
+                let shard = sb.shard_state.write_to_bytes()?;
                 // save shard state
                 self.shard_state_storage.save_serialized_shardstate_ex(
                     &ShardStateUnsplit::default(), Some(shard), &sb.block.block().read_state_update()?.new_hash,
@@ -718,10 +716,7 @@ impl ShardBlock {
 
         // Test-lite-client requires hash od unsigned block
         // TODO will to think, how to do better
-        let mut block_data = vec![];
-        let cell = sblock.block().serialize().unwrap(); // TODO process result
-        let bag = BagOfCells::with_root(&cell);
-        bag.write_to(&mut block_data, false).unwrap(); // TODO process result
+        let block_data = sblock.block().write_to_bytes().unwrap(); // TODO process result
 
         let mut hasher = Sha256::new();
 		hasher.input(block_data.as_slice());
@@ -742,12 +737,11 @@ impl ShardBlock {
         let mut buf = Vec::new();
         buf.extend_from_slice(&self.seq_no.to_le_bytes());
         buf.extend_from_slice(&(self.serialized_block.len() as u32).to_le_bytes());
-        buf.append(&mut self.serialized_block.clone());
-        buf.append(&mut self.block_hash.as_slice().to_vec());
-        buf.append(&mut self.file_hash.as_slice().to_vec());
+        buf.extend_from_slice(self.serialized_block.as_slice());
+        buf.extend_from_slice(self.block_hash.as_slice());
+        buf.extend_from_slice(self.file_hash.as_slice());
 
-        BagOfCells::with_root(&self.shard_state.serialize()?)
-            .write_to(&mut buf, false)?;
+        buf.append(&mut self.shard_state.write_to_bytes()?);
 
         let mut block_buf = Vec::new();
         self.block.write_to(&mut block_buf)?;
