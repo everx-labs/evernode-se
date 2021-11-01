@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.11 Nov 01, 2021
+### Fixed
+- Fixed honcho version in order to fix container start (ignoring incompatible release).
+
 ## 0.28.10 Oct 13, 2021
 ### Fixed
 - Internal fixes in order to fix building.

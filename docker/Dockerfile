@@ -45,7 +45,7 @@ RUN apk --update add nginx dos2unix bash git py-pip; \
     rm -rf /etc/nginx/v.host/; \
     rm -f /etc/nginx/nginx.conf; \
     pip install --upgrade pip; \
-    pip install honcho; \
+    pip install -Iv honcho==1.0.1; \
     mkdir -p '/var/lib/arangodb3'; \
     mkdir -p '/var/lib/arangodb3-apps'; \
     chmod +w '/var/lib/arangodb3'; \
