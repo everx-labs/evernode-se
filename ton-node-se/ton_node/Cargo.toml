@@ -32,12 +32,12 @@ tokio-io-timeout = "0.3.1"
 
 # Domestic
 poa = { path = "../poa" }
-ton_api = { git = "https://github.com/tonlabs/ton-labs-tl.git", package = "ton_api" }
-ton_block = { git = "https://github.com/tonlabs/ton-labs-block.git" }
-ton_executor = { git = "https://github.com/tonlabs/ton-labs-executor.git" }
-ton_types = { git = "https://github.com/tonlabs/ton-labs-types.git" }
-ton_vm = { git = "https://github.com/tonlabs/ton-labs-vm.git" }
-ton_labs_assembler = { git = "https://github.com/tonlabs/ton-labs-assembler.git" }
+ton_api = { git = 'https://github.com/tonlabs/ton-labs-tl', package = 'ton_api', tag = '0.2.110' }
+ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.27' }
+ton_executor = { git = 'https://github.com/tonlabs/ton-labs-executor', tag = '1.15.31' }
+ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.10.10' }
+ton_vm = { git = 'https://github.com/tonlabs/ton-labs-vm', tag = '1.8.19' }
+ton_labs_assembler = { git = "https://github.com/tonlabs/ton-labs-assembler.git", tag = '1.2.24' }
 
 # TBD
 #ethcore-network = { git = "https://github.com/paritytech/parity-ethereum.git", package = "ethcore-network" } 
