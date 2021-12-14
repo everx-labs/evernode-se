@@ -15,11 +15,11 @@ use std::thread::{JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ton_labs_assembler::compile_code;
 use ton_block::{
-    Account, BlkPrevInfo, Block,  CommonMsgInfo,
-    CurrencyCollection, ExtBlkRef, ExternalInboundMessageHeader, GetRepresentationHash, 
-    Grams, InternalMessageHeader, Message,
+    Account, BlkPrevInfo, Block, CommonMsgInfo, 
+    CurrencyCollection, ExtBlkRef, ExternalInboundMessageHeader, 
+    GetRepresentationHash, Grams, InternalMessageHeader, Message, 
     MsgAddressExt, MsgAddressInt, Serializable, Deserializable, ShardStateUnsplit, 
-    ShardIdent, StateInit, Transaction, SignedBlock,
+    ShardIdent, StateInit, Transaction, SignedBlock, BlockId,
 };
 use ton_types::{ Cell, SliceData };
 use ton_types::types::{ UInt256, AccountId, ByteOrderRead };
@@ -468,7 +468,7 @@ pub trait MessagesReceiver: Send {
 }
 
 pub trait DocumentsDb: Send + Sync {
-    fn put_account(&self, acc: Account) -> NodeResult<()>;
+    fn put_account(&self, acc: Account, last_trans_block_id: Option<BlockId>) -> NodeResult<()>;
     fn put_deleted_account(&self, workchain_id: i32, account_id: AccountId) -> NodeResult<()>;
     fn put_block(&self, block: Block) -> NodeResult<()>;
 
@@ -492,7 +492,7 @@ pub trait DocumentsDb: Send + Sync {
 
 pub struct DocumentsDbMock;
 impl DocumentsDb for DocumentsDbMock {
-    fn put_account(&self, _: Account) -> NodeResult<()> { 
+    fn put_account(&self, _: Account, _: Option<BlockId>) -> NodeResult<()> {
         Ok(()) 
     }
 

@@ -436,7 +436,7 @@ debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_st
                         let acc = acc.read_account()?;
                         if acc.is_none() {
                             error!(target: "node", "something gone wrong with account {:x}", id);
-                        } else if let Err(err) = db.put_account(acc) {
+                        } else if let Err(err) = db.put_account(acc, Some(block_id)) {
                             warn!(target: "node", "reflect account to DB. error: {}", err);
                         }
                     }

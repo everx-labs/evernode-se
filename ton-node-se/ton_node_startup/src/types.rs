@@ -398,11 +398,12 @@ impl DocumentsDb for ArangoHelper {
         Ok(())
     }
 
-    fn put_account(&self, account: Account) -> NodeResult<()> {
+    fn put_account(&self, account: Account, last_trans_block_id: Option<BlockId>) -> NodeResult<()> {
         let account_addr = account.get_id().unwrap_or_default();
         let cell = account.serialize()?;
         let boc = serialize_toc(&cell)?;
         let set = AccountSerializationSet {
+            last_trans_block_id,
             account,
             boc,
             proof: None
