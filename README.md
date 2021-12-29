@@ -1,6 +1,6 @@
 # Evernode Startup Edition (SE)
 
-Local blockchain for Everscale DApp development and testing.  
+Ever OS Local Node for Everscale DApp development and testing.  
 
 **Have a question? Get quick help in our channel:**
 
