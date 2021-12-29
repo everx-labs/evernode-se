@@ -2,7 +2,7 @@
 
 This directory contains SafeMultisig Wallet contract for testing purposes.
 
-In TON OS SE this contract is predeployed at `0:d5f5cfc4b52d2eb1bd9d3a8e51707872c7ce0c174facddd0e06ae5ffd17d2fcd` address 
+In Evernode SE this contract is predeployed at `0:d5f5cfc4b52d2eb1bd9d3a8e51707872c7ce0c174facddd0e06ae5ffd17d2fcd` address 
 with one single custodian and its initial balance is about 1 million tokens. 
 
 ## Custodian Keys:

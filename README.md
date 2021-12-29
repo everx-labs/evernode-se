@@ -1,43 +1,41 @@
-# TON OS Startup Edition
+# Evernode Startup Edition (SE)
 
-Local blockchain for Free TON DApp development and testing.  
+Local blockchain for Everscale DApp development and testing.  
 
 **Have a question? Get quick help in our channel:**
 
 [![Channel on Telegram](https://img.shields.io/badge/chat-on%20telegram-9cf.svg)](https://t.me/ton_sdk) 
 
-- [TON OS Startup Edition](#ton-os-startup-edition)
-  - [What is TON OS Startup Edition?](#what-is-ton-os-startup-edition)
+- [Evernode Startup Edition (SE)](#evernode-startup-edition-se)
+  - [What is Evernode Startup Edition?](#what-is-evernode-startup-edition)
   - [Use-cases](#use-cases)
   - [How to install](#how-to-install)
     - [Pre-requisites](#pre-requisites)
-    - [Instal via TONDEV Development Environment](#instal-via-tondev-development-environment)
+    - [Instal via EVERDEV Development Environment](#instal-via-everdev-development-environment)
     - [Install via docker command](#install-via-docker-command)
   - [How to change the blockchain configuration](#how-to-change-the-blockchain-configuration)
   - [How to work with logs](#how-to-work-with-logs)
-  - [How to connect to TON OS SE Graphql API from SDK](#how-to-connect-to-ton-os-se-graphql-api-from-sdk)
-  - [TON OS SE components](#ton-os-se-components)
+  - [How to connect to Evernode SE Graphql API from SDK](#how-to-connect-to-evernode-se-graphql-api-from-sdk)
+  - [Evernode SE components](#evernode-se-components)
   - [TON Live explorer](#ton-live-explorer)
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
 
 
-## What is TON OS Startup Edition?
+## What is Evernode Startup Edition?
 
-TON OS Startup Edition (SE) is a local blockchain that developer can run on their machine in one click.   
+Evernode Startup Edition (SE) is a local instance of Ever OS that developer can run on their machine in one click.   
 
-At the moment we publish TON OS SE only as a [docker image](https://hub.docker.com/r/tonlabs/local-node). 
-We plan to provide simple installers for MacOS, Win, Linux without docker by the end of Q1 2021.
-
-See the [TON Labs TON OS SE documentation](https://docs.ton.dev/86757ecb2/p/19d886-ton-os-se) for detailed information.
+At the moment we publish Evernode SE only as a [docker image](https://hub.docker.com/r/tonlabs/local-node). 
+But you can access non-docker builds of SE in community repos:
 
 
 ## Use-cases
 
 - Test your applications locally
 - Test your contracts
-- Run TON OS remotely on a server and test your application from different devices
+- Run SE remotely on a server and test your application on a light local network from different devices.
 
 
 ## How to install
@@ -48,15 +46,15 @@ See the [TON Labs TON OS SE documentation](https://docs.ton.dev/86757ecb2/p/19d8
 
 **Attention!** [Docker daemon](https://www.docker.com/get-started) must be running. 
 
-### Instal via TONDEV Development Environment
+### Instal via EVERDEV Development Environment
 
-If you have [TONDEV installed globally on your machine](https://github.com/tonlabs/tondev), run this command
+If you have [EVERDEV installed globally on your machine](https://github.com/tonlabs/everdev), run this command
 
 ```commandline
-$ tondev se start
+$ everdev se start
 ```
-[Checkout other TON OS SE commands accessible from TONDEV](https://docs.ton.dev/86757ecb2/p/54722f-tonos-se). 
-You can also access these commands from [TONDEV VS Code Extension](https://github.com/tonlabs/tondev-vscode).
+[Checkout other Evernode SE commands accessible from EVERDEV](https://docs.ton.dev/86757ecb2/p/54722f-tonos-se). 
+You can also access these commands from [EVERDEV VS Code Extension](https://github.com/tonlabs/tondev-vscode).
 
 
 ### Install via docker command
@@ -76,15 +74,14 @@ If you specified another port then add it to the local url http://0.0.0.0:port/g
 
 ## How to change the blockchain configuration
 
-TON OS SE loads the blockchain configuration (config params) during its start from the configuration file 
+Evernode SE loads the blockchain configuration (config params) during its start from the configuration file 
 [blockchain.conf.json](docker/ton-node/blockchain.conf.json) instead of special smart contract, which stores 
 various config params in the real networks.
 
 In order to change some of these params, do the following:
 1. Get [blockchain.conf.json](docker/ton-node/blockchain.conf.json) file and store it to the host's filesystem 
    accessible by docker. In our example we store it at `/home/user/blockchain.conf.json`.
-2. Edit the downloaded file, changing parameters you need. If one of the parameters is omitted or renamed, 
-   TON OS SE will not start.
+2. Edit the downloaded file, changing parameters you need. If one of the parameters is omitted or renamed, Evernode SE will not start.
 3. Create a new docker container, overriding its configuration file 
    (its path in the image is `/ton-node/blockchain.conf.json`) with the file from the host's filesystem. 
    Change `/home/user/blockchain.conf.json` to correct path pointing to the edited blockchain configuration file:
@@ -96,7 +93,7 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
 
 ## How to work with logs
 
-By default, TON OS SE logs the most of the information to the console, which is accessible by the next command:
+By default, Evernode SE logs the most of the information to the console, which is accessible by the next command:
 ```commandline
 $ docker logs local-node
 ```
@@ -128,19 +125,19 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
      -v /home/user/log_cfg.yml:/ton-node/log_cfg.yml \
      tonlabs/local-node
 ```
-After starting of TON OS SE, you can edit this file in your file system without restart.
+After starting of Evernode SE, you can edit this file in your file system without restart.
 
 More information about log4rs configuration [in the log4rs documentation](https://docs.rs/log4rs/1.0.0/log4rs/).
 
 
-## How to connect to TON OS SE Graphql API from SDK
+## How to connect to Evernode SE Graphql API from SDK
 
 **Attention** at the moment there are a few [differences in SE behaviour comparing with a real TON blockchain](https://docs.ton.dev/86757ecb2/p/683279-difference-in-behaviour). Read about them before you start implemennting. Please note that we plan to upgrade the SE behaviour in the next releases so that it will work the same way as a real network.  
 
 To connect to local blockchain from your application [specify localhost in SDK Client network config](https://docs.ton.dev/86757ecb2/p/5328db-tonclient).
 
 
-## TON OS SE components
+## Evernode SE components
 
 * [TON Labs implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
 * [ArangoDB database](https://www.arangodb.com/)
@@ -151,12 +148,12 @@ To connect to local blockchain from your application [specify localhost in SDK C
 
 ## TON Live explorer
 
-TON Live explorer runs on the same IP and port as TON OS SE, just open http://ip_address:port (e.g. http://127.0.0.1)
+TON Live explorer runs on the same IP and port as Evernode SE, just open http://ip_address:port (e.g. http://127.0.0.1)
 
 
 ## How to build docker image locally
 
-In order to build and use TON OS Startup Edition you need Docker.
+In order to build and use Evernode Startup Edition you need Docker.
 To build docker image, run from the repository root:
 
 

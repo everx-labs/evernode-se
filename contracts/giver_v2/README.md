@@ -2,7 +2,7 @@
 
 This directory contains Giver v2 (ABI v2) contract. This giver is recommended over Giver v1.
 
-In TON OS SE this giver is predeployed at `0:ece57bcc6c530283becbbd8a3b24d3c5987cdddc3c8b7b33be6e4a6312490415` address 
+In Evernode SE this giver is predeployed at `0:ece57bcc6c530283becbbd8a3b24d3c5987cdddc3c8b7b33be6e4a6312490415` address 
 and its initial balance is about 5 billion tokens. 
 
 ## Keys:
