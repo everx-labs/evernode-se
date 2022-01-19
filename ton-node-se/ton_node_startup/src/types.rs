@@ -342,7 +342,8 @@ impl DocumentsDb for ArangoHelper {
             block,
             id: cell.repr_hash(),
             status: BlockProcessingStatus::Finalized,
-            boc
+            boc,
+            ..Default::default()
         };
 
         if let Err(SendError(ArangoRecord::Block(set))) = self.sender.lock().send(ArangoRecord::Block(set)) {
@@ -366,7 +367,8 @@ impl DocumentsDb for ArangoHelper {
             transaction_now,
             status: MessageProcessingStatus::Finalized,
             boc,
-            proof: None
+            proof: None,
+            ..Default::default()
         };
 
         if let Err(SendError(ArangoRecord::Message(set))) = self.sender.lock().send(ArangoRecord::Message(set)) {
@@ -388,7 +390,8 @@ impl DocumentsDb for ArangoHelper {
             block_id,
             workchain_id,
             boc,
-            proof: None
+            proof: None,
+            ..Default::default()
         };
 
         if let Err(SendError(ArangoRecord::Transaction(set))) = self.sender.lock().send(ArangoRecord::Transaction(set)) {
@@ -405,7 +408,8 @@ impl DocumentsDb for ArangoHelper {
         let set = AccountSerializationSet {
             account,
             boc,
-            proof: None
+            proof: None,
+            ..Default::default()
         };
 
         if let Err(SendError(ArangoRecord::Account(_))) = self.sender.lock().send(ArangoRecord::Account(set)) {
@@ -419,6 +423,7 @@ impl DocumentsDb for ArangoHelper {
         let set = DeletedAccountSerializationSet {
             account_id: account_id.clone(),
             workchain_id,
+            ..Default::default()
         };
 
         if let Err(SendError(ArangoRecord::DeletedAccount(_))) = self.sender.lock().send(ArangoRecord::DeletedAccount(set)) {
