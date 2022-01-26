@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.28.12 Jan 26, 2022
+### Fixed
+- Support breaking changes in `ton-labs-block-json` v0.7.1
+
 ## 0.28.11 Nov 01, 2021
 ### Fixed
 - Fixed honcho version in order to fix container start (ignoring incompatible release).
