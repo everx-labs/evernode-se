@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.29.0 Feb 09, 2022
+### New
+- `MYCODE` VM instruction supported
+
 ## 0.28.12 Jan 26, 2022
 ### Fixed
 - Support breaking changes in `ton-labs-block-json` v0.7.1

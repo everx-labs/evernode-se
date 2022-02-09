@@ -1,7 +1,7 @@
 @echo off
 
 set TON_NODE="tonlabs/ton-node"
-set TONOS_SE="tonlabs/local-node"
+set TONOS_SE="tonlabs/evernode-se"
 
 set BIN_TARGET="ton_node_startup"
 
@@ -34,4 +34,4 @@ echo.
 echo BUILD SUCCESS
 echo.
 echo How to run:
-echo docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 %TONOS_SE%
+echo docker run -d --name evernode-se -e USER_AGREEMENT=yes -p80:80 %TONOS_SE%
