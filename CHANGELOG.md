@@ -1,7 +1,7 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.28.13 Feb 08, 2022
+## 0.29.0 Feb 09, 2022
 ### New
 - `MYCODE` VM instruction supported
 
