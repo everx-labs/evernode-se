@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.29.1 Feb 17, 2022
+### Fixed
+- Build with new version q-server 0.46.0
+
 ## 0.29.0 Feb 09, 2022
 ### New
 - `MYCODE` VM instruction supported
