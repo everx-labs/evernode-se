@@ -21,7 +21,7 @@ use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 use ton_node::error::{NodeResult, NodeErrorKind, NodeError};
 use ton_node::node_engine::messages::{InMessagesQueue, QueuedMessage};
 use serde::Deserialize;
-use ton_types::{AccountId, SliceData};
+use ton_types::{AccountId, SliceData, BuilderData};
 use ton_types::cells_serialization::serialize_toc;
 use ton_types::types::UInt256;
 use std::io::Cursor;
@@ -405,9 +405,17 @@ impl DocumentsDb for ArangoHelper {
         let account_addr = account.get_id().unwrap_or_default();
         let cell = account.serialize()?;
         let boc = serialize_toc(&cell)?;
+        let mut boc1 = None;
+        if account.init_code_hash().is_some() {
+            // new format
+            let mut builder = BuilderData::new();
+            account.write_original_format(&mut builder)?;
+            boc1 = Some(serialize_toc(&builder.into_cell()?)?);
+        }
         let set = AccountSerializationSet {
             account,
             boc,
+            boc1,
             proof: None,
             ..Default::default()
         };
