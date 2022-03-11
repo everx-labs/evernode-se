@@ -4,7 +4,7 @@ Ever OS Local Node for Everscale DApp development and testing.
 
 **Have a question? Get quick help in our channel:**
 
-[![Channel on Telegram](https://img.shields.io/badge/chat-on%20telegram-9cf.svg)](https://t.me/ton_sdk) 
+[![Channel on Telegram](https://img.shields.io/badge/chat-on%20telegram-9cf.svg)](https://t.me/ever_sdk) 
 
 - [Evernode Startup Edition (SE)](#evernode-startup-edition-se)
   - [What is Evernode Startup Edition?](#what-is-evernode-startup-edition)
