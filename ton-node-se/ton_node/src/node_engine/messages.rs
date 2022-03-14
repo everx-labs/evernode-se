@@ -210,7 +210,7 @@ impl<T> MessagesProcessor<T> where
             },
         );
         match result {
-            Ok(transaction) => Ok((transaction.0, lt.load(AtomicOrdering::Relaxed))),
+            Ok(transaction) => Ok((transaction, lt.load(AtomicOrdering::Relaxed))),
             Err(err) => {
                 let lt = last_lt + 1;
                 let account = Account::construct_from_cell(acc_root.clone())?;
