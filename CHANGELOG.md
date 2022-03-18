@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.30.0 Feb 17, 2022
+### New
+- Account has new field `init_code_hash`
+- `q-server` 0.47.0 with `X-Evernode-Expected-Account-Boc-Version` header support
+
 ## 0.29.1 Feb 17, 2022
 ### Fixed
 - Build with new version q-server 0.46.0
