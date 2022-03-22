@@ -1,6 +1,10 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.30.1 Feb 30, 2022
+### New
+- Build with new version q-server 0.49.0
+
 ## 0.30.0 Feb 17, 2022
 ### New
 - Account has new field `init_code_hash`
@@ -113,4 +117,3 @@ All notable changes to this project will be documented in this file.
 ## 0.24.10 Jan 22, 2021
 ### Fixed
 - Bounced message is now sent properly
-
