@@ -76,8 +76,8 @@ async fn main() {
                 value,
                 0);
 
-            let b = message.write_to_new_cell().expect("Error write message to tree of cells");
-            let bag = BagOfCells::with_root(&b.into());
+            let b = message.serialize().expect("Error write message to tree of cells");
+            let bag = BagOfCells::with_root(&b);
 
             let mut file = File::create(out.clone()).expect("Error create out file");
             bag.write_to(&mut file, false).expect("Error write message to file");
