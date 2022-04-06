@@ -255,10 +255,10 @@ impl StubReceiver {
         let mut state_init = StateInit::default();        
         state_init.set_code(code_cell);   
         state_init.set_data(data);
-        *msg.state_init_mut() = Some(state_init);
-
-        *msg.body_mut() = body;
-
+        msg.set_state_init(state_init);
+        if let Some(body) = body {
+            msg.set_body(body);
+        }
         msg
     }
 
@@ -305,7 +305,7 @@ impl StubReceiver {
             }
         );
 
-        *msg.body_mut() = Some(Self::create_transfer_int_header(workchain_id, src, dst, value)
+        msg.set_body(Self::create_transfer_int_header(workchain_id, src, dst, value)
             .serialize()
             .unwrap()
             .into()

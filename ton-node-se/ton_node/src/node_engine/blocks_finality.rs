@@ -803,7 +803,7 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
                 imh.ihr_fee = 10u32.into();
                 imh.fwd_fee = 5u32.into();
                 let mut inmsg1 = Arc::new(Message::with_int_header(imh));
-                Arc::get_mut(&mut inmsg1).map(|m| *m.body_mut() = Some(SliceData::new(vec![0x21;120])));
+                Arc::get_mut(&mut inmsg1).map(|m| m.set_body(SliceData::new(vec![0x21;120])));
 
                 let inmsg_int = InMsg::immediatelly(
                     &MsgEnvelope::with_message_and_fee(&inmsg1, 9u32.into()).unwrap(),
@@ -818,7 +818,7 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
                 };
 
                 let mut inmsg = Message::with_ext_in_header(eimh);
-                *inmsg.body_mut() = Some(SliceData::new(vec![0x01;120]));
+                inmsg.set_body(SliceData::new(vec![0x01;120]));
 
                 transaction.write_in_msg(Some(&inmsg1)).unwrap();
                 // inmsg
@@ -843,7 +843,7 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
                 );
                 
                 let mut outmsg2 = Message::with_ext_out_header(eomh);
-                *outmsg2.body_mut() = Some(SliceData::new(vec![0x02;120]));
+                outmsg2.set_body(SliceData::new(vec![0x02;120]));
 
                 let tr_cell = transaction.serialize().unwrap();
 
