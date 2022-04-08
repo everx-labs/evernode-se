@@ -1,9 +1,9 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.30.1 Feb 30, 2022
 ### New
- - Version 0.30.0
-
+- Build with new version q-server 0.49.0
 
 ## 0.30.0 Feb 17, 2022
 ### New
