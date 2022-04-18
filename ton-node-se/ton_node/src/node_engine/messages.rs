@@ -464,15 +464,14 @@ info!(target: "profiler",
         let tr_cell = transaction.serialize()?;
         transaction.iterate_out_msgs(|ref msg| {
             res.push(if msg.is_internal() {
+                let env = MsgEnvelope::with_message_and_fee(msg, Grams::one())?;
                 if shard_id.contains_address(&msg.dst().unwrap())? {
-                    OutMsg::Immediately(OutMsgImmediately::with_params(
-                            &MsgEnvelope::with_message_and_fee(msg, Grams::one())?, tr_cell.clone(), reimport)?)
+                    OutMsg::immediately(&env, tr_cell.clone(), reimport)?
                 } else {
-                    OutMsg::New(OutMsgNew::with_params(
-                        &MsgEnvelope::with_message_and_fee(msg, Grams::one())?, tr_cell.clone())?)
+                    OutMsg::new(&env, tr_cell.clone())?
                 }
             } else {
-                OutMsg::External(OutMsgExternal::with_params(msg, tr_cell.clone())?)
+                OutMsg::external(msg, tr_cell.clone())?
             });
             Ok(true)
         })?;
