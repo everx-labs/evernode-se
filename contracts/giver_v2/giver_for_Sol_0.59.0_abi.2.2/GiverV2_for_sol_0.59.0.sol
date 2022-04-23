@@ -22,7 +22,7 @@ abstract contract Upgradable {
 contract GiverV2 is Upgradable {
 
     uint8 constant MAX_CLEANUP_MSGS = 30;
-    mapping(uint256 => uint64) m_messages;
+    mapping(uint256 => uint32) m_messages;
 
     modifier acceptOnlyOwner {
         require(msg.pubkey() == tvm.pubkey(), 101);
@@ -55,7 +55,7 @@ contract GiverV2 is Upgradable {
         // owner check
         require(msg.pubkey() == tvm.pubkey(), 101);
         // load and drop message timestamp (uint64)
-        (, uint64 expireAt) = body.decode(uint64, uint32);
+        (, uint32 expireAt) = body.decode(uint64, uint32);
         require(expireAt > now, 57);
         uint256 msgHash = tvm.hash(message);
         require(!m_messages.exists(msgHash), 102);
