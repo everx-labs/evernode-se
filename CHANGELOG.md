@@ -1,4 +1,4 @@
- Release Notes
+# Release Notes
 All notable changes to this project will be documented in this file.
 
 ## 0.30.2 May 3, 2022
