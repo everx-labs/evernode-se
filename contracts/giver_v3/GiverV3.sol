@@ -19,7 +19,7 @@ abstract contract Upgradable {
     function onCodeUpgrade() internal virtual;
 }
 
-contract GiverV2 is Upgradable {
+contract GiverV3 is Upgradable {
 
     uint8 constant MAX_CLEANUP_MSGS = 30;
     mapping(uint256 => uint64) m_messages;
