@@ -750,7 +750,7 @@ impl ShardBlock {
     }
 
     /// deserialize shard block
-    pub fn deserialize<R: Read>(rdr: &mut R) -> NodeResult<Self> {
+    pub fn deserialize<R: Read + Seek>(rdr: &mut R) -> NodeResult<Self> {
         let mut sb = ShardBlock::new();
         sb.seq_no = rdr.read_le_u64()?;
         let sb_len = rdr.read_le_u32()?;
