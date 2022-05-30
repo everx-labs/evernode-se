@@ -119,8 +119,8 @@ impl MessagesReceiver for StubReceiver {
     }
 }
 
-const GIVER_BALANCE: u128 = 5_000_000_000_000_000_000;
-const MULTISIG_BALANCE: u128 = 1_000_000_000_000_000;
+const GIVER_BALANCE: u64 = 5_000_000_000_000_000_000;
+const MULTISIG_BALANCE: u64 = 1_000_000_000_000_000;
 const GIVER_ABI1_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi1_deploy_msg.boc");
 const DEPRECATED_GIVER_ABI2_DEPLOY_MSG: &[u8] = include_bytes!("../../data/deprecated_giver_abi2_deploy_msg.boc");
 const GIVER_ABI2_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi2_deploy_msg.boc");
@@ -189,7 +189,7 @@ impl StubReceiver {
     fn deploy_contract(
         workchain_id: i8,
         deploy_msg_boc: &[u8],
-        initial_balance: u128,
+        initial_balance: u64,
         transfer_lt: u64,
         queue: &InMessagesQueue
     ) -> NodeResult<AccountId> {
@@ -255,9 +255,11 @@ impl StubReceiver {
         let mut state_init = StateInit::default();        
         state_init.set_code(code_cell);   
         state_init.set_data(data);
-        *msg.state_init_mut() = Some(state_init);
+        msg.set_state_init(state_init);
 
-        *msg.body_mut() = body;
+        if let Some(body) = body {
+            msg.set_body(body);
+        }
 
         msg
     }
@@ -267,7 +269,7 @@ impl StubReceiver {
         workchain_id: i8, 
         src: AccountId, 
         dst: AccountId, 
-        value: u128, 
+        value: u64, 
         lt: u64
     ) -> Message {
         
@@ -293,7 +295,7 @@ impl StubReceiver {
         workchain_id: i8, 
         src: AccountId, 
         dst: AccountId, 
-        value: u128, 
+        value: u64, 
         _lt: u64
     ) -> Message {
 
@@ -305,7 +307,7 @@ impl StubReceiver {
             }
         );
 
-        *msg.body_mut() = Some(Self::create_transfer_int_header(workchain_id, src, dst, value)
+        msg.set_body(Self::create_transfer_int_header(workchain_id, src, dst, value)
             .serialize()
             .unwrap()
             .into()
@@ -318,7 +320,7 @@ impl StubReceiver {
         workchain_id: i8, 
         src: AccountId, 
         dest: AccountId, 
-        value: u128
+        value: u64
     ) -> InternalMessageHeader {
         let msg = Self::create_transfer_message(workchain_id, src, dest, value, 0);
         match msg.withdraw_header() {
@@ -361,7 +363,7 @@ impl StubReceiver {
                     workchain_id, 
                     src_acc_id,
                     dst_acc_id, 
-                    rand::random::<u8>() as u128, 
+                    rand::random::<u8>() as u64, 
                     log_time_gen.get_current_time()
                 )
             }

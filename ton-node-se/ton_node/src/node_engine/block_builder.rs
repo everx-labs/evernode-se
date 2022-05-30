@@ -115,7 +115,7 @@ impl BlockBuilder {
         block_info.set_seq_no(seq_no).unwrap();
         block_info.set_prev_stuff(false, &prev_ref).unwrap();
         block_info.set_vertical_stuff(0, vert_sec_no, prev_vert_ref).unwrap();
-        block_info.set_gen_utime(UnixTime32(block_at));
+        block_info.set_gen_utime(block_at.into());
         block_info.set_start_lt(end_lt + 1);
 
         Self::init_with_block_info(block_info)
@@ -355,7 +355,7 @@ impl BlockBuilder {
     /// Get UNIX time and Logical Time of current block
     ///
     pub fn at_and_lt(&self) -> (u32, u64) {
-        (self.block_gen_utime.0, self.start_lt)
+        (self.block_gen_utime.as_u32(), self.start_lt)
     }
     pub fn end_lt(&self) -> u64 {
         self.current_block_data.lock().end_lt

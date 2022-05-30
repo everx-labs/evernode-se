@@ -676,7 +676,6 @@ type RequestCallback =
 type ResponseCallback = 
     fn(engine: &TonNodeEngine, io: &dyn NetworkContext, peer: &PeerId, reply: NetworkProtocol) -> NodeResult<NetworkProtocol>;
 
-#[derive(Clone)]
 struct TimerHandler {
     timer_id: TimerToken,
     timeout: Duration,

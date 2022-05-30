@@ -33,7 +33,7 @@ struct ShardPeer {
 }
 
 /// struct for storing routing info
-#[derive(Debug, Clone, Default)]
+#[derive(Default)]
 pub struct RoutingTable {
     shard: ShardIdent,
     route_by_info: Arc<Mutex<HashMap<NodeInfo, usize>>>,
