@@ -1,5 +1,2 @@
 [workspace]
-members = [
-    "ton_node_startup",
-    "create_msg",
-]
+members = [ 'ton_node_startup', 'create_msg' ]
