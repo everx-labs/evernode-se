@@ -1,6 +1,6 @@
 use parking_lot::{Mutex, Condvar};
 use std::mem;
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::sync::mpsc::{ channel, Sender, Receiver };
 use std::thread;
 use std::time::{Duration, Instant};

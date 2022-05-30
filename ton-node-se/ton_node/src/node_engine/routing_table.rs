@@ -35,7 +35,7 @@ struct ShardPeer {
 /// struct for storing routing info
 #[derive(Default)]
 pub struct RoutingTable {
-    shard: ShardIdent,
+    _shard: ShardIdent,
     route_by_info: Arc<Mutex<HashMap<NodeInfo, usize>>>,
     route_by_peer: Arc<Mutex<HashMap<usize, NodeInfo>>>,
     route_by_wcval: Arc<Mutex<HashMap<WcVal, Vec<ShardPeer>>>>,
@@ -45,9 +45,9 @@ pub struct RoutingTable {
 impl RoutingTable {
 
     /// Create new instance of RoutingTable
-    pub fn new(shard: ShardIdent) -> Self {
+    pub fn new(_shard: ShardIdent) -> Self {
         Self {
-            shard,
+            _shard,
             route_by_info: Arc::new(Mutex::new(HashMap::new())),
             route_by_peer: Arc::new(Mutex::new(HashMap::new())),
             route_by_wcval: Arc::new(Mutex::new(HashMap::new())),

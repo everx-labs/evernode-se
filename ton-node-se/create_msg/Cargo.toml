@@ -5,11 +5,11 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-base64 = "0.13.0"
-clap = "2.32.0"
-hex = "0.4.2"
-serde_json = "1.0.62"
-tokio = { version = "0.2.13", features = ["macros"] }
+base64 = "0.13"
+clap = "2.32"
+hex = "0.4"
+serde_json = "1.0"
+tokio = { version = "1.18", features = ["macros", "rt-multi-thread"] }
 
 ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.39' }
 ton_client = { git = 'https://github.com/tonlabs/TON-SDK.git', package = "ton_client", tag = '1.28.0' }

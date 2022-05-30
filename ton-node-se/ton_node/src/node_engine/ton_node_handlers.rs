@@ -5,7 +5,7 @@ use poa::engines::{Engine, Seal, authority_round::subst::{
 }};
 use std::{time::Instant, sync::atomic::Ordering as AtomicOrdering, io::Cursor};
 use ton_api::{IntoBoxed, ton::ton_engine::{network_protocol::*, NetworkProtocol}};
-use ton_block::{Deserializable, UnixTime32};
+use ton_block::Deserializable;
 use ton_types::{serialize_toc, HashmapType};
 
 pub fn init_ton_node_handlers(ton: &TonNodeEngine) {
