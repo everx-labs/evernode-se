@@ -11,9 +11,9 @@ hex = '0.4.2'
 serde_json = '1.0.62'
 tokio = { features = [ 'macros' ], version = '0.2.13' }
 
-ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.48' }
-ton_client = { git = 'https://github.com/tonlabs/TON-SDK.git', package = 'ton_client', tag = '1.34.1' }
+ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.49' }
+ton_client = { git = 'https://github.com/tonlabs/TON-SDK.git', package = 'ton_client', tag = '1.34.2' }
 ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.11.1' }
-ton_vm = { git = 'https://github.com/tonlabs/ton-labs-vm', tag = '1.8.35' }
+ton_vm = { git = 'https://github.com/tonlabs/ton-labs-vm', tag = '1.8.37' }
 
 ton_node_old = { path = '../ton_node' }
