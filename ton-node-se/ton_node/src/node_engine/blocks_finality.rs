@@ -2,7 +2,6 @@ use super::*;
 use crate::error::{NodeError, NodeErrorKind};
 use poa::engines::authority_round::RollingFinality;
 use rand::Rng;
-use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read, Seek, Write};
@@ -717,10 +716,7 @@ impl ShardBlock {
         // Test-lite-client requires hash od unsigned block
         // TODO will to think, how to do better
         let block_data = sblock.block().write_to_bytes().unwrap(); // TODO process result
-
-        let mut hasher = Sha256::new();
-		hasher.input(block_data.as_slice());
-		let file_hash = UInt256::from_slice(&hasher.result().to_vec());
+        let file_hash = UInt256::calc_file_hash(block_data.as_slice());
 
         Self {
             seq_no: key_by_seqno(sblock.block().read_info().unwrap().seq_no(), sblock.block().read_info().unwrap().vert_seq_no()),
