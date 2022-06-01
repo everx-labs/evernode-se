@@ -15,8 +15,7 @@ use ton_block::{
     AddSub, ShardAccount, HashUpdate,
     TransactionDescr, TransactionDescrOrdinary, TrComputePhase, TrComputePhaseVm, ComputeSkipReason,
     ShardStateUnsplit, BlkPrevInfo, Message, Deserializable,
-    OutMsg, OutMsgNew, MsgEnvelope, Grams, OutMsgQueueKey, InMsg,
-    OutMsgImmediately, OutMsgExternal
+    OutMsg, MsgEnvelope, Grams, OutMsgQueueKey, InMsg,
 };
 use ton_executor::{BlockchainConfig, ExecutorError, OrdinaryTransactionExecutor, TransactionExecutor, ExecuteParams};
 use ton_types::{BuilderData, SliceData, IBitstring, Result, AccountId, serialize_toc, HashmapRemover, HashmapE};
@@ -86,7 +85,7 @@ impl<T> MessagesProcessor<T> where
                     // );
                     let out_msg = MsgEnvelope::with_message_and_fee(      // TODO need understand how set addresses for Envelop
                         &msg,
-                        10u32.into()                    // TODO need understand where take fee value
+                        10u64.into()                    // TODO need understand where take fee value
                     )?;
                     let address = OutMsgQueueKey::first_u64(transaction.account_id());
                     let mut shard_state_new = shard_state_new.lock();
@@ -446,12 +445,13 @@ info!(target: "profiler",
 
     fn get_in_msg_from_transaction(_shard_id: &ShardIdent, transaction: &Transaction) -> NodeResult<Option<InMsg>> {
         if let Some(ref msg) = transaction.read_in_msg()? {
+            let tr_cell = transaction.serialize()?;
             let msg = if msg.is_inbound_external() {
-                InMsg::external(msg, transaction)?
+                InMsg::external_msg(transaction.in_msg_cell().unwrap_or_default(), tr_cell)
             } else {
                 let fee = msg.get_fee()?.unwrap_or_default();
                 let env = MsgEnvelope::with_message_and_fee(msg, fee.clone())?;
-                InMsg::immediatelly(&env, transaction, fee)?
+                InMsg::immediatelly_msg(env.serialize()?, tr_cell, fee)
             };
             Ok(Some(msg))
         } else { 
@@ -464,15 +464,14 @@ info!(target: "profiler",
         let tr_cell = transaction.serialize()?;
         transaction.iterate_out_msgs(|ref msg| {
             res.push(if msg.is_internal() {
+                let env = MsgEnvelope::with_message_and_fee(msg, Grams::one())?;
                 if shard_id.contains_address(&msg.dst().unwrap())? {
-                    OutMsg::Immediately(OutMsgImmediately::with_params(
-                            &MsgEnvelope::with_message_and_fee(msg, Grams::one())?, tr_cell.clone(), reimport)?)
+                    OutMsg::immediately_msg(env.serialize()?, tr_cell.clone(), reimport.serialize()?)
                 } else {
-                    OutMsg::New(OutMsgNew::with_params(
-                        &MsgEnvelope::with_message_and_fee(msg, Grams::one())?, tr_cell.clone())?)
+                    OutMsg::new_msg(env.serialize()?, tr_cell.clone())
                 }
             } else {
-                OutMsg::External(OutMsgExternal::with_params(msg, tr_cell.clone())?)
+                OutMsg::external_msg(msg.serialize()?, tr_cell.clone())
             });
             Ok(true)
         })?;

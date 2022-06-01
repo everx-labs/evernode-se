@@ -5,7 +5,7 @@ use poa::engines::{Engine, Seal, authority_round::subst::{
 }};
 use std::{time::Instant, sync::atomic::Ordering as AtomicOrdering, io::Cursor};
 use ton_api::{IntoBoxed, ton::ton_engine::{network_protocol::*, NetworkProtocol}};
-use ton_block::{Deserializable, UnixTime32};
+use ton_block::Deserializable;
 use ton_types::{serialize_toc, HashmapType};
 
 pub fn init_ton_node_handlers(ton: &TonNodeEngine) {
@@ -519,7 +519,7 @@ debug!("PREP_BLK1");
                 let mut info = block.read_info()?;
                 info.set_seq_no(self.finalizer.lock().get_last_seq_no() + 1)?;
                 info.set_prev_stuff(false, &blk_prev_info)?;
-                info.set_gen_utime(UnixTime32(timestamp));
+                info.set_gen_utime(timestamp.into());
                 block.write_info(&info)?;
 debug!("PREP_BLK");
 
@@ -569,7 +569,7 @@ now = Instant::now();
                             block_seq_no: seq_no as i32,
                             block_start_lt: block.read_info()?.start_lt() as i64,
                             block_end_lt: block.read_info()?.end_lt() as i64,
-                            block_gen_utime: block.read_info()?.gen_utime().0 as i32,
+                            block_gen_utime: block.read_info()?.gen_utime().as_u32() as i32,
                         });
                         self.analyzers.lock().clear();
                         self.analyzers.lock().insert(seq_no, ca);
@@ -811,7 +811,7 @@ time.push(now.elapsed().as_micros());
         cc.block_seq_no = s_block.block().read_info()?.seq_no() as i32;
         cc.block_start_lt = s_block.block().read_info()?.start_lt() as i64;
         cc.block_end_lt = s_block.block().read_info()?.end_lt() as i64;
-        cc.block_gen_utime = s_block.block().read_info()?.gen_utime().0 as i32;
+        cc.block_gen_utime = s_block.block().read_info()?.gen_utime().as_u32() as i32;
 
         if !self.is_synchronize.load(AtomicOrdering::SeqCst)
             && !self.is_self_block_processing.load(AtomicOrdering::SeqCst)

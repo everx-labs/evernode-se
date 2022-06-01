@@ -2,7 +2,6 @@ use super::*;
 use crate::error::{NodeError, NodeErrorKind};
 use poa::engines::authority_round::RollingFinality;
 use rand::Rng;
-use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read, Seek, Write};
@@ -717,10 +716,7 @@ impl ShardBlock {
         // Test-lite-client requires hash od unsigned block
         // TODO will to think, how to do better
         let block_data = sblock.block().write_to_bytes().unwrap(); // TODO process result
-
-        let mut hasher = Sha256::new();
-		hasher.input(block_data.as_slice());
-		let file_hash = UInt256::from_slice(&hasher.result().to_vec());
+        let file_hash = UInt256::calc_file_hash(block_data.as_slice());
 
         Self {
             seq_no: key_by_seqno(sblock.block().read_info().unwrap().seq_no(), sblock.block().read_info().unwrap().vert_seq_no()),
@@ -792,7 +788,7 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
                 let mut transaction = Transaction::with_address_and_status(acc.clone(), AccountStatus::AccStateActive);
                 
                 let mut value = CurrencyCollection::default();
-                value.grams = 10202u32.into();
+                value.grams = 10202u64.into();
                 let mut imh = InternalMessageHeader::with_addresses (
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
                     MsgAddressInt::with_standart(None, 0, 
@@ -800,41 +796,47 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
                     value
                 );
                 
-                imh.ihr_fee = 10u32.into();
-                imh.fwd_fee = 5u32.into();
+                imh.ihr_fee = 10u64.into();
+                imh.fwd_fee = 5u64.into();
                 let mut inmsg1 = Arc::new(Message::with_int_header(imh));
-                Arc::get_mut(&mut inmsg1).map(|m| *m.body_mut() = Some(SliceData::new(vec![0x21;120])));
+                if let Some(m) = Arc::get_mut(&mut inmsg1) {
+                    m.set_body(SliceData::new(vec![0x21;120]));
+                }
 
-                let inmsg_int = InMsg::immediatelly(
-                    &MsgEnvelope::with_message_and_fee(&inmsg1, 9u32.into()).unwrap(),
-                    &transaction,
-                    11u32.into(),
-                ).unwrap();
+                let env = MsgEnvelope::with_message_and_fee(&inmsg1, 9u64.into()).unwrap();
+                let inmsg_int = InMsg::immediatelly_msg(
+                    env.serialize().unwrap(),
+                    transaction.serialize().unwrap(),
+                    11u64.into(),
+                );
 
                 let eimh = ExternalInboundMessageHeader {
                     src: MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80])).unwrap(),
                     dst: MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    import_fee: 10u32.into(),
+                    import_fee: 10u64.into(),
                 };
 
                 let mut inmsg = Message::with_ext_in_header(eimh);
-                *inmsg.body_mut() = Some(SliceData::new(vec![0x01;120]));
+                inmsg.set_body(SliceData::new(vec![0x01;120]));
 
                 transaction.write_in_msg(Some(&inmsg1)).unwrap();
                 // inmsg
-                let inmsg_ex = InMsg::external(&inmsg, &transaction).unwrap();
+                let inmsg_ex = InMsg::external_msg(
+                    inmsg.serialize().unwrap(),
+                    transaction.serialize().unwrap()
+                );
                 
                 // outmsgs
                 let mut value = CurrencyCollection::default();
-                value.grams = 10202u32.into();
+                value.grams = 10202u64.into();
                 let mut imh = InternalMessageHeader::with_addresses (
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
                     MsgAddressInt::with_standart(None, 0, AccountId::from_raw(vec![255;32], 256)).unwrap(),
                     value
                 );
                 
-                imh.ihr_fee = 10u32.into();
-                imh.fwd_fee = 5u32.into();
+                imh.ihr_fee = 10u64.into();
+                imh.fwd_fee = 5u64.into();
                 let outmsg1 = Message::with_int_header(imh);
 
                 let eomh = ExtOutMessageHeader::with_addresses (
@@ -843,16 +845,17 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
                 );
                 
                 let mut outmsg2 = Message::with_ext_out_header(eomh);
-                *outmsg2.body_mut() = Some(SliceData::new(vec![0x02;120]));
+                outmsg2.set_body(SliceData::new(vec![0x02;120]));
 
                 let tr_cell = transaction.serialize().unwrap();
 
-                let out_msg1 = OutMsg::new(
-                    &MsgEnvelope::with_message_and_fee(&outmsg1, 9u32.into()).unwrap(),
+                let env = MsgEnvelope::with_message_and_fee(&outmsg1, 9u64.into()).unwrap();
+                let out_msg1 = OutMsg::new_msg(
+                    env.serialize().unwrap(),
                     tr_cell.clone()
-                ).unwrap();
+                );
 
-                let out_msg2 = OutMsg::external(&outmsg2, tr_cell).unwrap();
+                let out_msg2 = OutMsg::external_msg(outmsg2.serialize().unwrap(), tr_cell);
 
                 let inmsg = Arc::new(if rng.gen() { inmsg_int} else { inmsg_ex });
                 // builder can stop earler than writing threads it is not a problem here

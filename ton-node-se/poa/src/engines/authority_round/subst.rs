@@ -2521,8 +2521,8 @@ impl TONBlock {
     }
     pub fn get_gen_time(&self) -> u32 {
         match self {
-            TONBlock::Signed(block) => block.block().read_info().unwrap().gen_utime().0,
-            TONBlock::Unsigned(block) => block.block.read_info().unwrap().gen_utime().0,
+            TONBlock::Signed(block) => block.block().read_info().unwrap().gen_utime().as_u32(),
+            TONBlock::Unsigned(block) => block.block.read_info().unwrap().gen_utime().as_u32(),
         }
     }
 }

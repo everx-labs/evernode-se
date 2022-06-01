@@ -255,9 +255,11 @@ impl StubReceiver {
         let mut state_init = StateInit::default();        
         state_init.set_code(code_cell);   
         state_init.set_data(data);
-        *msg.state_init_mut() = Some(state_init);
+        msg.set_state_init(state_init);
 
-        *msg.body_mut() = body;
+        if let Some(body) = body {
+            msg.set_body(body);
+        }
 
         msg
     }
@@ -270,18 +272,13 @@ impl StubReceiver {
         value: u128, 
         lt: u64
     ) -> Message {
-        
-        let mut balance = CurrencyCollection::default();
-        balance.grams = value.into();
-
-        let mut msg = Message::with_int_header(
-            InternalMessageHeader::with_addresses_and_bounce(
-                MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
-                MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
-                balance,
-                false,
-            )
+        let hdr = InternalMessageHeader::with_addresses_and_bounce(
+            MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
+            MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
+            CurrencyCollection::from_grams(Grams::new(value).unwrap()),
+            false,
         );
+        let mut msg = Message::with_int_header(hdr);
 
         msg.set_at_and_lt(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32, lt);
         msg
@@ -305,7 +302,7 @@ impl StubReceiver {
             }
         );
 
-        *msg.body_mut() = Some(Self::create_transfer_int_header(workchain_id, src, dst, value)
+        msg.set_body(Self::create_transfer_int_header(workchain_id, src, dst, value)
             .serialize()
             .unwrap()
             .into()
