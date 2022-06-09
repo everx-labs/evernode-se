@@ -32,9 +32,9 @@ rustc-hex = '1.0'
 unexpected = { path = 'parity/util/unexpected' }
 
 # In-house
-ton_vm = { default-features = false, git = 'https://github.com/tonlabs/ton-labs-vm', tag = '1.8.37' }
-ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.49' }
-ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.11.1' }
+ton_vm = { default-features = false, git = 'https://github.com/tonlabs/ton-labs-vm', tag = '1.8.38' }
+ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.51' }
+ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.11.2' }
 
 
 [dev-dependencies]
