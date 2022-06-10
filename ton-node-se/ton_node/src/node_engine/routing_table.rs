@@ -45,7 +45,7 @@ pub struct RoutingTable {
 impl RoutingTable {
 
     /// Create new instance of RoutingTable
-    pub fn new(shard: ShardIdent) -> Self {
+    pub fn new(_shard: ShardIdent) -> Self {
         Self {
             // TODO: shard,
             route_by_info: Arc::new(Mutex::new(HashMap::new())),

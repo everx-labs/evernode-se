@@ -841,7 +841,7 @@ impl ShardBlock {
 
         // Test-lite-client requires hash od unsigned block
         // TODO will to think, how to do better
-        let block_data = sblock.block().write_to_bytes().unwrap(); // TODO process result
+        let block_data = signed_block.block().write_to_bytes().unwrap(); // TODO process result
         let file_hash = UInt256::calc_file_hash(block_data.as_slice());
 
         Self {
@@ -962,7 +962,7 @@ pub(crate) fn generate_block_with_seq_no(
                 }
 
                 let env = MsgEnvelope::with_message_and_fee(&inmsg1, 9u64.into()).unwrap();
-                let inmsg_int = InMsg::immediatelly_msg(
+                let in_msg_int = InMsg::immediatelly_msg(
                     env.serialize().unwrap(),
                     transaction.serialize().unwrap(),
                     11u64.into(),
@@ -977,12 +977,12 @@ pub(crate) fn generate_block_with_seq_no(
                     import_fee: 10u64.into(),
                 };
 
-                let mut inmsg = Message::with_ext_in_header(eimh);
+                let mut inmsg = Message::with_ext_in_header(ext_in_header);
                 inmsg.set_body(SliceData::new(vec![0x01;120]));
 
                 transaction.write_in_msg(Some(&inmsg1)).unwrap();
                 // inmsg
-                let inmsg_ex = InMsg::external_msg(
+                let in_msg_ex = InMsg::external_msg(
                     inmsg.serialize().unwrap(),
                     transaction.serialize().unwrap()
                 );
@@ -1007,7 +1007,7 @@ pub(crate) fn generate_block_with_seq_no(
                         .unwrap(),
                 );
 
-                let mut outmsg2 = Message::with_ext_out_header(eomh);
+                let mut outmsg2 = Message::with_ext_out_header(ext_out_header);
                 outmsg2.set_body(SliceData::new(vec![0x02;120]));
 
                 let tr_cell = transaction.serialize().unwrap();

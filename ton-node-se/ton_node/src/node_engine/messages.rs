@@ -7,8 +7,8 @@ use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, Server, S
 use parking_lot::Mutex;
 use std::collections::BTreeSet;
 use std::sync::{
-    Arc,
     atomic::{AtomicBool, AtomicU64, Ordering as AtomicOrdering},
+    Arc,
 };
 use std::thread;
 use std::time::{Duration, Instant};
@@ -16,16 +16,15 @@ use std::{cmp::Ordering, collections::HashSet};
 use threadpool::ThreadPool;
 use ton_block::{
     AddSub, BlkPrevInfo, ComputeSkipReason, Deserializable, Grams, HashUpdate, InMsg, Message,
-    MsgEnvelope, OutMsg, OutMsgExternal, OutMsgImmediately, OutMsgNew, OutMsgQueueKey,
-    ShardAccount, ShardStateUnsplit, TransactionDescr, TransactionDescrOrdinary, TrComputePhase,
-    TrComputePhaseVm,
+    MsgEnvelope, OutMsg, OutMsgQueueKey, ShardAccount, ShardStateUnsplit, TrComputePhase,
+    TrComputePhaseVm, TransactionDescr, TransactionDescrOrdinary,
 };
 use ton_executor::{
     BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
     TransactionExecutor,
 };
 use ton_types::{
-    AccountId, BuilderData, HashmapE, HashmapRemover, IBitstring, Result, serialize_toc, SliceData,
+    serialize_toc, AccountId, BuilderData, HashmapE, HashmapRemover, IBitstring, Result, SliceData,
 };
 
 #[cfg(test)]
@@ -97,7 +96,7 @@ where
                     let out_msg = MsgEnvelope::with_message_and_fee(
                         // TODO need understand how set addresses for Envelop
                         &msg,
-                        10u64.into()                    // TODO need understand where take fee value
+                        10u64.into(), // TODO need understand where take fee value
                     )?;
                     let address = OutMsgQueueKey::first_u64(transaction.account_id());
                     let mut shard_state_new = shard_state_new.lock();
@@ -517,7 +516,11 @@ where
             res.push(if msg.is_internal() {
                 let env = MsgEnvelope::with_message_and_fee(msg, Grams::one())?;
                 if shard_id.contains_address(&msg.dst().unwrap())? {
-                    OutMsg::immediately_msg(env.serialize()?, tr_cell.clone(), reimport.serialize()?)
+                    OutMsg::immediately_msg(
+                        env.serialize()?,
+                        tr_cell.clone(),
+                        reimport.serialize()?,
+                    )
                 } else {
                     OutMsg::new_msg(env.serialize()?, tr_cell.clone())
                 }

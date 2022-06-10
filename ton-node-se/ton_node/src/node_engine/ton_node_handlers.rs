@@ -9,7 +9,7 @@ use ton_api::{
     ton::ton_engine::{network_protocol::*, NetworkProtocol},
     IntoBoxed,
 };
-use ton_block::{Deserializable, UnixTime32};
+use ton_block::Deserializable;
 use ton_types::{serialize_toc, HashmapType};
 
 pub fn init_ton_node_handlers(ton: &TonNodeEngine) {
