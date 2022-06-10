@@ -20,7 +20,7 @@ use ton_types::{
     AccountId, BagOfCells
 };
 
-use ton_node_old::node_engine::StubReceiver as MsgCreator;
+use ton_node_old::node_engine::stub_receiver::StubReceiver as MsgCreator;
 
 #[tokio::main]
 async fn main() {

@@ -13,8 +13,8 @@ use std::io::prelude::*;
 use std::path::PathBuf;
 use std::sync::Arc;
 use ton_block::{
-    Block, ShardStateUnsplit, Transaction, ShardIdent, 
-    Serializable, Deserializable, OutMsgQueueKey, SignedBlock, 
+    Block, ShardStateUnsplit, Transaction, ShardIdent,
+    Serializable, Deserializable, OutMsgQueueKey, SignedBlock,
 };
 use ton_types::cells_serialization::{deserialize_tree_of_cells, serialize_tree_of_cells};
 use ton_types::{Cell, types::UInt256, AccountId};
@@ -42,7 +42,7 @@ impl ShardHash {
         }
     }
 
-    /// New ShardHash 
+    /// New ShardHash
     pub fn with_params(seq_no: u64, hash: UInt256) -> Self {
         Self {
             block_seq_no: seq_no,
@@ -70,9 +70,9 @@ impl PartialEq for ShardHash {
 }
 
 ///
-/// Shard Storage basen on file system
+/// Shard Storage based on file system
 /// It is supposed to be use for test and first launches node
-/// 
+///
 #[allow(dead_code)]
 pub struct FileBasedStorage{
     root_path: PathBuf,
@@ -86,7 +86,7 @@ pub struct FileBasedStorage{
 impl FileBasedStorage {
     ///
     /// Create new instance of FileBasedStorage with custom root path
-    /// 
+    ///
     pub fn with_path(shard_ident: ShardIdent, root_path: PathBuf) -> NodeResult<FileBasedStorage> {
         let shards_path = Self::create_workchains_dir(&root_path)?;
         Ok(FileBasedStorage {
@@ -101,22 +101,22 @@ impl FileBasedStorage {
         })
     }
 
-    /// Create "Shardes" directory
+    /// Create "Shards" directory
     pub fn create_workchains_dir(root: &PathBuf) -> NodeResult<PathBuf> {
-        let mut shardes = root.clone();
-        shardes.push("workchains");
-        if !shardes.as_path().exists() {
-            create_dir_all(shardes.as_path())?;
+        let mut shards = root.clone();
+        shards.push("workchains");
+        if !shards.as_path().exists() {
+            create_dir_all(shards.as_path())?;
         }
-        Ok(shardes)
+        Ok(shards)
     }
 
     ///
     /// Create catalog tree for storage
-    /// root_path/Shardes/
+    /// root_path/Shards/
     ///                  /Shard_(PFX)/Shard
     ///                              /Blocks/Block_(seq_no)_(ver_no)
-    ///  
+    ///
     /// returned Shard_state_path and Blocks_dir_path
     pub fn create_default_shard_catalog(mut workchains_dir: PathBuf, shard_ident: &ShardIdent) -> NodeResult<(PathBuf, PathBuf, PathBuf)> {
         workchains_dir.push(format!("WC{}", shard_ident.workchain_id()));
@@ -163,7 +163,7 @@ impl FileBasedStorage {
 
         let mut file = File::create(blocks_path.as_path())?;
         block.write_to(&mut file)?;
-        file.flush()?;        
+        file.flush()?;
 
         Ok(())
     }
@@ -173,14 +173,14 @@ const BLOCK_FINALITY_FOLDER: &str = "block_finality";
 
 impl FinalityStorage for FileBasedStorage {
     fn save_non_finalized_block(&self, hash: UInt256, _seq_no: u64, mut data: Vec<u8>) -> NodeResult<()> {
-        let (shard_path, _blocks_path, _tr_dir) = 
+        let (shard_path, _blocks_path, _tr_dir) =
             FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
 
         let mut block_finality_path = shard_path.clone();
         block_finality_path.push(BLOCK_FINALITY_FOLDER);
         if !block_finality_path.as_path().exists() {
             create_dir_all(block_finality_path.as_path())?;
-        }       
+        }
 
         let mut name = block_finality_path.clone();
         name.push(hash.to_hex_string());
@@ -188,7 +188,7 @@ impl FinalityStorage for FileBasedStorage {
         if !name.as_path().exists() {
             let mut file_info = File::create(name)?;
             file_info.write_all(&mut data[..])?;
-            file_info.flush()?;         
+            file_info.flush()?;
         }
         Ok(())
     }
@@ -198,14 +198,14 @@ impl FinalityStorage for FileBasedStorage {
     }
 
     fn load_non_finalized_block_by_hash(&self, hash: UInt256) -> NodeResult<Vec<u8>>{
-        let (shard_path, _blocks_path, _tr_dir) = 
+        let (shard_path, _blocks_path, _tr_dir) =
             FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
 
         let mut block_finality_path = shard_path.clone();
         block_finality_path.push(BLOCK_FINALITY_FOLDER);
         if !block_finality_path.as_path().exists() {
             create_dir_all(block_finality_path.as_path())?;
-        }       
+        }
 
         let mut name = block_finality_path.clone();
         name.push(hash.to_hex_string());
@@ -218,18 +218,18 @@ impl FinalityStorage for FileBasedStorage {
     }
 
     fn remove_form_finality_storage(&self, hash: UInt256) -> NodeResult<()>{
-        let (shard_path, _blocks_path, _tr_dir) = 
+        let (shard_path, _blocks_path, _tr_dir) =
             FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
         let mut block_finality_path = shard_path.clone();
-        
+
         block_finality_path.push(BLOCK_FINALITY_FOLDER);
-        
+
         if !block_finality_path.as_path().exists() {
             create_dir_all(block_finality_path.as_path())?;
-        }       
-        
+        }
+
         let mut name = block_finality_path.clone();
-        
+
         name.push(hash.to_hex_string());
         if name.as_path().exists() {
             std::fs::remove_file(name)?;
@@ -238,46 +238,46 @@ impl FinalityStorage for FileBasedStorage {
     }
 
     fn save_custom_finality_info(&self, key: String, mut data: Vec<u8>) -> NodeResult<()>{
-        let (shard_path, _blocks_path, _tr_dir) = 
+        let (shard_path, _blocks_path, _tr_dir) =
             FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
 
         if !shard_path.as_path().exists() {
             create_dir_all(shard_path.as_path())?;
-        }       
+        }
 
         let mut name = shard_path.clone();
         name.push(key);
         if !name.as_path().exists() {
             let mut file_info = File::create(name)?;
             file_info.write_all(&mut data[..])?;
-            file_info.flush()?;         
-        }        
+            file_info.flush()?;
+        }
         Ok(())
     }
     fn load_custom_finality_info(&self, key: String) -> NodeResult<Vec<u8>>{
-       let (shard_path, _blocks_path, _tr_dir) = 
+       let (shard_path, _blocks_path, _tr_dir) =
             FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
 
         if !shard_path.as_path().exists() {
             create_dir_all(shard_path.as_path())?;
-        }       
+        }
 
         let mut name = shard_path.clone();
         name.push(key);
         let mut data = Vec::new();
         let mut file_info = File::open(name)?;
-        file_info.read_to_end(&mut data)?;       
+        file_info.read_to_end(&mut data)?;
         Ok(data)
     }
 }
 
 ///
 /// Implementation of ShardStateStorage for FileBasedStorage
-/// 
+///
 impl ShardStateStorage for FileBasedStorage {
     ///
     /// Get selected shard state from file
-    /// 
+    ///
     fn shard_state(&self) -> NodeResult<ShardStateUnsplit>{
         let shard_dir = self.shards_path.clone();
         let (mut shard_path, _blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
@@ -300,6 +300,21 @@ impl ShardStateStorage for FileBasedStorage {
         // TODO: BOC from file
         let shard_cell = deserialize_tree_of_cells(&mut file)?;
         Ok(shard_cell)
+    }
+
+    ///
+    /// Save shard state to file
+    ///
+    fn save_shard_state(&self, shard_state: &ShardStateUnsplit) -> NodeResult<()>{
+        let shard_dir = self.shards_path.clone();
+        let (mut shard_path, _blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
+        shard_path.push("shard_state.block");
+
+        let cell = shard_state.serialize()?;
+        let mut file = File::create(shard_path.as_path())?;
+        serialize_tree_of_cells(&cell, &mut file)?;
+        file.flush()?;
+        Ok(())
     }
 
     /// get serialized shard state
@@ -326,21 +341,6 @@ impl ShardStateStorage for FileBasedStorage {
     }
 
     ///
-    /// Save shard state to file
-    /// 
-    fn save_shard_state(&self, shard_state: &ShardStateUnsplit) -> NodeResult<()>{
-        let shard_dir = self.shards_path.clone();
-        let (mut shard_path, _blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
-        shard_path.push("shard_state.block");
-
-        let cell = shard_state.serialize()?;
-        let mut file = File::create(shard_path.as_path())?;
-        serialize_tree_of_cells(&cell, &mut file)?;
-        file.flush()?;
-        Ok(())
-    }
-
-    ///
     /// Save Shard State
     /// and shard.info and last_shard_hashes.info
     ///
@@ -352,11 +352,11 @@ impl ShardStateStorage for FileBasedStorage {
             shard_state_info: ShardStateInfo
         ) -> NodeResult<()> {
 
-        assert!(*shard_hash != UInt256::from([0;32]), "There should be no empty hashes!");
+        assert_ne!(*shard_hash, UInt256::from([0; 32]), "There should be no empty hashes!");
 
         let shard_dir = self.shards_path.clone();
         let (shard_path, _blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
-        
+
         // save shard state
         let mut shard_block = shard_path.clone();
         shard_block.push("shard_state.block");
@@ -383,12 +383,12 @@ impl ShardStateStorage for FileBasedStorage {
 
 ///
 /// Implementation of BlocksStorage for FileBasedStorage
-/// 
+///
 impl BlocksStorage for FileBasedStorage {
-    
+
     ///
     /// Get selected block from shard storage
-    /// 
+    ///
     fn block(&self, seq_no: u32, vert_seq_no: u32 ) -> NodeResult<SignedBlock> {
         let shard_dir = self.shards_path.clone();
         let (_shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
@@ -399,7 +399,7 @@ impl BlocksStorage for FileBasedStorage {
 
         Ok(block)
     }
-    
+
     fn raw_block(&self, seq_no: u32, vert_seq_no: u32 ) -> NodeResult<Vec<u8>> {
         let shard_dir = self.shards_path.clone();
         let (_shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
@@ -412,8 +412,8 @@ impl BlocksStorage for FileBasedStorage {
     }
 
     ///
-    /// Save block to file based shard stoarge
-    /// 
+    /// Save block to file based shard storage
+    ///
     fn save_block(&self, block: &SignedBlock) -> NodeResult<()> {
         let mut last_block = self.last_block.lock();
         *last_block = block.clone();
@@ -421,7 +421,7 @@ impl BlocksStorage for FileBasedStorage {
 
         Self::int_save_block(shard_dir, block)?;
 
-        Ok(())    
+        Ok(())
     }
 
     ///
@@ -432,7 +432,7 @@ impl BlocksStorage for FileBasedStorage {
 
         let shard_dir = self.shards_path.clone();
         let (_shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
-        
+
         let block = block.clone(); // temp
         // save block
         blocks_path.push(format!("block_{:08X}_{:08X}.block", block.block().read_info()?.seq_no(), block.block().read_info()?.vert_seq_no()));
@@ -443,7 +443,7 @@ impl BlocksStorage for FileBasedStorage {
         } else {
             block.write_to(&mut file).expect("Error write signed block to file.");
         }
-        file.flush().unwrap(); 
+        file.flush().unwrap();
 
         Ok(())
     }
@@ -452,7 +452,7 @@ impl BlocksStorage for FileBasedStorage {
 
 ///
 /// Implementation of TransactionsStorage for FileBasedStorage
-/// 
+///
 impl TransactionsStorage for FileBasedStorage {
     fn save_transaction(&self, tr: Arc<Transaction>) -> NodeResult<()> {
         let shard_dir = self.shards_path.clone();
@@ -477,7 +477,7 @@ impl TransactionsStorage for FileBasedStorage {
 //             shard_state_info: ShardStateInfo) -> NodeResult<()>;
 // }
 
-/// Trait for finality storage 
+/// Trait for finality storage
 pub trait FinalityStorage {
     fn save_non_finalized_block(&self, hash: UInt256, seq_no: u64, data: Vec<u8>) -> NodeResult<()>;
     fn load_non_finalized_block_by_seq_no(&self, seq_no: u64) -> NodeResult<Vec<u8>>;

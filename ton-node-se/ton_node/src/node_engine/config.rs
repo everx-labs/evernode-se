@@ -23,11 +23,57 @@ pub struct ShardIdConfig {
 
 impl ShardIdConfig {
     pub fn shard_ident(&self) -> ton_block::ShardIdent {
-        ton_block::ShardIdent::with_prefix_len(self.shardchain_pfx_len as u8, self.workchain, self.shardchain_pfx as u64).unwrap()
+        ton_block::ShardIdent::with_prefix_len(
+            self.shardchain_pfx_len as u8,
+            self.workchain,
+            self.shardchain_pfx as u64,
+        )
+        .unwrap()
     }
 }
 
 /// Node config importer from JSON
+#[derive(Deserialize)]
+pub struct NodeApiConfig {
+    #[serde(default = "NodeApiConfig::default_messages")]
+    pub messages: String,
+    #[serde(default = "NodeApiConfig::default_live_control")]
+    pub live_control: String,
+    #[serde(default = "NodeApiConfig::default_address")]
+    pub address: String,
+    #[serde(default = "NodeApiConfig::default_port")]
+    pub port: u32,
+}
+
+impl Default for NodeApiConfig {
+    fn default() -> Self {
+        Self {
+            messages: NodeApiConfig::default_messages(),
+            live_control: NodeApiConfig::default_live_control(),
+            address: NodeApiConfig::default_address(),
+            port: NodeApiConfig::default_port(),
+        }
+    }
+}
+
+impl NodeApiConfig {
+    fn default_messages() -> String {
+        "topics/messages".to_string()
+    }
+
+    fn default_live_control() -> String {
+        "se".to_string()
+    }
+
+    fn default_address() -> String {
+        "127.0.0.1".to_string()
+    }
+
+    fn default_port() -> u32 {
+        3000
+    }
+}
+
 #[derive(Deserialize)]
 pub struct NodeConfig {
     pub node_index: u8,
@@ -35,15 +81,20 @@ pub struct NodeConfig {
     pub poa_interval: u16,
     pub port: u16,
     pub private_key: String,
-    keys: Vec<String>,
+    pub keys: Vec<String>,
     pub boot: Vec<String>,
-    shard_id: ShardIdConfig,
-    kafka_msg_recv: serde_json::Value,
-    document_db: serde_json::Value,
+    pub shard_id: ShardIdConfig,
+    pub document_db: serde_json::Value,
+    #[serde(default = "NodeConfig::default_log_path")]
+    pub log_path: String,
+    #[serde(default)]
+    pub api: NodeApiConfig,
 }
 
 impl NodeConfig {
-
+    fn default_log_path() -> String {
+        "./log_cfg.yml".to_string()
+    }
     pub fn parse(json: &str) -> Result<Self, String> {
         serde_json::from_str(json).map_err(|e| e.to_string())
     }
@@ -66,15 +117,8 @@ impl NodeConfig {
         &self.shard_id
     }
 
-    pub fn kafka_msg_recv_config(&self) -> String {
-        // If it has read to serde_json::Value it must be transformed to string
-        serde_json::to_string(&self.kafka_msg_recv).unwrap()
-    }
-
     pub fn document_db_config(&self) -> String {
         // If it has read to serde_json::Value it must be transformed to string
         serde_json::to_string(&self.document_db).unwrap()
     }
-
 }
-

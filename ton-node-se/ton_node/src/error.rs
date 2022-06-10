@@ -58,7 +58,7 @@ error_chain! {
             description("TL data deserialize error")
         }
         TlIncompatiblePacketType {
-            description("TL packet have anover type")
+            description("TL packet has unknown type")
         }
         ValidationEmptyStepError {
             description("Validation empty step error")
@@ -96,6 +96,14 @@ error_chain! {
             description("Document DB error"),
             display("Document DB error: {}", msg)
         }
+        ConfigError(msg: String) {
+            description("Config error"),
+            display("Config read error: {}", msg)
+        }
+        ApiError(msg: String) {
+            description("SE API error"),
+            display("SE API failed: {}", msg)
+        }
     }
 }
 
@@ -106,7 +114,7 @@ macro_rules! node_err {
     };
 }
 
-// error_chain! 
+// error_chain!
 
 //     types {
 //         TonError, TonErrorKind, TonResultExt, TonResult;

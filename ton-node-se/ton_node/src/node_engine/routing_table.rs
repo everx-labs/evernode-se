@@ -19,7 +19,7 @@ impl NodeInfo {
     }
 }
 
-// key for workchain - validatior => shardes
+// key for workchain - validator => shards
 #[derive(Debug, Clone, Eq, PartialEq, Default, Hash)]
 struct WcVal {
     wc: i32,
@@ -35,7 +35,7 @@ struct ShardPeer {
 /// struct for storing routing info
 #[derive(Debug, Clone, Default)]
 pub struct RoutingTable {
-    shard: ShardIdent,
+    // TODO: shard: ShardIdent,
     route_by_info: Arc<Mutex<HashMap<NodeInfo, usize>>>,
     route_by_peer: Arc<Mutex<HashMap<usize, NodeInfo>>>,
     route_by_wcval: Arc<Mutex<HashMap<WcVal, Vec<ShardPeer>>>>,
@@ -45,9 +45,9 @@ pub struct RoutingTable {
 impl RoutingTable {
 
     /// Create new instance of RoutingTable
-    pub fn new(shard: ShardIdent) -> Self {
+    pub fn new(_shard: ShardIdent) -> Self {
         Self {
-            shard,
+            // TODO: shard,
             route_by_info: Arc::new(Mutex::new(HashMap::new())),
             route_by_peer: Arc::new(Mutex::new(HashMap::new())),
             route_by_wcval: Arc::new(Mutex::new(HashMap::new())),
@@ -60,7 +60,7 @@ impl RoutingTable {
         let wv = WcVal { wc: info.shard.workchain_id(), val: info.validator_index };
         let sp = ShardPeer { shard: info.shard.clone(), peer };
         self.route_by_wcval.lock().entry(wv).or_insert(vec![]).push(sp);
-        
+
         self.route_by_info.lock().insert(info, peer)
     }
 
@@ -70,7 +70,7 @@ impl RoutingTable {
         if let Some(peer) = peer {
             self.route_by_peer.lock().remove(&peer);
             self.remove_from_wcval(&info, peer);
-        }   
+        }
         peer
     }
 
@@ -117,7 +117,7 @@ impl RoutingTable {
         let wv = WcVal { wc, val: val_idx };
         if let Some(vec) = self.route_by_wcval.lock().get(&wv) {
             for sp in vec.iter() {
-                if messages::is_in_current_shard(&sp.shard, wc, &addr) {
+                if is_in_current_shard(&sp.shard, wc, &addr) {
                     return Some(sp.peer);
                 }
             }

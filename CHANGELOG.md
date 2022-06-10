@@ -1,6 +1,13 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.31.0 May 3, 2022
+
+### New
+
+- `log_path` config field. 
+- `/se` REST endpoint for se realtime control. See `README.md` for details.  
+
 ## 0.30.2 May 3, 2022
 ### New
 - Build with new version q-server 0.51.0

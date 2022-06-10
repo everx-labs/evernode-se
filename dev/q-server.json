@@ -1,0 +1,46 @@
+{
+	"server": {
+		"host": "127.0.0.1",
+		"port": 3001
+	},
+	"requests": {
+		"mode": "rest",
+		"server": "http://127.0.0.1:3000"
+	},
+	"blockchain": {
+		"accounts": [
+			"http://root@localhost:8529"
+		],
+		"blocks": {
+			"hot": [
+				"http://root@localhost:8529"
+			],
+			"cold": []
+		},
+		"transactions": {
+			"hot": [
+				"http://root@localhost:8529"
+			],
+			"cold": []
+		},
+		"zerostate": "http://root@localhost:8529"
+	},
+	"slowQueriesBlockchain": {
+		"accounts": [
+			"http://root@localhost:8529"
+		],
+		"blocks": {
+			"hot": [
+				"http://root@localhost:8529"
+			],
+			"cold": []
+		},
+		"transactions": {
+			"hot": [
+				"http://root@localhost:8529"
+			],
+			"cold": []
+		},
+		"zerostate": "http://root@localhost:8529"
+	}
+}

@@ -1,32 +1,40 @@
 use super::*;
 
-use parking_lot::Mutex;
-use std::{cmp::Ordering, collections::HashSet};
-use std::collections::BTreeSet;
-use std::sync::{Arc, atomic::{Ordering as AtomicOrdering, AtomicBool, AtomicU64}};
-use std::time::{Duration, Instant};
-use std::thread;
-use threadpool::ThreadPool;
-use jsonrpc_http_server::jsonrpc_core::types::Value;
 use jsonrpc_http_server::jsonrpc_core::types::params::Params;
-use jsonrpc_http_server::jsonrpc_core::{IoHandler, Error};
-use jsonrpc_http_server::{Server, ServerBuilder, DomainsValidation, AccessControlAllowOrigin};
-use ton_block::{
-    AddSub, ShardAccount, HashUpdate,
-    TransactionDescr, TransactionDescrOrdinary, TrComputePhase, TrComputePhaseVm, ComputeSkipReason,
-    ShardStateUnsplit, BlkPrevInfo, Message, Deserializable,
-    OutMsg, OutMsgNew, MsgEnvelope, Grams, OutMsgQueueKey, InMsg,
-    OutMsgImmediately, OutMsgExternal
+use jsonrpc_http_server::jsonrpc_core::types::Value;
+use jsonrpc_http_server::jsonrpc_core::{Error, IoHandler};
+use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, Server, ServerBuilder};
+use parking_lot::Mutex;
+use std::collections::BTreeSet;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering as AtomicOrdering},
 };
-use ton_executor::{BlockchainConfig, ExecutorError, OrdinaryTransactionExecutor, TransactionExecutor, ExecuteParams};
-use ton_types::{BuilderData, SliceData, IBitstring, Result, AccountId, serialize_toc, HashmapRemover, HashmapE};
+use std::thread;
+use std::time::{Duration, Instant};
+use std::{cmp::Ordering, collections::HashSet};
+use threadpool::ThreadPool;
+use ton_block::{
+    AddSub, BlkPrevInfo, ComputeSkipReason, Deserializable, Grams, HashUpdate, InMsg, Message,
+    MsgEnvelope, OutMsg, OutMsgExternal, OutMsgImmediately, OutMsgNew, OutMsgQueueKey,
+    ShardAccount, ShardStateUnsplit, TransactionDescr, TransactionDescrOrdinary, TrComputePhase,
+    TrComputePhaseVm,
+};
+use ton_executor::{
+    BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
+    TransactionExecutor,
+};
+use ton_types::{
+    AccountId, BuilderData, HashmapE, HashmapRemover, IBitstring, Result, serialize_toc, SliceData,
+};
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_messages.rs"]
 mod tests;
 
 // TODO: I think that 'static - is a bad practice. If you know how to do it without static - please help
-pub struct MessagesProcessor<T>  where
+pub struct MessagesProcessor<T>
+where
     T: TransactionsStorage + Send + Sync + 'static,
 {
     tr_storage: Arc<T>,
@@ -36,18 +44,19 @@ pub struct MessagesProcessor<T>  where
     executors: Arc<Mutex<HashMap<AccountId, Arc<Mutex<OrdinaryTransactionExecutor>>>>>,
 }
 
-impl<T> MessagesProcessor<T> where
+impl<T> MessagesProcessor<T>
+where
     T: TransactionsStorage + Send + Sync + 'static,
 {
     pub fn with_params(
         queue: Arc<InMessagesQueue>,
-        tr_storage: Arc<T>, 
+        tr_storage: Arc<T>,
         shard_id: ShardIdent,
         blockchain_config: BlockchainConfig,
     ) -> Self {
         // make clone for changes
         //let shard_state_new = shard_state.lock().unwrap().clone();
-        
+
         Self {
             tr_storage,
             queue,
@@ -59,10 +68,10 @@ impl<T> MessagesProcessor<T> where
 
     /// loop-back message to InQueue or send to OutMsgQueue of shard
     fn route_out_messages(
-        shard: &ShardIdent, 
-        queue: Arc<InMessagesQueue>, 
-        transaction: Arc<Transaction>, 
-        shard_state_new: Arc<Mutex<ShardStateUnsplit>>
+        shard: &ShardIdent,
+        queue: Arc<InMessagesQueue>,
+        transaction: Arc<Transaction>,
+        shard_state_new: Arc<Mutex<ShardStateUnsplit>>,
     ) -> NodeResult<()> {
         let queue = &mut queue.clone();
         transaction.iterate_out_msgs(|msg| {
@@ -72,7 +81,8 @@ impl<T> MessagesProcessor<T> where
             // internal and ExternalOutboundMessage
             if msg.is_internal() {
                 if shard.contains_address(&msg.dst().unwrap())? {
-                    queue.priority_queue(QueuedMessage::with_message(msg)?)
+                    queue
+                        .priority_queue(QueuedMessage::with_message(msg)?)
                         .map_err(|_| failure::format_err!("Error priority queue message"))?;
                 } else {
                     // let out_msg = OutMsg::New(
@@ -84,14 +94,20 @@ impl<T> MessagesProcessor<T> where
                     //         &transaction
                     //     )?
                     // );
-                    let out_msg = MsgEnvelope::with_message_and_fee(      // TODO need understand how set addresses for Envelop
+                    let out_msg = MsgEnvelope::with_message_and_fee(
+                        // TODO need understand how set addresses for Envelop
                         &msg,
-                        10u32.into()                    // TODO need understand where take fee value
+                        10u32.into(), // TODO need understand where take fee value
                     )?;
                     let address = OutMsgQueueKey::first_u64(transaction.account_id());
                     let mut shard_state_new = shard_state_new.lock();
                     let mut out_msg_queue_info = shard_state_new.read_out_msg_queue_info()?;
-                    out_msg_queue_info.out_queue_mut().insert(shard.workchain_id(), address, &out_msg, msg.lt().unwrap())?;
+                    out_msg_queue_info.out_queue_mut().insert(
+                        shard.workchain_id(),
+                        address,
+                        &out_msg,
+                        msg.lt().unwrap(),
+                    )?;
                     shard_state_new.write_out_msg_queue_info(&out_msg_queue_info)?;
                 }
             }
@@ -100,91 +116,91 @@ impl<T> MessagesProcessor<T> where
         Ok(())
     }
 
-//     ///
-//     /// Generate new block
-//     ///
-//     pub fn generate_block(
-//         &mut self,
-//         shard_state: &ShardStateUnsplit,
-//         timeout: Duration,
-//         seq_no: u32,
-//         prev_ref: BlkPrevInfo,
-//         required_block_at: u32,
-//         debug: bool
-//     ) -> NodeResult<Option<(Block, Option<ShardStateUnsplit>)>> {
+    //     ///
+    //     /// Generate new block
+    //     ///
+    //     pub fn generate_block(
+    //         &mut self,
+    //         shard_state: &ShardStateUnsplit,
+    //         timeout: Duration,
+    //         seq_no: u32,
+    //         prev_ref: BlkPrevInfo,
+    //         required_block_at: u32,
+    //         debug: bool
+    //     ) -> NodeResult<Option<(Block, Option<ShardStateUnsplit>)>> {
 
-// debug!("GENBLK");
-//         let start_time = Instant::now();
+    // debug!("GENBLK");
+    //         let start_time = Instant::now();
 
-//         let new_shard_state = Arc::new(Mutex::new(shard_state.clone()));
-        
-//         let builder = BlockBuilder::with_shard_ident(
-//                 self.shard_id.clone(), 
-//                 seq_no, prev_ref, 0, Option::None,
-//                 required_block_at);
-        
-//         while start_time.elapsed() < timeout {
-//             if let Some(msg) = self.queue.dequeue_first_unused() {
-//                 let res = self.db.put_message(msg.message().clone(), MessageProcessingStatus::Processing, None, None);
-//                 if res.is_err() {
-//                     warn!(target: "node", "generate_block_multi reflect to db failed. error: {}", res.unwrap_err());
-//                 }
+    //         let new_shard_state = Arc::new(Mutex::new(shard_state.clone()));
 
-//                 let acc_id = msg.message().header().dest_account_address()
-//                     .expect("Can't get dest account address. Seems like outbound message into in-queue");
+    //         let builder = BlockBuilder::with_shard_ident(
+    //                 self.shard_id.clone(),
+    //                 seq_no, prev_ref, 0, Option::None,
+    //                 required_block_at);
 
-//                 let mut acc_opt = new_shard_state.lock().read_accounts()?.account(&acc_id)?;
-//                 // TODO it is possible to make account immutable,  
-//                 // because in executor it is cloned for MerkleUpdate creation
-//                 if !self.executors.lock().contains_key(&acc_id) {
-//                     self.executors.lock().insert(acc_id.clone(), Arc::new(Mutex::new(E::new())));
-//                 }
-                
-//                 let (block_at, block_lt) = builder.at_and_lt();
-//                 let executor = self.executors.lock().get(&acc_id).unwrap().clone();
+    //         while start_time.elapsed() < timeout {
+    //             if let Some(msg) = self.queue.dequeue_first_unused() {
+    //                 let res = self.db.put_message(msg.message().clone(), MessageProcessingStatus::Processing, None, None);
+    //                 if res.is_err() {
+    //                     warn!(target: "node", "generate_block_multi reflect to db failed. error: {}", res.unwrap_err());
+    //                 }
 
-//                 let now = Instant::now();
-//                 let transaction = Arc::new(executor.lock().execute(
-//                     msg.message().clone(), &mut acc_opt, block_at, block_lt, debug
-//                 )?);
-//                 let d = now.elapsed();
-//                 debug!(target: "node", "transaction execute time elapsed sec={}.{:06} ", d.as_secs(), d.subsec_micros());
-//                 debug!(target: "node", "transaction status: {}", if transaction.read_description()?.is_aborted() { "Aborted" } else { "Success" });
+    //                 let acc_id = msg.message().header().dest_account_address()
+    //                     .expect("Can't get dest account address. Seems like outbound message into in-queue");
 
-//                 if let Some(ref acc) = acc_opt {
-//                     new_shard_state.lock().insert_account(acc)?;
-//                 } else {
-//                     unreachable!("where account?")
-//                 }
+    //                 let mut acc_opt = new_shard_state.lock().read_accounts()?.account(&acc_id)?;
+    //                 // TODO it is possible to make account immutable,
+    //                 // because in executor it is cloned for MerkleUpdate creation
+    //                 if !self.executors.lock().contains_key(&acc_id) {
+    //                     self.executors.lock().insert(acc_id.clone(), Arc::new(Mutex::new(E::new())));
+    //                 }
 
-//                 // loop-back for messages to current-shardchain
-//                 Self::route_out_messages(&self.shard_id, self.queue.clone(), transaction.clone(), new_shard_state.clone())?;
+    //                 let (block_at, block_lt) = builder.at_and_lt();
+    //                 let executor = self.executors.lock().get(&acc_id).unwrap().clone();
 
-//                 self.tr_storage.save_transaction(Arc::clone(&transaction))?;
-//                 let in_message = Arc::new(
-//                     Self::get_in_msg_from_transaction(&self.shard_id, &transaction)?.unwrap()
-//                 );
-//                 let out_messages = Self::get_out_msgs_from_transaction(&self.shard_id, &transaction, &in_message)?;
+    //                 let now = Instant::now();
+    //                 let transaction = Arc::new(executor.lock().execute(
+    //                     msg.message().clone(), &mut acc_opt, block_at, block_lt, debug
+    //                 )?);
+    //                 let d = now.elapsed();
+    //                 debug!(target: "node", "transaction execute time elapsed sec={}.{:06} ", d.as_secs(), d.subsec_micros());
+    //                 debug!(target: "node", "transaction status: {}", if transaction.read_description()?.is_aborted() { "Aborted" } else { "Success" });
 
-//                 if !builder.add_transaction(in_message.clone(), out_messages) { // think about how to remove clone
-//                     // TODO log error, write to transaction DB about error
-//                 }
-//             } else {
-//                 thread::sleep(Duration::from_millis(1));
-//             }
-//         }
-        
-//         info!(target: "node", "in messages queue len={}", self.queue.len());
-//         self.executors.lock().clear();
+    //                 if let Some(ref acc) = acc_opt {
+    //                     new_shard_state.lock().insert_account(acc)?;
+    //                 } else {
+    //                     unreachable!("where account?")
+    //                 }
 
-//         if !builder.is_empty() {
-//             let new_shard_state = std::mem::replace(&mut *new_shard_state.lock(), ShardStateUnsplit::default());
-//             let (block, _count) = builder.finalize_block(shard_state, &new_shard_state)?;
-//             Ok(Some((block, Some(new_shard_state))))
-//         } else {
-//             Ok(None)
-//         }
-//     }
+    //                 // loop-back for messages to current-shardchain
+    //                 Self::route_out_messages(&self.shard_id, self.queue.clone(), transaction.clone(), new_shard_state.clone())?;
+
+    //                 self.tr_storage.save_transaction(Arc::clone(&transaction))?;
+    //                 let in_message = Arc::new(
+    //                     Self::get_in_msg_from_transaction(&self.shard_id, &transaction)?.unwrap()
+    //                 );
+    //                 let out_messages = Self::get_out_msgs_from_transaction(&self.shard_id, &transaction, &in_message)?;
+
+    //                 if !builder.add_transaction(in_message.clone(), out_messages) { // think about how to remove clone
+    //                     // TODO log error, write to transaction DB about error
+    //                 }
+    //             } else {
+    //                 thread::sleep(Duration::from_millis(1));
+    //             }
+    //         }
+
+    //         info!(target: "node", "in messages queue len={}", self.queue.len());
+    //         self.executors.lock().clear();
+
+    //         if !builder.is_empty() {
+    //             let new_shard_state = std::mem::replace(&mut *new_shard_state.lock(), ShardStateUnsplit::default());
+    //             let (block, _count) = builder.finalize_block(shard_state, &new_shard_state)?;
+    //             Ok(Some((block, Some(new_shard_state))))
+    //         } else {
+    //             Ok(None)
+    //         }
+    //     }
 
     fn try_prepare_transaction(
         builder: &BlockBuilder,
@@ -224,9 +240,12 @@ impl<T> MessagesProcessor<T> where
                         vm_phase.success = false;
                         vm_phase.exit_code = *error;
                         if let Some(item) = arg {
-                            vm_phase.exit_arg = match item.as_integer().and_then(|value| value.into(std::i32::MIN..=std::i32::MAX)) {
+                            vm_phase.exit_arg = match item
+                                .as_integer()
+                                .and_then(|value| value.into(std::i32::MIN..=std::i32::MAX))
+                            {
                                 Err(_) | Ok(0) => None,
-                                Ok(exit_arg) => Some(exit_arg)
+                                Ok(exit_arg) => Some(exit_arg),
                             };
                         }
                         description.compute_ph = TrComputePhase::Vm(vm_phase);
@@ -241,7 +260,7 @@ impl<T> MessagesProcessor<T> where
                     Some(ExecutorError::ExtMsgComputeSkipped(reason)) => {
                         description.compute_ph = TrComputePhase::skipped(reason.clone());
                     }
-                    _ => return Err(err)?
+                    _ => return Err(err)?,
                 }
                 transaction.write_description(&TransactionDescr::Ordinary(description))?;
                 let hash = acc_root.repr_hash();
@@ -252,7 +271,6 @@ impl<T> MessagesProcessor<T> where
         }
     }
 
-
     fn execute_thread(
         blockchain_config: BlockchainConfig,
         shard_id: &ShardIdent,
@@ -260,43 +278,60 @@ impl<T> MessagesProcessor<T> where
         tr_storage: Arc<T>,
         executors: Arc<Mutex<HashMap<AccountId, Arc<Mutex<OrdinaryTransactionExecutor>>>>>,
         msg: QueuedMessage,
-        builder: Arc<BlockBuilder>, 
+        builder: Arc<BlockBuilder>,
         acc_id: &AccountId,
         new_shard_state: Arc<Mutex<ShardStateUnsplit>>,
-        debug: bool
+        debug: bool,
     ) -> NodeResult<()> {
-        let shard_acc = new_shard_state.lock().read_accounts()?.account(acc_id)?.unwrap_or_default();
+        let shard_acc = new_shard_state
+            .lock()
+            .read_accounts()?
+            .account(acc_id)?
+            .unwrap_or_default();
         let mut acc_root = shard_acc.account_cell().clone();
-        // TODO it is possible to make account immutable,  
+        // TODO it is possible to make account immutable,
         // because in executor it is cloned for MerkleUpdate creation
         if !executors.lock().contains_key(acc_id) {
             let e = OrdinaryTransactionExecutor::new(blockchain_config);
-            executors.lock().insert(acc_id.clone(), Arc::new(Mutex::new(e)));
+            executors
+                .lock()
+                .insert(acc_id.clone(), Arc::new(Mutex::new(e)));
         }
 
-        debug!("Executing message {}", msg.message().hash()?.to_hex_string());
-let now = Instant::now();
+        debug!(
+            "Executing message {}",
+            msg.message().hash()?.to_hex_string()
+        );
+        let now = Instant::now();
         let executor = executors.lock().get(acc_id).unwrap().clone();
         let (mut transaction, max_lt) = Self::try_prepare_transaction(
-            &builder, &executor.lock(), &mut acc_root, msg.message(), shard_acc.last_trans_lt(), debug
+            &builder,
+            &executor.lock(),
+            &mut acc_root,
+            msg.message(),
+            shard_acc.last_trans_lt(),
+            debug,
         )?;
         transaction.set_prev_trans_hash(shard_acc.last_trans_hash().clone());
         transaction.set_prev_trans_lt(shard_acc.last_trans_lt());
         let transaction = Arc::new(transaction);
-info!(target: "profiler", "Transaction time: {} micros", now.elapsed().as_micros());
-// info!(target: "profiler", "Init time: {} micros", executor.lock().timing(0));
-// info!(target: "profiler", "Compute time: {} micros", executor.lock().timing(1));
-// info!(target: "profiler", "Finalization time: {} micros", executor.lock().timing(2));
-        
+        info!(target: "profiler", "Transaction time: {} micros", now.elapsed().as_micros());
+        // info!(target: "profiler", "Init time: {} micros", executor.lock().timing(0));
+        // info!(target: "profiler", "Compute time: {} micros", executor.lock().timing(1));
+        // info!(target: "profiler", "Finalization time: {} micros", executor.lock().timing(2));
+
         debug!("Transaction ID {}", transaction.hash()?.to_hex_string());
         debug!(target: "executor", "Transaction aborted: {}", transaction.read_description()?.is_aborted());
-        
-let now = Instant::now();
+
+        let now = Instant::now();
         // update or remove shard account in new shard state
         let acc = Account::construct_from_cell(acc_root)?;
         if !acc.is_none() {
-            let shard_acc = ShardAccount::with_params(&acc, transaction.hash()?, transaction.logical_time())?;
-            new_shard_state.lock().insert_account(&UInt256::from_slice(&acc_id.get_bytestring(0)), &shard_acc)?;
+            let shard_acc =
+                ShardAccount::with_params(&acc, transaction.hash()?, transaction.logical_time())?;
+            new_shard_state
+                .lock()
+                .insert_account(&UInt256::from_slice(&acc_id.get_bytestring(0)), &shard_acc)?;
         } else {
             let mut shard_state = new_shard_state.lock();
             let mut accounts = shard_state.read_accounts()?;
@@ -305,7 +340,12 @@ let now = Instant::now();
         }
 
         // loop-back for messages to current-shardchain
-        Self::route_out_messages(shard_id, queue.clone(), transaction.clone(), new_shard_state.clone())?;
+        Self::route_out_messages(
+            shard_id,
+            queue.clone(),
+            transaction.clone(),
+            new_shard_state.clone(),
+        )?;
 
         if let Ok(Some(tr)) = tr_storage.find_by_lt(transaction.logical_time(), &acc_id) {
             panic!("{:?}\n{:?}", tr, transaction)
@@ -316,8 +356,9 @@ let now = Instant::now();
 
         let imported_fees = in_message.get_fee()?;
 
-        let out_messages = Self::get_out_msgs_from_transaction(shard_id, &transaction, &in_message)?;
-        
+        let out_messages =
+            Self::get_out_msgs_from_transaction(shard_id, &transaction, &in_message)?;
+
         let mut exported_value = CurrencyCollection::new();
         let mut exported_fees = Grams::zero();
 
@@ -334,7 +375,7 @@ let now = Instant::now();
         }
 
         // in-messages of transaction must contain message
-        
+
         let transaction_cell = transaction.serialize()?;
         let context = AppendSerializedContext {
             in_msg: in_message.serialize()?,
@@ -351,9 +392,9 @@ let now = Instant::now();
         if !builder.add_serialized_transaction(context) {
             warn!(target: "node", "Error append serialized transaction info to BlockBuilder");
             // TODO log error, write to transaction DB about error
-        } 
-info!(target: "profiler", "Transaction saving time: {} micros", now.elapsed().as_micros());
-        Ok(())        
+        }
+        info!(target: "profiler", "Transaction saving time: {} micros", now.elapsed().as_micros());
+        Ok(())
     }
 
     ///
@@ -366,25 +407,27 @@ info!(target: "profiler", "Transaction saving time: {} micros", now.elapsed().as
         seq_no: u32,
         prev_ref: BlkPrevInfo,
         required_block_at: u32,
-        debug: bool
+        debug: bool,
     ) -> NodeResult<Option<(Block, Option<ShardStateUnsplit>)>> {
-
-debug!("GENBLKMUL");
-let now = Instant::now();
+        debug!("GENBLKMUL");
+        let now = Instant::now();
         let start_time = Instant::now();
         let pool = ThreadPool::new(16);
 
         let new_shard_state = Arc::new(Mutex::new(shard_state.clone()));
-        
-        let builder = Arc::new(BlockBuilder::with_shard_ident(
-                self.shard_id.clone(), 
-                seq_no, prev_ref, 0, Option::None,
-                required_block_at));
-        
-        let mut is_empty = true;
-        
-        while start_time.elapsed() < timeout {
 
+        let builder = Arc::new(BlockBuilder::with_shard_ident(
+            self.shard_id.clone(),
+            seq_no,
+            prev_ref,
+            0,
+            None,
+            required_block_at,
+        ));
+
+        let mut is_empty = true;
+
+        while start_time.elapsed() < timeout {
             if let Some(msg) = self.queue.dequeue_first_unused() {
                 let acc_id = msg.message().int_dst_account_id().unwrap();
 
@@ -400,15 +443,15 @@ let now = Instant::now();
                 let th = move || {
                     let res = Self::execute_thread(
                         blockchain_config,
-                        &shard_id, 
-                        queue.clone(), 
-                        storage, 
-                        executors, 
-                        msg, 
-                        builder, 
-                        &acc_id, 
-                        shard_state, 
-                        debug
+                        &shard_id,
+                        queue.clone(),
+                        storage,
+                        executors,
+                        msg,
+                        builder,
+                        &acc_id,
+                        shard_state,
+                        debug,
                     );
                     queue.unlock_account(&acc_id);
                     if !res.is_ok() {
@@ -425,62 +468,72 @@ let now = Instant::now();
         }
 
         pool.join();
-let time0 = now.elapsed().as_micros();
-        
+        let time0 = now.elapsed().as_micros();
+
         info!(target: "node", "in messages queue len={}", self.queue.len());
         self.executors.lock().clear();
         self.queue.locks_clear();
-        
+
         if !is_empty {
             let new_shard_state = std::mem::take(&mut *new_shard_state.lock());
             let (block, count) = builder.finalize_block(shard_state, &new_shard_state)?;
-info!(target: "profiler", 
-    "Block time: non-final/final {} / {} micros, transaction count: {}", 
-    time0, now.elapsed().as_micros(), count
-);
+            info!(target: "profiler",
+                "Block time: non-final/final {} / {} micros, transaction count: {}",
+                time0, now.elapsed().as_micros(), count
+            );
             Ok(Some((block, Some(new_shard_state))))
         } else {
             Ok(None)
         }
     }
 
-    fn get_in_msg_from_transaction(_shard_id: &ShardIdent, transaction: &Transaction) -> NodeResult<Option<InMsg>> {
+    fn get_in_msg_from_transaction(
+        _shard_id: &ShardIdent,
+        transaction: &Transaction,
+    ) -> NodeResult<Option<InMsg>> {
         if let Some(ref msg) = transaction.read_in_msg()? {
             let msg = if msg.is_inbound_external() {
-                InMsg::external(msg, transaction)?
+                InMsg::external_msg(msg.serialize()?, transaction.serialize()?)
             } else {
                 let fee = msg.get_fee()?.unwrap_or_default();
                 let env = MsgEnvelope::with_message_and_fee(msg, fee.clone())?;
-                InMsg::immediatelly(&env, transaction, fee)?
+                InMsg::immediatelly_msg(env.serialize()?, transaction.serialize()?, fee)
             };
             Ok(Some(msg))
-        } else { 
+        } else {
             Ok(None)
         }
     }
 
-    fn get_out_msgs_from_transaction(shard_id: &ShardIdent, transaction: &Transaction, reimport: &InMsg) -> NodeResult<Vec<OutMsg>> {
+    fn get_out_msgs_from_transaction(
+        shard_id: &ShardIdent,
+        transaction: &Transaction,
+        reimport: &InMsg,
+    ) -> NodeResult<Vec<OutMsg>> {
         let mut res = vec![];
         let tr_cell = transaction.serialize()?;
         transaction.iterate_out_msgs(|ref msg| {
             res.push(if msg.is_internal() {
                 if shard_id.contains_address(&msg.dst().unwrap())? {
-                    OutMsg::Immediately(OutMsgImmediately::with_params(
-                            &MsgEnvelope::with_message_and_fee(msg, Grams::one())?, tr_cell.clone(), reimport)?)
+                    OutMsg::Immediately(OutMsgImmediately::with_cells(
+                        MsgEnvelope::with_message_and_fee(msg, Grams::one())?.serialize()?,
+                        tr_cell.clone(),
+                        reimport.serialize()?,
+                    ))
                 } else {
-                    OutMsg::New(OutMsgNew::with_params(
-                        &MsgEnvelope::with_message_and_fee(msg, Grams::one())?, tr_cell.clone())?)
+                    OutMsg::New(OutMsgNew::with_cells(
+                        MsgEnvelope::with_message_and_fee(msg, Grams::one())?.serialize()?,
+                        tr_cell.clone(),
+                    ))
                 }
             } else {
-                OutMsg::External(OutMsgExternal::with_params(msg, tr_cell.clone())?)
+                OutMsg::External(OutMsgExternal::with_cells(msg.serialize()?, tr_cell.clone()))
             });
             Ok(true)
         })?;
         Ok(res)
     }
 }
-
-
 
 /// Json rpc server for receiving external outbound messages.
 /// TODO the struct is not used now (15.08.19). It is candidate to deletion.
@@ -498,12 +551,17 @@ impl MessagesReceiver for JsonRpcMsgReceiver {
             node_err!(NodeErrorKind::InvalidOperation)
         } else {
             let mut io = IoHandler::default();
-            io.add_method("call", move |params| 
-                Self::process_call(params, Arc::clone(&queue)));
+            io.add_method("call", move |params| {
+                Self::process_call(params, Arc::clone(&queue))
+            });
 
-            self.server = Some(ServerBuilder::new(io)
-                .cors(DomainsValidation::AllowOnly(vec![AccessControlAllowOrigin::Null]))
-                .start_http(&format!("{}:{}", self.host, self.port).parse().unwrap())?);
+            self.server = Some(
+                ServerBuilder::new(io)
+                    .cors(DomainsValidation::AllowOnly(vec![
+                        AccessControlAllowOrigin::Null,
+                    ]))
+                    .start_http(&format!("{}:{}", self.host, self.port).parse().unwrap())?,
+            );
 
             Ok(())
         }
@@ -526,35 +584,49 @@ impl JsonRpcMsgReceiver {
         if self.server.is_some() {
             let s = std::mem::replace(&mut self.server, None);
             s.unwrap().close();
-            Ok(())           
+            Ok(())
         } else {
             node_err!(NodeErrorKind::InvalidOperation)
         }
     }
 
-    fn process_call(params: Params, msg_queue: Arc<InMessagesQueue>) 
-        -> jsonrpc_http_server::jsonrpc_core::Result<Value> {
-
+    fn process_call(
+        params: Params,
+        msg_queue: Arc<InMessagesQueue>,
+    ) -> jsonrpc_http_server::jsonrpc_core::Result<Value> {
         const MESSAGE: &str = "message";
 
         let map = match params {
             Params::Map(map) => map,
-            _ => return Err(Error::invalid_params("Unresolved parameters object."))
+            _ => return Err(Error::invalid_params("Unresolved parameters object.")),
         };
 
         let message = match map.get(MESSAGE) {
             Some(Value::String(string)) => string,
-            Some(_) => return Err(Error::invalid_params(format!("\"{}\" parameter must be a string.", MESSAGE))),
-            _ => return Err(Error::invalid_params(format!("\"{}\" parameter not found.", MESSAGE)))
+            Some(_) => {
+                return Err(Error::invalid_params(format!(
+                    "\"{}\" parameter must be a string.",
+                    MESSAGE
+                )))
+            }
+            _ => {
+                return Err(Error::invalid_params(format!(
+                    "\"{}\" parameter not found.",
+                    MESSAGE
+                )))
+            }
         };
 
-        let message = Message::construct_from_base64(&message).map_err(|err|
-            Error::invalid_params(format!("Error parcing message: {}", err))
-        )?;
+        let message = Message::construct_from_base64(&message)
+            .map_err(|err| Error::invalid_params(format!("Error parsing message: {}", err)))?;
 
-        msg_queue.queue(QueuedMessage::with_message(message).unwrap()).expect("Error queue message");
+        msg_queue
+            .queue(QueuedMessage::with_message(message).unwrap())
+            .expect("Error queue message");
 
-        Ok(Value::String(String::from("The message has been succesfully received")))
+        Ok(Value::String(String::from(
+            "The message has been successfully received",
+        )))
     }
 }
 
@@ -562,13 +634,13 @@ impl JsonRpcMsgReceiver {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RouteMessage {
     pub peer: usize,
-    pub msg: Message
+    pub msg: Message,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum QueuedMessageInternal {
     Message(Message),
-    RouteMessage(RouteMessage)
+    RouteMessage(RouteMessage),
 }
 
 impl QueuedMessageInternal {
@@ -608,7 +680,9 @@ impl PartialOrd for QueuedMessage {
 impl Ord for QueuedMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         // All messages without LT will be at the end of the queue
-        let result = self.message().lt()
+        let result = self
+            .message()
+            .lt()
             .unwrap_or(u64::max_value())
             .cmp(&other.message().lt().unwrap_or(u64::max_value()));
         if result == Ordering::Equal {
@@ -629,10 +703,7 @@ impl QueuedMessage {
 
     fn new(internal: QueuedMessageInternal) -> Result<Self> {
         let hash = internal.message().serialize()?.repr_hash();
-        Ok(Self {
-            internal,
-            hash,
-        })
+        Ok(Self { internal, hash })
     }
 
     pub fn message(&self) -> &Message {
@@ -650,7 +721,7 @@ impl Serializable for QueuedMessage {
             QueuedMessageInternal::Message(msg) => {
                 cell.append_bits(0b1001, 4)?;
                 msg.write_to(cell)?;
-            },
+            }
             QueuedMessageInternal::RouteMessage(rm) => {
                 cell.append_bits(0b0110, 4)?;
                 (rm.peer as u64).write_to(cell)?;
@@ -667,17 +738,17 @@ impl Deserializable for QueuedMessage {
         match tag {
             0b1001 => {
                 *self = Self::with_message(Message::construct_from(slice)?)?;
-            },
+            }
             0b0110 => {
                 let mut peer: u64 = 0;
                 let mut msg = Message::default();
                 peer.read_from(slice)?;
                 msg.read_from(slice)?;
-                *self = Self::with_route_message(RouteMessage{
+                *self = Self::with_route_message(RouteMessage {
                     peer: peer as usize,
-                    msg
+                    msg,
                 })?;
-            },
+            }
             _ => (),
         }
 
@@ -699,37 +770,36 @@ pub struct InMessagesQueue {
 
 #[allow(dead_code)]
 impl InMessagesQueue {
-
     /// Create new instance of InMessagesQueue.
     pub fn new(shard_id: ShardIdent, capacity: usize) -> Self {
-        InMessagesQueue { 
+        InMessagesQueue {
             shard_id,
             storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
             used_accs: Mutex::new(HashSet::new()),
             db: None,
-            capacity, 
+            capacity,
             ready_to_process: AtomicBool::new(false),
-        } 
-    } 
+        }
+    }
 
     pub fn with_db(shard_id: ShardIdent, capacity: usize, db: Arc<Box<dyn DocumentsDb>>) -> Self {
-        InMessagesQueue { 
-            shard_id, 
+        InMessagesQueue {
+            shard_id,
             storage: Mutex::new(BTreeSet::new()),
             out_storage: Mutex::new(VecDeque::new()),
             used_accs: Mutex::new(HashSet::new()),
             db: Some(db),
             capacity,
             ready_to_process: AtomicBool::new(false),
-        } 
+        }
     }
 
     ///
     /// Set in message queue ready-mode
     /// true - node ready to process messages and generate block
-    /// false - node receive messages and route they to another nodes 
-    /// 
+    /// false - node receive messages and route they to another nodes
+    ///
     pub fn set_ready(&self, mode: bool) {
         info!(target: "node", "in message queue set ready-mode: {}", mode);
         self.ready_to_process.store(mode, AtomicOrdering::SeqCst);
@@ -737,16 +807,21 @@ impl InMessagesQueue {
 
     ///
     /// Get mode
-    /// 
+    ///
     pub fn ready(&self) -> bool {
         self.ready_to_process.load(AtomicOrdering::SeqCst)
     }
 
     pub fn has_delivery_problems(&self) -> bool {
-        self.db.as_ref().map_or(false, |db| db.has_delivery_problems())
+        self.db
+            .as_ref()
+            .map_or(false, |db| db.has_delivery_problems())
     }
 
-    fn route_message_to_other_node(&self, msg: QueuedMessage) -> std::result::Result<(), QueuedMessage> {
+    fn route_message_to_other_node(
+        &self,
+        msg: QueuedMessage,
+    ) -> std::result::Result<(), QueuedMessage> {
         let mut out_storage = self.out_storage.lock();
         out_storage.push_back(msg);
         Ok(())
@@ -754,14 +829,13 @@ impl InMessagesQueue {
 
     fn is_message_to_current_node(&self, msg: &Message) -> bool {
         if let Some(msg_dst) = msg.dst() {
-            return self.shard_id.contains_address(&msg_dst).unwrap()
+            return self.shard_id.contains_address(&msg_dst).unwrap();
         }
-        true // if message hasn`t workchain or address, it will be process any node
+        true // if message hasn't workchain or address, it will be process any node
     }
 
     /// Include message into end queue.
     pub fn queue(&self, msg: QueuedMessage) -> std::result::Result<(), QueuedMessage> {
-
         // messages unsuitable to this node route all time
         if !self.is_message_to_current_node(msg.message()) {
             debug!(target: "node", "MESSAGE-IS-FOR-OTHER-NODE {:?}", msg);
@@ -780,9 +854,8 @@ impl InMessagesQueue {
 
         storage.insert(msg.clone());
         debug!(target: "node", "Queued message: {:?}", msg.message());
-  
-        Ok(())
 
+        Ok(())
     }
 
     /// Include message into begin queue
@@ -822,11 +895,15 @@ impl InMessagesQueue {
         let mut storage = self.storage.lock();
         let used_accs = self.used_accs.lock();
         // iterate from front and find unused account message
-        let result = storage.iter().find(|msg| {
-            msg.message().int_dst_account_id()
-                .map(|acc_id| !used_accs.contains(&acc_id))
-                .unwrap_or(false)
-        }).cloned();
+        let result = storage
+            .iter()
+            .find(|msg| {
+                msg.message()
+                    .int_dst_account_id()
+                    .map(|acc_id| !used_accs.contains(&acc_id))
+                    .unwrap_or(false)
+            })
+            .cloned();
 
         if let Some(ref msg) = result {
             storage.remove(msg);
@@ -859,7 +936,7 @@ impl InMessagesQueue {
         self.used_accs.lock().insert(account_id);
     }
 
-    /// unlock account mesages for dequeue
+    /// unlock account messages for dequeue
     pub fn unlock_account(&self, account_id: &AccountId) {
         self.used_accs.lock().remove(account_id);
     }
@@ -868,13 +945,12 @@ impl InMessagesQueue {
     pub fn locks_clear(&self) {
         self.used_accs.lock().clear();
     }
-  
 }
 
 /// is account_id has prefix identically prefix of shard
 pub fn is_in_current_shard(shard_id: &ShardIdent, account_wc: i32, account_id: &AccountId) -> bool {
     if shard_id.workchain_id() != account_wc {
         debug!(target: "node", "WORKCHAIN mismatch: Node {}, Msg {}", shard_id.workchain_id(), account_wc);
-    }        
+    }
     shard_id.contains_account(account_id.clone()).unwrap()
 }

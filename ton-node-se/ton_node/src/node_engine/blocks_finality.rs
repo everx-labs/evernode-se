@@ -7,13 +7,102 @@ use std::collections::HashSet;
 use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read, Seek, Write};
 use std::path::PathBuf;
-use ton_block::{InMsg, OutMsg, AccountStatus, ExtOutMessageHeader, MsgEnvelope};
-use ton_block::{HashmapAugType, BlkPrevInfo, Deserializable, ShardIdent};
-use ton_types::{UInt256, deserialize_tree_of_cells};
+use ton_block::{AccountStatus, ExtOutMessageHeader, InMsg, MsgEnvelope, OutMsg};
+use ton_block::{BlkPrevInfo, Deserializable, HashmapAugType, ShardIdent};
+use ton_types::{deserialize_tree_of_cells, UInt256};
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_block_finality.rs"]
 mod tests;
+
+///
+/// Information about last block in shard
+///
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ShardStateInfo {
+    /// Last block sequence number
+    pub seq_no: u64,
+    /// Last block end logical time
+    pub lt: u64,
+    /// Last block hash
+    pub hash: UInt256,
+}
+
+impl ShardStateInfo {
+    pub fn with_params(seq_no: u64, lt: u64, hash: UInt256) -> Self {
+        Self { seq_no, lt, hash }
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut data = vec![];
+        data.extend_from_slice(&(self.seq_no).to_be_bytes());
+        data.extend_from_slice(&(self.lt).to_be_bytes());
+        data.append(&mut self.hash.as_slice().to_vec());
+        data
+    }
+
+    pub fn deserialize<R: Read>(rdr: &mut R) -> NodeResult<Self> {
+        let seq_no = rdr.read_be_u64()?;
+        let lt = rdr.read_be_u64()?;
+        let hash = UInt256::from(rdr.read_u256()?);
+        Ok(ShardStateInfo { seq_no, lt, hash })
+    }
+}
+
+/// Trait for shard state storage
+pub trait ShardStateStorage {
+    fn shard_state(&self) -> NodeResult<ShardStateUnsplit>;
+    fn shard_bag(&self) -> NodeResult<Cell>;
+    fn save_shard_state(&self, shard_state: &ShardStateUnsplit) -> NodeResult<()>;
+    fn serialized_shardstate(&self) -> NodeResult<Vec<u8>>;
+    fn save_serialized_shardstate(&self, data: Vec<u8>) -> NodeResult<()>;
+    fn save_serialized_shardstate_ex(
+        &self,
+        shard_state: &ShardStateUnsplit,
+        shard_data: Option<Vec<u8>>,
+        shard_hash: &UInt256,
+        shard_state_info: ShardStateInfo,
+    ) -> NodeResult<()>;
+}
+
+// Trait for blocks storage (key-value)
+pub trait BlocksStorage {
+    fn block(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<SignedBlock>;
+    fn raw_block(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<Vec<u8>>;
+    fn save_block(&self, block: &SignedBlock) -> NodeResult<()>;
+    fn save_raw_block(&self, block: &SignedBlock, block_data: Option<&Vec<u8>>) -> NodeResult<()>;
+}
+
+/// Trait for transactions storage (this storage have to support difficult queries)
+pub trait TransactionsStorage {
+    fn save_transaction(&self, tr: Arc<Transaction>) -> NodeResult<()>;
+    fn find_by_lt(&self, _lt: u64, _acc_id: &AccountId) -> NodeResult<Option<Transaction>> {
+        unimplemented!()
+    }
+}
+
+pub trait DocumentsDb: Send + Sync {
+    fn put_account(&self, acc: Account) -> NodeResult<()>;
+    fn put_deleted_account(&self, workchain_id: i32, account_id: AccountId) -> NodeResult<()>;
+    fn put_block(&self, block: Block) -> NodeResult<()>;
+
+    fn put_message(
+        &self,
+        msg: Message,
+        transaction_id: Option<UInt256>,
+        transaction_now: Option<u32>,
+        block_id: Option<UInt256>,
+    ) -> NodeResult<()>;
+
+    fn put_transaction(
+        &self,
+        tr: Transaction,
+        block_id: Option<UInt256>,
+        workchain_id: i32,
+    ) -> NodeResult<()>;
+
+    fn has_delivery_problems(&self) -> bool;
+}
 
 /// Structure for Block finality layer
 /// This realize next functionality:
@@ -24,11 +113,12 @@ mod tests;
 /// Get last block by number or hash
 /// Rollback block (and shardstate) if block is rolled
 #[allow(dead_code)]
-pub struct OrdinaryBlockFinality<S, B, T, F> where
+pub struct OrdinaryBlockFinality<S, B, T, F>
+where
     S: ShardStateStorage,
     B: BlocksStorage,
     T: TransactionsStorage,
-    F: FinalityStorage
+    F: FinalityStorage,
 {
     shard_ident: ShardIdent,
     root_path: PathBuf,
@@ -37,7 +127,7 @@ pub struct OrdinaryBlockFinality<S, B, T, F> where
     tr_storage: Arc<T>,
     fn_storage: Arc<F>,
     db: Option<Arc<Box<dyn DocumentsDb>>>,
-    
+
     pub finality: RollingFinality,
     current_block: Box<ShardBlock>,
     blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
@@ -49,27 +139,28 @@ fn key_by_seqno(seq_no: u32, vert_seq_no: u32) -> u64 {
     ((vert_seq_no as u64) << 32) | (seq_no as u64)
 }
 
-impl <S, B, T, F> OrdinaryBlockFinality<S, B, T, F> where
+impl<S, B, T, F> OrdinaryBlockFinality<S, B, T, F>
+where
     S: ShardStateStorage,
     B: BlocksStorage,
     T: TransactionsStorage,
-    F: FinalityStorage
+    F: FinalityStorage,
 {
     /// Create new instance BlockFinality
-    /// wtih all kind of storages
+    /// with all kind of storages
     pub fn with_params(
         shard_ident: ShardIdent,
         root_path: PathBuf,
-        shard_state_storage: Arc<S>, 
-        blocks_storage: Arc<B>, 
+        shard_state_storage: Arc<S>,
+        blocks_storage: Arc<B>,
         tr_storage: Arc<T>,
         fn_storage: Arc<F>,
         db: Option<Arc<Box<dyn DocumentsDb>>>,
-        public_keys: Vec<ed25519_dalek::PublicKey>
+        public_keys: Vec<ed25519_dalek::PublicKey>,
     ) -> Self {
         let root_path = FileBasedStorage::create_workchains_dir(&root_path)
-                        .expect("cannot create shardes directory");
-       
+            .expect("cannot create shards directory");
+
         OrdinaryBlockFinality {
             shard_ident,
             root_path,
@@ -84,17 +175,17 @@ impl <S, B, T, F> OrdinaryBlockFinality<S, B, T, F> where
             blocks_by_no: HashMap::new(),
             last_finalized_block: Box::new(ShardBlock::default()),
         }
-    } 
+    }
 
     fn finality_blocks(&mut self, hashes: Vec<UInt256>, is_sync: bool) -> NodeResult<()> {
-debug!("FINBLK {:?}", hashes);
+        debug!("FIN-BLK {:?}", hashes);
         for hash in hashes.iter() {
             if self.blocks_by_hash.contains_key(&hash) {
                 let fin_sb = self.blocks_by_hash.remove(&hash).unwrap();
-                
+
                 let sb = self.stored_to_loaded(fin_sb)?;
 
-                // create shardstateinfo
+                // create shard state info
                 let info = sb.block.block().read_info()?;
                 let shard_info = ShardStateInfo {
                     seq_no: key_by_seqno(info.seq_no(), info.vert_seq_no()),
@@ -104,13 +195,18 @@ debug!("FINBLK {:?}", hashes);
                 let shard = sb.shard_state.write_to_bytes()?;
                 // save shard state
                 self.shard_state_storage.save_serialized_shardstate_ex(
-                    &ShardStateUnsplit::default(), Some(shard), &sb.block.block().read_state_update()?.new_hash,
-                    shard_info
+                    &ShardStateUnsplit::default(),
+                    Some(shard),
+                    &sb.block.block().read_state_update()?.new_hash,
+                    shard_info,
                 )?;
                 // save finalized block
-                self.blocks_storage.save_raw_block(&sb.block, Some(&sb.serialized_block))?;
+                self.blocks_storage
+                    .save_raw_block(&sb.block, Some(&sb.serialized_block))?;
                 // remove shard-block from number hashmap
-                self.blocks_by_no.remove(&sb.seq_no).expect("block by number remove error");
+                self.blocks_by_no
+                    .remove(&sb.seq_no)
+                    .expect("block by number remove error");
                 // remove old_last_finality block from finality storage
                 self.remove_form_finality_storage(&self.last_finalized_block.block_hash)?;
 
@@ -121,7 +217,7 @@ debug!("FINBLK {:?}", hashes);
                 );
 
                 if res.is_err() {
-                   warn!(target: "node", "reflect_block_in_db(Finalized) error: {:?}", res.unwrap_err());
+                    warn!(target: "node", "reflect_block_in_db(Finalized) error: {:?}", res.unwrap_err());
                 }
 
                 self.last_finalized_block = sb;
@@ -130,54 +226,65 @@ debug!("FINBLK {:?}", hashes);
                     self.last_finalized_block.serialized_block.len()
                 );
             } else {
-                if hash != &UInt256::from([0;32]) && hash != &self.last_finalized_block.block_hash {
+                if hash != &UInt256::from([0; 32]) && hash != &self.last_finalized_block.block_hash
+                {
                     warn!(target: "node", "Can`t finality unknown hash!!!");
-                    return node_err!(NodeErrorKind::FinalityError)
+                    return node_err!(NodeErrorKind::FinalityError);
                 }
             }
         }
         Ok(())
     }
 
-    fn stored_to_loaded(&self, fin_sb: Box<FinalityBlock> ) -> NodeResult<Box<ShardBlock>> {
+    fn stored_to_loaded(&self, fin_sb: Box<FinalityBlock>) -> NodeResult<Box<ShardBlock>> {
         Ok(match *fin_sb {
             FinalityBlock::Stored(sb_hash) => {
                 // load sb
-                let (shard_path, _blocks_path, _tr_dir) = 
-                    FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
+                let (shard_path, _blocks_path, _tr_dir) =
+                    FileBasedStorage::create_default_shard_catalog(
+                        self.root_path.clone(),
+                        &self.shard_ident,
+                    )?;
                 let mut block_sb_path = shard_path.clone();
                 block_sb_path.push("block_finality");
                 if !block_sb_path.as_path().exists() {
                     create_dir_all(block_sb_path.as_path())?;
-                }     
+                }
 
                 block_sb_path.push(sb_hash.block_hash.to_hex_string());
-                
+
                 self.read_one_sb_from_file(block_sb_path)?
-            },
-            FinalityBlock::Loaded(l_sb) => {
-                l_sb
             }
+            FinalityBlock::Loaded(l_sb) => l_sb,
         })
     }
 
     pub fn save_rolling_finality(&self) -> NodeResult<()> {
         // save to disk
-        let (mut finality_file_name, _blocks_path, _tr_dir) = 
-            FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
+        let (mut finality_file_name, _blocks_path, _tr_dir) =
+            FileBasedStorage::create_default_shard_catalog(
+                self.root_path.clone(),
+                &self.shard_ident,
+            )?;
         finality_file_name.push("rolling_finality.info");
-        self.finality.save(finality_file_name.to_str().expect("Can`t get rolling finality file name."))?;
-        Ok(())        
+        self.finality.save(
+            finality_file_name
+                .to_str()
+                .expect("Can`t get rolling finality file name."),
+        )?;
+        Ok(())
     }
 
-    fn remove_form_finality_storage(&self, hash: &UInt256) -> NodeResult<()>{
-        let (shard_path, _blocks_path, _tr_dir) = 
-            FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
+    fn remove_form_finality_storage(&self, hash: &UInt256) -> NodeResult<()> {
+        let (shard_path, _blocks_path, _tr_dir) = FileBasedStorage::create_default_shard_catalog(
+            self.root_path.clone(),
+            &self.shard_ident,
+        )?;
         let mut block_finality_path = shard_path.clone();
         block_finality_path.push("block_finality");
         if !block_finality_path.as_path().exists() {
             create_dir_all(block_finality_path.as_path())?;
-        }       
+        }
         let mut name = block_finality_path.clone();
         name.push(hash.to_hex_string());
         if name.as_path().exists() {
@@ -190,18 +297,20 @@ debug!("FINBLK {:?}", hashes);
         let mut file_info = File::create(file_name)?;
         let mut data = sb.serialize()?;
         file_info.write_all(&mut data[..])?;
-        file_info.flush()?; 
+        file_info.flush()?;
         Ok(())
     }
 
     pub fn save_finality(&self) -> NodeResult<()> {
-        let (shard_path, _blocks_path, _tr_dir) = 
-            FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
+        let (shard_path, _blocks_path, _tr_dir) = FileBasedStorage::create_default_shard_catalog(
+            self.root_path.clone(),
+            &self.shard_ident,
+        )?;
         let mut block_finality_path = shard_path.clone();
         block_finality_path.push("block_finality");
         if !block_finality_path.as_path().exists() {
             create_dir_all(block_finality_path.as_path())?;
-        }       
+        }
         let mut name = block_finality_path.clone();
         name.push(self.current_block.block_hash.to_hex_string());
         if !name.as_path().exists() {
@@ -217,8 +326,11 @@ debug!("FINBLK {:?}", hashes);
     }
 
     fn save_index(&self) -> NodeResult<()> {
-        let (mut shard_path, _blocks_path, _tr_dir) = 
-            FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
+        let (mut shard_path, _blocks_path, _tr_dir) =
+            FileBasedStorage::create_default_shard_catalog(
+                self.root_path.clone(),
+                &self.shard_ident,
+            )?;
         shard_path.push("blocks_finality.info");
         let mut file_info = File::create(shard_path)?;
         self.serialize(&mut file_info)?;
@@ -229,10 +341,13 @@ debug!("FINBLK {:?}", hashes);
 
     ///
     /// Load from disk
-    /// 
+    ///
     pub fn load(&mut self) -> NodeResult<()> {
-        let (mut shard_path, _blocks_path, _tr_dir) = 
-            FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
+        let (mut shard_path, _blocks_path, _tr_dir) =
+            FileBasedStorage::create_default_shard_catalog(
+                self.root_path.clone(),
+                &self.shard_ident,
+            )?;
         let mut finality_file_name = shard_path.clone();
         shard_path.push("blocks_finality.info");
         info!(target: "node", "load: {}", shard_path.to_str().unwrap());
@@ -240,15 +355,19 @@ debug!("FINBLK {:?}", hashes);
         self.deserialize(&mut file_info)?;
         finality_file_name.push("rolling_finality.info");
         info!(target: "node", "load: {}", finality_file_name.to_str().unwrap());
-        self.finality.load(finality_file_name.to_str().expect("Can`t get rolling finality file name."))?;
+        self.finality.load(
+            finality_file_name
+                .to_str()
+                .expect("Can`t get rolling finality file name."),
+        )?;
         Ok(())
     }
 
     ///
     /// Write data BlockFinality to file
-    /// 
+    ///
     fn serialize(&self, writer: &mut dyn Write) -> NodeResult<()> {
-        // serialize struct: 
+        // serialize struct:
         // 32bit - length of structure ShardBlock
         // structure ShardBlock
         // ...
@@ -265,21 +384,29 @@ debug!("FINBLK {:?}", hashes);
         Ok(())
     }
 
-    fn read_one_sb_hash<R>(&self, rdr: &mut R) -> NodeResult<(u64, UInt256)> where R: Read + Seek {
+    fn read_one_sb_hash<R>(&self, rdr: &mut R) -> NodeResult<(u64, UInt256)>
+    where
+        R: Read + Seek,
+    {
         // first read current block
         let hash = rdr.read_u256()?;
         let seq_no = rdr.read_le_u64()?;
         Ok((seq_no, UInt256::from(hash)))
     }
 
-    fn read_one_sb<R>(&self, rdr: &mut R) -> NodeResult<Box<ShardBlock>> where R: Read + Seek {
-        let (shard_path, _blocks_path, _tr_dir) = 
-            FileBasedStorage::create_default_shard_catalog(self.root_path.clone(), &self.shard_ident)?;
+    fn read_one_sb<R>(&self, rdr: &mut R) -> NodeResult<Box<ShardBlock>>
+    where
+        R: Read + Seek,
+    {
+        let (shard_path, _blocks_path, _tr_dir) = FileBasedStorage::create_default_shard_catalog(
+            self.root_path.clone(),
+            &self.shard_ident,
+        )?;
         let mut block_finality_path = shard_path.clone();
         block_finality_path.push("block_finality");
         if !block_finality_path.as_path().exists() {
             create_dir_all(block_finality_path.as_path())?;
-        }     
+        }
         // first read current block
         let hash = UInt256::from(rdr.read_u256()?);
         let seq_no = rdr.read_le_u64()?;
@@ -300,14 +427,18 @@ debug!("FINBLK {:?}", hashes);
         let mut data = Vec::new();
         file_info.read_to_end(&mut data)?;
         info!(target: "node", "load {} ok.", file_name.to_str().unwrap());
-        Ok(Box::new(ShardBlock::deserialize(&mut std::io::Cursor::new(data))?))
+        Ok(Box::new(ShardBlock::deserialize(
+            &mut std::io::Cursor::new(data),
+        )?))
     }
 
     ///
     /// Read saved data BlockFinality from file
-    /// 
-    pub fn deserialize<R>(&mut self, rdr: &mut R) -> NodeResult<()> where R: Read + Seek {
-
+    ///
+    pub fn deserialize<R>(&mut self, rdr: &mut R) -> NodeResult<()>
+    where
+        R: Read + Seek,
+    {
         info!(target: "node", "load current block");
         self.current_block = self.read_one_sb(rdr)?;
         info!(target: "node", "load last finalized block");
@@ -317,9 +448,10 @@ debug!("FINBLK {:?}", hashes);
             let res = self.read_one_sb_hash(rdr);
             if res.is_ok() {
                 let (seq_no, hash) = res.unwrap();
-                let sb_hash = Box::new(FinalityBlock::Stored(
-                    Box::new(ShardBlockHash::with_hash(seq_no.clone(), hash.clone()))
-                ));
+                let sb_hash = Box::new(FinalityBlock::Stored(Box::new(ShardBlockHash::with_hash(
+                    seq_no.clone(),
+                    hash.clone(),
+                ))));
 
                 self.blocks_by_hash.insert(hash.clone(), sb_hash.clone());
                 self.blocks_by_no.insert(seq_no.clone(), sb_hash.clone());
@@ -329,12 +461,12 @@ debug!("FINBLK {:?}", hashes);
                         if err.kind() == ErrorKind::UnexpectedEof {
                             break;
                         }
-                    },
+                    }
                     err => {
                         bail!(err);
                     }
                 }
-            }     
+            }
         }
         Ok(())
     }
@@ -344,12 +476,10 @@ debug!("FINBLK {:?}", hashes);
         &self,
         block: Block,
         shard_state: Arc<ShardStateUnsplit>,
-        is_sync: bool, 
+        is_sync: bool,
     ) -> NodeResult<()> {
-        
         if !is_sync {
             if let Some(db) = self.db.clone() {
-
                 // let block_root = block.serialize()?;
                 // let state_root = shard_state.serialize()?;
                 // let block_info_root = block.read_info()?.serialize()?;
@@ -366,13 +496,13 @@ debug!("FINBLK {:?}", hashes);
                     // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
                     // msg.prepare_boc_for_json()?;
                     let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
-                    let transaction_now = in_msg.read_transaction()?.map(|transaction| transaction.now());
-                    db.put_message(
-                        msg,
-                        transaction_id,
-                        transaction_now,
-                        Some(block_id.clone())
-                    ).map_err(|err| warn!(target: "node", "reflect message to DB(1). error: {}", err))
+                    let transaction_now = in_msg
+                        .read_transaction()?
+                        .map(|transaction| transaction.now());
+                    db.put_message(msg, transaction_id, transaction_now, Some(block_id.clone()))
+                        .map_err(
+                            |err| warn!(target: "node", "reflect message to DB(1). error: {}", err),
+                        )
                         .ok();
                     Ok(true)
                 })?;
@@ -381,22 +511,19 @@ debug!("FINBLK {:?}", hashes);
 
                 extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
                     let msg = out_msg.read_message()?.unwrap();
-debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
+                    debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
                     // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
                     // msg1.prepare_boc_for_json()?;
                     let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
-                    db.put_message(
-                        msg,
-                        transaction_id,
-                        None,
-                        Some(block_id.clone())
-                    ).map_err(|err| warn!(target: "node", "reflect message to DB(2). error: {}", err))
+                    db.put_message(msg, transaction_id, None, Some(block_id.clone()))
+                        .map_err(
+                            |err| warn!(target: "node", "reflect message to DB(2). error: {}", err),
+                        )
                         .ok();
                     Ok(true)
                 })?;
 
                 debug!(target: "node", "out_msg_descr.iterate - success");
-
 
                 let mut changed_acc = HashSet::new();
 
@@ -453,7 +580,8 @@ debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_st
     }
 }
 
-impl<S, B, T, F> BlockFinality for OrdinaryBlockFinality<S, B, T, F> where
+impl<S, B, T, F> BlockFinality for OrdinaryBlockFinality<S, B, T, F>
+where
     S: ShardStateStorage,
     B: BlocksStorage,
     T: TransactionsStorage,
@@ -461,35 +589,35 @@ impl<S, B, T, F> BlockFinality for OrdinaryBlockFinality<S, B, T, F> where
 {
     /// finalize block through empty step
     fn finalize_without_new_block(&mut self, finality_hash: Vec<UInt256>) -> NodeResult<()> {
-debug!(target: "node", "NO-BLOCK {:?}", finality_hash);        
+        debug!(target: "node", "NO-BLOCK {:?}", finality_hash);
         self.finality_blocks(finality_hash, false)?;
         self.save_finality()?;
         Ok(())
     }
 
-    /// Save block until finality comes 
-    fn put_block_with_info(&mut self,
-        sblock: SignedBlock,
-        sblock_data:Option<Vec<u8>>,
+    /// Save block until finality comes
+    fn put_block_with_info(
+        &mut self,
+        signed_block: SignedBlock,
+        signed_block_data: Option<Vec<u8>>,
         block_hash: Option<UInt256>,
         shard_state: Arc<ShardStateUnsplit>,
         finality_hash: Vec<UInt256>,
         is_sync: bool,
-    ) -> NodeResult<()> 
-    {
+    ) -> NodeResult<()> {
         info!(target: "node", "FINALITY: add block. hash: {:?}", block_hash);
-        info!(target: "node", "FINALITY:    block seq_no: {:?}", sblock.block().read_info()?.seq_no());
+        info!(target: "node", "FINALITY:    block seq_no: {:?}", signed_block.block().read_info()?.seq_no());
 
         let sb = Box::new(ShardBlock::with_block_and_state(
-            sblock,
-            sblock_data,
+            signed_block,
+            signed_block_data,
             block_hash,
             shard_state,
         ));
-debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);        
-        
+        debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
+
         self.current_block = sb.clone();
-        
+
         // insert block to map
         let mut loaded = false;
         for hash in finality_hash.iter() {
@@ -501,15 +629,13 @@ debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
         let sb_hash = if loaded {
             Box::new(FinalityBlock::Loaded(sb.clone()))
         } else {
-            Box::new(
-                FinalityBlock::Stored(
-                    Box::new( 
-                        ShardBlockHash::with_hash(sb.seq_no.clone(), sb.block_hash.clone())
-                    )
-                )
-            )
+            Box::new(FinalityBlock::Stored(Box::new(ShardBlockHash::with_hash(
+                sb.seq_no.clone(),
+                sb.block_hash.clone(),
+            ))))
         };
-        self.blocks_by_hash.insert(sb.block_hash.clone(), sb_hash.clone());
+        self.blocks_by_hash
+            .insert(sb.block_hash.clone(), sb_hash.clone());
         self.blocks_by_no.insert(sb.get_seq_no(), sb_hash.clone());
         // finalize block by finality_hash
         self.finality_blocks(finality_hash, is_sync)?;
@@ -519,26 +645,33 @@ debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
 
     /// get last block sequence number
     fn get_last_seq_no(&self) -> u32 {
-        self.current_block.block.block().read_info().unwrap().seq_no()
+        self.current_block
+            .block
+            .block()
+            .read_info()
+            .unwrap()
+            .seq_no()
     }
 
     /// get last block info
     fn get_last_block_info(&self) -> NodeResult<BlkPrevInfo> {
         let info = &self.current_block.block.block().read_info()?;
-        Ok(BlkPrevInfo::Block { prev: ExtBlkRef {
-            end_lt: info.end_lt(),
-            seq_no: info.seq_no(),
-            root_hash: self.current_block.block_hash.clone(),//UInt256::from(self.current_block.block.block_hash().clone()),
-            file_hash: self.current_block.file_hash.clone(),
-        }})
+        Ok(BlkPrevInfo::Block {
+            prev: ExtBlkRef {
+                end_lt: info.end_lt(),
+                seq_no: info.seq_no(),
+                root_hash: self.current_block.block_hash.clone(), //UInt256::from(self.current_block.block.block_hash().clone()),
+                file_hash: self.current_block.file_hash.clone(),
+            },
+        })
     }
 
     /// get last shard bag
     fn get_last_shard_state(&self) -> Arc<ShardStateUnsplit> {
-//warn!("LAST SHARD BAG {}", self.current_block.shard_bag.get_repr_hash_by_index(0).unwrap().to_hex_string()));
+        //warn!("LAST SHARD BAG {}", self.current_block.shard_bag.get_repr_hash_by_index(0).unwrap().to_hex_string()));
         Arc::clone(&self.current_block.shard_state)
     }
-    /// find block by hash and return his secuence number (for sync)
+    /// find block by hash and return his sequence number (for sync)
     fn find_block_by_hash(&self, hash: &UInt256) -> u64 {
         if self.blocks_by_hash.contains_key(hash) {
             self.blocks_by_hash.get(hash).unwrap().seq_no()
@@ -554,7 +687,7 @@ debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
             let mut seq_no = sb.seq_no();
             self.current_block = self.stored_to_loaded(sb)?;
 
-            // remove from hashmaps all blocks with greather seq_no
+            // remove from hashmaps all blocks with greater seq_no
             loop {
                 let tmp = self.blocks_by_no.remove(&seq_no);
                 if tmp.is_some() {
@@ -572,28 +705,28 @@ debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
     }
 
     /// get raw signed block data - for synchronize
-    fn get_raw_block_by_seqno(&self, seq_no: u32, vert_seq_no: u32 ) -> NodeResult<Vec<u8>> {
+    fn get_raw_block_by_seqno(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<Vec<u8>> {
         let key = key_by_seqno(seq_no, vert_seq_no);
         if self.blocks_by_no.contains_key(&key) {
-            /* TODO: wich case to use?
+            /* TODO: which case to use?
             return Ok(self.blocks_by_no.get(&key).unwrap().serialized_block.clone())
             TODO rewrite to
             return Ok(
                 self.fn_storage.load_non_finalized_block_by_seq_no(key)?.serialized_block.clone()
             )*/
             return Ok(self
-                        .stored_to_loaded(self.blocks_by_no.get(&key).unwrap().clone())?
-                        .serialized_block.clone()
-                    )
+                .stored_to_loaded(self.blocks_by_no.get(&key).unwrap().clone())?
+                .serialized_block
+                .clone());
         }
         self.blocks_storage.raw_block(seq_no, vert_seq_no)
     }
 
     /// get number of last finalized shard
     fn get_last_finality_shard_hash(&self) -> NodeResult<(u64, UInt256)> {
-        // TODO avoid serilization there
+        // TODO avoid serialization there
         let cell = self.last_finalized_block.shard_state.serialize()?;
-        
+
         Ok((self.last_finalized_block.seq_no, cell.repr_hash()))
     }
 
@@ -620,23 +753,15 @@ pub enum FinalityBlock {
 impl FinalityBlock {
     pub fn seq_no(&self) -> u64 {
         match self {
-            FinalityBlock::Stored(sb) => {
-                sb.seq_no
-            },
-            FinalityBlock::Loaded(sb) => {
-                sb.seq_no
-            }
+            FinalityBlock::Stored(sb) => sb.seq_no,
+            FinalityBlock::Loaded(sb) => sb.seq_no,
         }
     }
 
     pub fn block_hash(&self) -> &UInt256 {
         match self {
-            FinalityBlock::Stored(sb) => {
-                &sb.block_hash
-            },
-            FinalityBlock::Loaded(sb) => {
-                &sb.block_hash
-            }
+            FinalityBlock::Stored(sb) => &sb.block_hash,
+            FinalityBlock::Loaded(sb) => &sb.block_hash,
         }
     }
 }
@@ -644,14 +769,14 @@ impl FinalityBlock {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShardBlockHash {
     seq_no: u64,
-    block_hash: UInt256
+    block_hash: UInt256,
 }
 
 impl ShardBlockHash {
     pub fn with_hash(seq_no: u64, hash: UInt256) -> Self {
         Self {
             seq_no,
-            block_hash: hash
+            block_hash: hash,
         }
     }
 }
@@ -672,12 +797,13 @@ impl Default for ShardBlock {
         Self {
             seq_no: 0,
             serialized_block: Vec::new(),
-            block_hash: UInt256::from([0;32]),
-            file_hash: UInt256::from([0;32]),
+            block_hash: UInt256::from([0; 32]),
+            file_hash: UInt256::from([0; 32]),
             block: SignedBlock::with_block_and_key(
                 Block::default(),
-                &Keypair::from_bytes(&[0;64]).unwrap()
-            ).unwrap(),
+                &Keypair::from_bytes(&[0; 64]).unwrap(),
+            )
+            .unwrap(),
             shard_state: Arc::new(ShardStateUnsplit::default()),
         }
     }
@@ -701,39 +827,46 @@ impl ShardBlock {
 
     /// Create new instance of shard block with SignedBlock and new shard state
     pub fn with_block_and_state(
-        sblock: SignedBlock,
+        signed_block: SignedBlock,
         serialized_block: Option<Vec<u8>>,
         block_hash: Option<UInt256>,
-        shard_state: Arc<ShardStateUnsplit>) -> Self 
-    {
-        let serialized_block = if serialized_block.is_some() { 
-            serialized_block.unwrap() 
+        shard_state: Arc<ShardStateUnsplit>,
+    ) -> Self {
+        let serialized_block = if serialized_block.is_some() {
+            serialized_block.unwrap()
         } else {
             let mut buf = Vec::new();
-            sblock.write_to(&mut buf).unwrap();
+            signed_block.write_to(&mut buf).unwrap();
             buf
         };
 
         // Test-lite-client requires hash od unsigned block
         // TODO will to think, how to do better
-        let block_data = sblock.block().write_to_bytes().unwrap(); // TODO process result
+        let block_data = signed_block.block().write_to_bytes().unwrap(); // TODO process result
 
         let mut hasher = Sha256::new();
-		hasher.input(block_data.as_slice());
-		let file_hash = UInt256::from_slice(&hasher.result().to_vec());
+        hasher.input(block_data.as_slice());
+        let file_hash = UInt256::from_slice(&hasher.result().to_vec());
 
         Self {
-            seq_no: key_by_seqno(sblock.block().read_info().unwrap().seq_no(), sblock.block().read_info().unwrap().vert_seq_no()),
+            seq_no: key_by_seqno(
+                signed_block.block().read_info().unwrap().seq_no(),
+                signed_block.block().read_info().unwrap().vert_seq_no(),
+            ),
             serialized_block,
-            block_hash: if block_hash.is_some() { block_hash.unwrap() } else { sblock.block().hash().unwrap() },
+            block_hash: if block_hash.is_some() {
+                block_hash.unwrap()
+            } else {
+                signed_block.block().hash().unwrap()
+            },
             file_hash,
-            block: sblock,
-            shard_state,  
+            block: signed_block,
+            shard_state,
         }
     }
 
     /// serialize shard block (for save on disk)
-    pub fn serialize(&self) -> NodeResult<Vec<u8>>{
+    pub fn serialize(&self) -> NodeResult<Vec<u8>> {
         let mut buf = Vec::new();
         buf.extend_from_slice(&self.seq_no.to_le_bytes());
         buf.extend_from_slice(&(self.serialized_block.len() as u32).to_le_bytes());
@@ -757,10 +890,10 @@ impl ShardBlock {
         let mut sb_buf = vec![0; sb_len as usize];
         rdr.read(&mut sb_buf)?;
         sb.serialized_block = sb_buf;
-        
+
         let hash = rdr.read_u256()?;
         sb.block_hash = UInt256::from(hash);
-        
+
         let hash = rdr.read_u256()?;
         sb.file_hash = UInt256::from(hash);
 
@@ -773,13 +906,25 @@ impl ShardBlock {
     }
 }
 
-// runs 10 thread to generate 5000 accounts with 1 input and two ouput messages per every block
-// finilizes block and return
+// runs 10 thread to generate 5000 accounts with 1 input and two output messages per every block
+// finalizes block and return
 #[allow(dead_code)]
-pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, prev_info: BlkPrevInfo) -> Block {
-
-    let block_builder = Arc::new(BlockBuilder::with_shard_ident(shard_ident, seq_no, prev_info,
-         0, None, SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32));
+pub(crate) fn generate_block_with_seq_no(
+    shard_ident: ShardIdent,
+    seq_no: u32,
+    prev_info: BlkPrevInfo,
+) -> Block {
+    let block_builder = Arc::new(BlockBuilder::with_shard_ident(
+        shard_ident,
+        seq_no,
+        prev_info,
+        0,
+        None,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32,
+    ));
 
     // start 10 thread for generate transaction
     for _ in 0..10 {
@@ -788,85 +933,112 @@ pub(crate) fn generate_block_with_seq_no(shard_ident: ShardIdent, seq_no: u32, p
             //println!("Thread write start.");
             let mut rng = rand::thread_rng();
             for _ in 0..5000 {
-                let acc = AccountId::from_raw((0..32).map(|_| { rand::random::<u8>() }).collect::<Vec<u8>>(), 256);
-                let mut transaction = Transaction::with_address_and_status(acc.clone(), AccountStatus::AccStateActive);
-                
+                let acc = AccountId::from_raw(
+                    (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
+                    256,
+                );
+                let mut transaction = Transaction::with_address_and_status(
+                    acc.clone(),
+                    AccountStatus::AccStateActive,
+                );
+
                 let mut value = CurrencyCollection::default();
                 value.grams = 10202u32.into();
-                let mut imh = InternalMessageHeader::with_addresses (
+                let mut imh = InternalMessageHeader::with_addresses(
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressInt::with_standart(None, 0, 
-                        AccountId::from_raw((0..32).map(|_| { rand::random::<u8>() }).collect::<Vec<u8>>(), 256)).unwrap(),
-                    value
+                    MsgAddressInt::with_standart(
+                        None,
+                        0,
+                        AccountId::from_raw(
+                            (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
+                            256,
+                        ),
+                    )
+                    .unwrap(),
+                    value,
                 );
-                
+
                 imh.ihr_fee = 10u32.into();
                 imh.fwd_fee = 5u32.into();
-                let mut inmsg1 = Arc::new(Message::with_int_header(imh));
-                Arc::get_mut(&mut inmsg1).map(|m| *m.body_mut() = Some(SliceData::new(vec![0x21;120])));
+                let mut in_msg1 = Arc::new(Message::with_int_header(imh));
+                Arc::get_mut(&mut in_msg1).map(|m| m.set_body(SliceData::new(vec![0x21; 120])));
 
-                let inmsg_int = InMsg::immediatelly(
-                    &MsgEnvelope::with_message_and_fee(&inmsg1, 9u32.into()).unwrap(),
-                    &transaction,
+                let in_msg_int = InMsg::immediatelly_msg(
+                    MsgEnvelope::with_message_and_fee(&in_msg1, 9u32.into())
+                        .unwrap()
+                        .serialize()
+                        .unwrap(),
+                    transaction.serialize().unwrap(),
                     11u32.into(),
-                ).unwrap();
+                );
 
-                let eimh = ExternalInboundMessageHeader {
-                    src: MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80])).unwrap(),
+                let ext_in_header = ExternalInboundMessageHeader {
+                    src: MsgAddressExt::with_extern(SliceData::new(vec![
+                        0x23, 0x52, 0x73, 0x00, 0x80,
+                    ]))
+                    .unwrap(),
                     dst: MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
                     import_fee: 10u32.into(),
                 };
 
-                let mut inmsg = Message::with_ext_in_header(eimh);
-                *inmsg.body_mut() = Some(SliceData::new(vec![0x01;120]));
+                let mut in_msg = Message::with_ext_in_header(ext_in_header);
+                in_msg.set_body(SliceData::new(vec![0x01; 120]));
 
-                transaction.write_in_msg(Some(&inmsg1)).unwrap();
-                // inmsg
-                let inmsg_ex = InMsg::external(&inmsg, &transaction).unwrap();
-                
-                // outmsgs
+                transaction.write_in_msg(Some(&in_msg1)).unwrap();
+                // in msg
+                let in_msg_ex = InMsg::external_msg(
+                    in_msg.serialize().unwrap(),
+                    transaction.serialize().unwrap(),
+                );
+
+                // out msgs
                 let mut value = CurrencyCollection::default();
                 value.grams = 10202u32.into();
-                let mut imh = InternalMessageHeader::with_addresses (
+                let mut imh = InternalMessageHeader::with_addresses(
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressInt::with_standart(None, 0, AccountId::from_raw(vec![255;32], 256)).unwrap(),
-                    value
+                    MsgAddressInt::with_standart(None, 0, AccountId::from_raw(vec![255; 32], 256))
+                        .unwrap(),
+                    value,
                 );
-                
+
                 imh.ihr_fee = 10u32.into();
                 imh.fwd_fee = 5u32.into();
-                let outmsg1 = Message::with_int_header(imh);
+                let out_msg1 = Message::with_int_header(imh);
 
-                let eomh = ExtOutMessageHeader::with_addresses (
+                let ext_out_header = ExtOutMessageHeader::with_addresses(
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80])).unwrap()
+                    MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80]))
+                        .unwrap(),
                 );
-                
-                let mut outmsg2 = Message::with_ext_out_header(eomh);
-                *outmsg2.body_mut() = Some(SliceData::new(vec![0x02;120]));
+
+                let mut out_msg2 = Message::with_ext_out_header(ext_out_header);
+                out_msg2.set_body(SliceData::new(vec![0x02; 120]));
 
                 let tr_cell = transaction.serialize().unwrap();
 
-                let out_msg1 = OutMsg::new(
-                    &MsgEnvelope::with_message_and_fee(&outmsg1, 9u32.into()).unwrap(),
-                    tr_cell.clone()
-                ).unwrap();
+                let out_msg1 = OutMsg::new_msg(
+                    MsgEnvelope::with_message_and_fee(&out_msg1, 9u32.into())
+                        .unwrap()
+                        .serialize()
+                        .unwrap(),
+                    tr_cell.clone(),
+                );
 
-                let out_msg2 = OutMsg::external(&outmsg2, tr_cell).unwrap();
+                let out_msg2 = OutMsg::external_msg(out_msg2.serialize().unwrap(), tr_cell);
 
-                let inmsg = Arc::new(if rng.gen() { inmsg_int} else { inmsg_ex });
-                // builder can stop earler than writing threads it is not a problem here
-                if !builder_clone.add_transaction(inmsg, vec![out_msg1, out_msg2]) {
+                let in_msg = Arc::new(if rng.gen() { in_msg_int } else { in_msg_ex });
+                // builder can stop earlier than writing threads it is not a problem here
+                if !builder_clone.add_transaction(in_msg, vec![out_msg1, out_msg2]) {
                     break;
                 }
-                
+
                 thread::sleep(Duration::from_millis(1)); // emulate timeout working TVM
             }
         });
     }
 
     thread::sleep(Duration::from_millis(10));
-    
+
     let ss = ShardStateUnsplit::default();
 
     let (block, _count) = block_builder.finalize_block(&ss, &ss).unwrap();

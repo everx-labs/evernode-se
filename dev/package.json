@@ -1,0 +1,9 @@
+{
+	"name": "dev",
+	"version": "1.0.0",
+	"dependencies": {
+		"arangojs": "^7.8.0",
+		"@eversdk/core": "^1.34.2",
+		"@eversdk/lib-node": "^1.34.2"
+	}
+}
