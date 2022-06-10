@@ -97,7 +97,7 @@ where
                     let out_msg = MsgEnvelope::with_message_and_fee(
                         // TODO need understand how set addresses for Envelop
                         &msg,
-                        10u32.into(), // TODO need understand where take fee value
+                        10u64.into()                    // TODO need understand where take fee value
                     )?;
                     let address = OutMsgQueueKey::first_u64(transaction.account_id());
                     let mut shard_state_new = shard_state_new.lock();
@@ -492,12 +492,13 @@ where
         transaction: &Transaction,
     ) -> NodeResult<Option<InMsg>> {
         if let Some(ref msg) = transaction.read_in_msg()? {
+            let tr_cell = transaction.serialize()?;
             let msg = if msg.is_inbound_external() {
-                InMsg::external_msg(msg.serialize()?, transaction.serialize()?)
+                InMsg::external_msg(transaction.in_msg_cell().unwrap_or_default(), tr_cell)
             } else {
                 let fee = msg.get_fee()?.unwrap_or_default();
                 let env = MsgEnvelope::with_message_and_fee(msg, fee.clone())?;
-                InMsg::immediatelly_msg(env.serialize()?, transaction.serialize()?, fee)
+                InMsg::immediatelly_msg(env.serialize()?, tr_cell, fee)
             };
             Ok(Some(msg))
         } else {
@@ -514,20 +515,14 @@ where
         let tr_cell = transaction.serialize()?;
         transaction.iterate_out_msgs(|ref msg| {
             res.push(if msg.is_internal() {
+                let env = MsgEnvelope::with_message_and_fee(msg, Grams::one())?;
                 if shard_id.contains_address(&msg.dst().unwrap())? {
-                    OutMsg::Immediately(OutMsgImmediately::with_cells(
-                        MsgEnvelope::with_message_and_fee(msg, Grams::one())?.serialize()?,
-                        tr_cell.clone(),
-                        reimport.serialize()?,
-                    ))
+                    OutMsg::immediately_msg(env.serialize()?, tr_cell.clone(), reimport.serialize()?)
                 } else {
-                    OutMsg::New(OutMsgNew::with_cells(
-                        MsgEnvelope::with_message_and_fee(msg, Grams::one())?.serialize()?,
-                        tr_cell.clone(),
-                    ))
+                    OutMsg::new_msg(env.serialize()?, tr_cell.clone())
                 }
             } else {
-                OutMsg::External(OutMsgExternal::with_cells(msg.serialize()?, tr_cell.clone()))
+                OutMsg::external_msg(msg.serialize()?, tr_cell.clone())
             });
             Ok(true)
         })?;

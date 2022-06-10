@@ -782,7 +782,6 @@ type ResponseCallback = fn(
     reply: NetworkProtocol,
 ) -> NodeResult<NetworkProtocol>;
 
-#[derive(Clone)]
 struct TimerHandler {
     // TODO: timer_id: TimerToken,
     timeout: Duration,

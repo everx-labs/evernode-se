@@ -2,7 +2,6 @@ use super::*;
 use crate::error::{NodeError, NodeErrorKind};
 use poa::engines::authority_round::RollingFinality;
 use rand::Rng;
-use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read, Seek, Write};
@@ -842,11 +841,8 @@ impl ShardBlock {
 
         // Test-lite-client requires hash od unsigned block
         // TODO will to think, how to do better
-        let block_data = signed_block.block().write_to_bytes().unwrap(); // TODO process result
-
-        let mut hasher = Sha256::new();
-        hasher.input(block_data.as_slice());
-        let file_hash = UInt256::from_slice(&hasher.result().to_vec());
+        let block_data = sblock.block().write_to_bytes().unwrap(); // TODO process result
+        let file_hash = UInt256::calc_file_hash(block_data.as_slice());
 
         Self {
             seq_no: key_by_seqno(
@@ -943,8 +939,8 @@ pub(crate) fn generate_block_with_seq_no(
                 );
 
                 let mut value = CurrencyCollection::default();
-                value.grams = 10202u32.into();
-                let mut imh = InternalMessageHeader::with_addresses(
+                value.grams = 10202u64.into();
+                let mut imh = InternalMessageHeader::with_addresses (
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
                     MsgAddressInt::with_standart(
                         None,
@@ -958,18 +954,18 @@ pub(crate) fn generate_block_with_seq_no(
                     value,
                 );
 
-                imh.ihr_fee = 10u32.into();
-                imh.fwd_fee = 5u32.into();
-                let mut in_msg1 = Arc::new(Message::with_int_header(imh));
-                Arc::get_mut(&mut in_msg1).map(|m| m.set_body(SliceData::new(vec![0x21; 120])));
+                imh.ihr_fee = 10u64.into();
+                imh.fwd_fee = 5u64.into();
+                let mut inmsg1 = Arc::new(Message::with_int_header(imh));
+                if let Some(m) = Arc::get_mut(&mut inmsg1) {
+                    m.set_body(SliceData::new(vec![0x21;120]));
+                }
 
-                let in_msg_int = InMsg::immediatelly_msg(
-                    MsgEnvelope::with_message_and_fee(&in_msg1, 9u32.into())
-                        .unwrap()
-                        .serialize()
-                        .unwrap(),
+                let env = MsgEnvelope::with_message_and_fee(&inmsg1, 9u64.into()).unwrap();
+                let inmsg_int = InMsg::immediatelly_msg(
+                    env.serialize().unwrap(),
                     transaction.serialize().unwrap(),
-                    11u32.into(),
+                    11u64.into(),
                 );
 
                 let ext_in_header = ExternalInboundMessageHeader {
@@ -978,32 +974,32 @@ pub(crate) fn generate_block_with_seq_no(
                     ]))
                     .unwrap(),
                     dst: MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    import_fee: 10u32.into(),
+                    import_fee: 10u64.into(),
                 };
 
-                let mut in_msg = Message::with_ext_in_header(ext_in_header);
-                in_msg.set_body(SliceData::new(vec![0x01; 120]));
+                let mut inmsg = Message::with_ext_in_header(eimh);
+                inmsg.set_body(SliceData::new(vec![0x01;120]));
 
-                transaction.write_in_msg(Some(&in_msg1)).unwrap();
-                // in msg
-                let in_msg_ex = InMsg::external_msg(
-                    in_msg.serialize().unwrap(),
-                    transaction.serialize().unwrap(),
+                transaction.write_in_msg(Some(&inmsg1)).unwrap();
+                // inmsg
+                let inmsg_ex = InMsg::external_msg(
+                    inmsg.serialize().unwrap(),
+                    transaction.serialize().unwrap()
                 );
 
-                // out msgs
+                // outmsgs
                 let mut value = CurrencyCollection::default();
-                value.grams = 10202u32.into();
-                let mut imh = InternalMessageHeader::with_addresses(
+                value.grams = 10202u64.into();
+                let mut imh = InternalMessageHeader::with_addresses (
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
                     MsgAddressInt::with_standart(None, 0, AccountId::from_raw(vec![255; 32], 256))
                         .unwrap(),
                     value,
                 );
 
-                imh.ihr_fee = 10u32.into();
-                imh.fwd_fee = 5u32.into();
-                let out_msg1 = Message::with_int_header(imh);
+                imh.ihr_fee = 10u64.into();
+                imh.fwd_fee = 5u64.into();
+                let outmsg1 = Message::with_int_header(imh);
 
                 let ext_out_header = ExtOutMessageHeader::with_addresses(
                     MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
@@ -1011,20 +1007,18 @@ pub(crate) fn generate_block_with_seq_no(
                         .unwrap(),
                 );
 
-                let mut out_msg2 = Message::with_ext_out_header(ext_out_header);
-                out_msg2.set_body(SliceData::new(vec![0x02; 120]));
+                let mut outmsg2 = Message::with_ext_out_header(eomh);
+                outmsg2.set_body(SliceData::new(vec![0x02;120]));
 
                 let tr_cell = transaction.serialize().unwrap();
 
+                let env = MsgEnvelope::with_message_and_fee(&outmsg1, 9u64.into()).unwrap();
                 let out_msg1 = OutMsg::new_msg(
-                    MsgEnvelope::with_message_and_fee(&out_msg1, 9u32.into())
-                        .unwrap()
-                        .serialize()
-                        .unwrap(),
-                    tr_cell.clone(),
+                    env.serialize().unwrap(),
+                    tr_cell.clone()
                 );
 
-                let out_msg2 = OutMsg::external_msg(out_msg2.serialize().unwrap(), tr_cell);
+                let out_msg2 = OutMsg::external_msg(outmsg2.serialize().unwrap(), tr_cell);
 
                 let in_msg = Arc::new(if rng.gen() { in_msg_int } else { in_msg_ex });
                 // builder can stop earlier than writing threads it is not a problem here

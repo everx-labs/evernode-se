@@ -24,7 +24,6 @@ extern crate serde;
 extern crate serde_derive;
 // #[macro_use]
 extern crate serde_json;
-extern crate sha2;
 extern crate stream_cancel;
 extern crate tokio;
 extern crate x25519_dalek;

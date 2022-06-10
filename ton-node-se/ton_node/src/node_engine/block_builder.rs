@@ -410,7 +410,7 @@ impl BlockBuilder {
     /// Get UNIX time and Logical Time of current block
     ///
     pub fn at_and_lt(&self) -> (u32, u64) {
-        (self.block_gen_utime.0, self.start_lt)
+        (self.block_gen_utime.as_u32(), self.start_lt)
     }
     pub fn end_lt(&self) -> u64 {
         self.current_block_data.lock().end_lt
