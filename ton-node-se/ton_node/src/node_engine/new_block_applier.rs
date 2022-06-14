@@ -38,7 +38,7 @@ pub trait BlockFinality {
 pub struct NewBlockApplier<F> where
     F: BlockFinality
 {
-    db: Arc<dyn DocumentsDb>,
+    db: Arc<Box<dyn DocumentsDb>>,
     finality: Arc<Mutex<F>>,
 }
 
@@ -46,7 +46,7 @@ impl<F> NewBlockApplier<F> where
     F: BlockFinality
 {
     /// Create new NewBlockApplier with given storages and shard state
-    pub fn with_params(finality: Arc<Mutex<F>>, db: Arc<dyn DocumentsDb>) -> Self {
+    pub fn with_params(finality: Arc<Mutex<F>>, db: Arc<Box<dyn DocumentsDb>>) -> Self {
 
         NewBlockApplier {
             finality,
@@ -67,7 +67,7 @@ impl<F> NewBlockApplier<F> where
         let new_shard_state = Arc::new(applied_shard);
         let root_hash = block.block().hash().unwrap();
 
-        log::info!(target: "node", "Apply block. finality hashes = {:?}", finality_hash);
+        info!(target: "node", "Apply block. finality hashes = {:?}", finality_hash);
 
         finality.put_block_with_info(
             block,

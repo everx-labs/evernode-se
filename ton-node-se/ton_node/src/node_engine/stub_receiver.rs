@@ -1,6 +1,6 @@
 use crate::error::NodeResult;
-use super::{
-    logical_time_generator::LogicalTimeGenerator,
+use node_engine::logical_time_generator::LogicalTimeGenerator;
+use node_engine::{
     InMessagesQueue, MessagesReceiver, QueuedMessage, ACCOUNTS, ACCOUNTS_COUNT,
     DEPRECATED_GIVER_ABI2_DEPLOY_MSG, GIVER_ABI1_DEPLOY_MSG, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE,
     MULTISIG_BALANCE, MULTISIG_DEPLOY_MSG, SUPER_ACCOUNT_ID,
@@ -13,9 +13,8 @@ use ton_block::{
     CommonMsgInfo, CurrencyCollection, Deserializable, ExternalInboundMessageHeader, Grams,
     InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, Serializable, StateInit,
 };
-use ton_labs_assembler::compile_code_to_cell;
+use ton_labs_assembler::compile_code;
 use ton_types::{AccountId, Cell, SliceData};
-
 
 pub struct StubReceiver {
     stop_tx: Option<mpsc::Sender<bool>>,
@@ -216,11 +215,11 @@ impl StubReceiver {
         data: Cell,
         body: Option<SliceData>,
     ) -> Message {
-        let code_cell = compile_code_to_cell(code).unwrap();
+        let code_cell = compile_code(code).unwrap().into_cell();
 
         let mut msg = Message::with_ext_in_header(ExternalInboundMessageHeader {
             src: MsgAddressExt::default(),
-            dst: MsgAddressInt::with_standart(None, workchain_id, account_id).unwrap(),
+            dst: MsgAddressInt::with_standart(None, workchain_id, account_id.clone()).unwrap(),
             import_fee: Grams::zero(),
         });
 
@@ -243,8 +242,15 @@ impl StubReceiver {
         value: u128,
         lt: u64,
     ) -> Message {
-        let hdr = Self::create_transfer_int_header(workchain_id, src, dst, value);
-        let mut msg = Message::with_int_header(hdr);
+        let mut balance = CurrencyCollection::default();
+        balance.grams = value.into();
+
+        let mut msg = Message::with_int_header(InternalMessageHeader::with_addresses_and_bounce(
+            MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
+            MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
+            balance,
+            false,
+        ));
 
         msg.set_at_and_lt(
             SystemTime::now()
@@ -284,15 +290,14 @@ impl StubReceiver {
     pub fn create_transfer_int_header(
         workchain_id: i8,
         src: AccountId,
-        dst: AccountId,
+        dest: AccountId,
         value: u128,
     ) -> InternalMessageHeader {
-        InternalMessageHeader::with_addresses_and_bounce(
-            MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
-            MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
-            CurrencyCollection::from_grams(Grams::new(value).unwrap()),
-            false
-        )
+        let msg = Self::create_transfer_message(workchain_id, src, dest, value, 0);
+        match msg.withdraw_header() {
+            CommonMsgInfo::IntMsgInfo(int_hdr) => int_hdr,
+            _ => panic!("must be internal message header"),
+        }
     }
 
     fn try_receive_message(

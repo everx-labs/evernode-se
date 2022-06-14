@@ -1,3 +1,4 @@
+#[allow(deprecated)]
 use super::error::*;
 use ed25519_dalek::Keypair;
 use parking_lot::Mutex;
@@ -33,6 +34,9 @@ pub mod blocks_finality;
 pub use self::blocks_finality::*;
 
 pub mod ton_node_engine;
+use self::ton_node_engine::*;
+
+pub mod ton_node_handlers;
 
 pub mod config;
 use self::config::*;
@@ -44,7 +48,7 @@ pub mod stub_receiver;
 
 use std::thread;
 
-lazy_static::lazy_static! {
+lazy_static! {
     static ref ACCOUNTS: Mutex<Vec<AccountId>> = Mutex::new(vec![]);
     static ref SUPER_ACCOUNT_ID: AccountId = AccountId::from([0; 32]);
 }
@@ -81,5 +85,5 @@ pub fn hexdump(d: &[u8]) {
         ));
     }
 
-    log::debug!(target: "node", "{}", str);
+    debug!(target: "node", "{}", str);
 }

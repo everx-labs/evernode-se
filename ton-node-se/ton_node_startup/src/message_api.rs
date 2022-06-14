@@ -40,7 +40,7 @@ impl MessageReceiverApi {
         req: &mut Request,
         queue: Arc<InMessagesQueue>,
     ) -> Result<Response, IronError> {
-        log::info!(target: "node", "Rest service: request got!");
+        info!(target: "node", "Rest service: request got!");
 
         let mut body = String::new();
         if req.body.read_to_string(&mut body).is_ok() {
@@ -65,7 +65,7 @@ impl MessageReceiverApi {
                             let message = match Self::parse_message(key, value) {
                                 Ok(m) => m,
                                 Err(err) => {
-                                    log::warn!(target: "node", "Error parsing message: {}", err);
+                                    warn!(target: "node", "Error parsing message: {}", err);
                                     return Ok(Response::with((
                                         status::BadRequest,
                                         format!("Error parsing message: {}", err),
@@ -77,10 +77,10 @@ impl MessageReceiverApi {
                             loop {
                                 if let Err(msg) = queue.queue(message) {
                                     if queue.has_delivery_problems() {
-                                        log::warn!(target: "node", "Request was refused because downstream services are not accessible");
+                                        warn!(target: "node", "Request was refused because downstream services are not accessible");
                                         return Ok(Response::with(status::ServiceUnavailable));
                                     }
-                                    log::warn!(target: "node", "Error queue message");
+                                    warn!(target: "node", "Error queue message");
                                     message = msg;
                                     thread::sleep(Duration::from_micros(100));
                                 } else {
@@ -95,7 +95,7 @@ impl MessageReceiverApi {
             }
         }
 
-        log::warn!(target: "node", "Error parsing request's body");
+        warn!(target: "node", "Error parsing request's body");
         Ok(Response::with((
             status::BadRequest,
             "Error parsing request's body",

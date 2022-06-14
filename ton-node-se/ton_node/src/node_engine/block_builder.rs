@@ -298,7 +298,7 @@ impl BlockBuilder {
         block_data: Arc<Mutex<BlockData>>,
         mut value: AppendSerializedContext,
     ) -> Result<()> {
-        log::debug!(
+        debug!(
             "Inserting transaction {}",
             value.transaction_cell.repr_hash().to_hex_string()
         );
@@ -347,7 +347,7 @@ impl BlockBuilder {
         }
         let d = now.elapsed();
         block_data.p1 += d;
-        log::debug!(
+        debug!(
             "Transaction inserted {}",
             value.transaction_cell.repr_hash().to_hex_string()
         );
@@ -442,7 +442,7 @@ impl BlockBuilder {
         account_blocks_tree.iterate_objects(|mut account_block| {
             match account_block.calculate_and_write_state(shard_state, new_shard_state) {
                 Ok(_) => account_blocks.push(account_block),
-                Err(err) => log::warn!(target: "node", "Error update account state {}", err),
+                Err(err) => warn!(target: "node", "Error update account state {}", err),
             }
             Ok(true)
         })?;
@@ -460,7 +460,7 @@ impl BlockBuilder {
         /*
                 let mut filename = std::path::PathBuf::new();
                 let str1 = format!("./shard_state_{}", block_data.block_info.seq_no);
-        log::info!(target: "ton_block", "want to save shard state {}", str1);
+        info!(target: "ton_block", "want to save shard state {}", str1);
                 filename.push(str1);
                 let mut file_info = std::fs::File::create(filename)?;
                 new_bag.write_to(&mut file_info, false)?;
@@ -470,7 +470,7 @@ impl BlockBuilder {
                         break;
                     }
                     let str2 = format!("./shard_state_{}", block_data.block_info.seq_no - i);
-        log::info!(target: "ton_block", "want to remove shard state {}", str2);
+        info!(target: "ton_block", "want to remove shard state {}", str2);
                     let _ = std::fs::remove_file(str2);
                 }
         */
@@ -490,11 +490,11 @@ impl BlockBuilder {
 
         time[2] = now.elapsed().as_micros();
 
-        log::info!(target: "profiler",
+        info!(target: "profiler",
             "Block builder time: {} / {} / {}",
             time[0], time[1], time[2]
         );
-        log::info!(target: "profiler",
+        info!(target: "profiler",
             "Block builder thread time: {} / {} / {}",
             block_data.p1.as_micros(),
             block_data.p2.as_micros(),

@@ -1,13 +1,11 @@
-#![cfg(test)]
-use super::{BlocksStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage};
+use node_engine::{BlocksStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage};
 use ton_block::{ShardIdent, ShardStateUnsplit, SignedBlock, Transaction};
 use ton_types::{AccountId, Cell, UInt256};
 use std::cell::{Cell as StdCell, RefCell};
 use std::collections::HashMap;
+use node_engine::file_based_storage::FinalityStorage;
 use std::sync::Arc;
 use crate::error::{NodeError, NodeResult};
-
-use super::file_based_storage::FinalityStorage;
 
 pub struct TestStorage {
     shard_ident: ShardIdent,
@@ -118,7 +116,7 @@ impl BlocksStorage for TestStorage {
         _block: &SignedBlock,
         _block_data: Option<&Vec<u8>>,
     ) -> NodeResult<()> {
-        log::info!(target: "node", "save block with seq_no: {}", _block.block().read_info()?.seq_no());
+        info!(target: "node", "save block with seq_no: {}", _block.block().read_info()?.seq_no());
         Ok(())
     }
 }

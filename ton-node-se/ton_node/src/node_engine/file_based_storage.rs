@@ -1,6 +1,6 @@
-use ed25519_dalek::Keypair;
-use crate::error::NodeResult;
-use super::{
+use ed25519_dalek::{Keypair};
+use error::NodeResult;
+use node_engine::{
     BlocksStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage
 };
 use parking_lot::Mutex;
@@ -184,7 +184,7 @@ impl FinalityStorage for FileBasedStorage {
 
         let mut name = block_finality_path.clone();
         name.push(hash.to_hex_string());
-        log::info!(target: "node", "save finality block name: {:?}", name);
+        info!(target: "node", "save finality block name: {:?}", name);
         if !name.as_path().exists() {
             let mut file_info = File::create(name)?;
             file_info.write_all(&mut data[..])?;
@@ -210,7 +210,7 @@ impl FinalityStorage for FileBasedStorage {
         let mut name = block_finality_path.clone();
         name.push(hash.to_hex_string());
 
-        log::info!(target: "node", "load finality block name: {:?}", name);
+        info!(target: "node", "load finality block name: {:?}", name);
         let mut file_info = File::open(name)?;
         let mut data = Vec::new();
         file_info.read_to_end(&mut data)?;

@@ -1,5 +1,4 @@
 [package]
-edition = '2021'
 build = '../build/build.rs'
 name = 'ton_node_old'
 version = '0.0.1'
@@ -17,6 +16,7 @@ futures = '0.3'
 hex = '0.4'
 lazy_static = '1.4'
 log = '0.4'
+log4rs = '1.1'
 num = '0.4'
 num-traits = '0.2'
 parking_lot = '0.12'
@@ -31,6 +31,7 @@ tokio-io-timeout = '1.2'
 x25519-dalek = '1.2'
 
 # Domestic
+ton_api = { git = 'https://github.com/tonlabs/ton-labs-tl', package = 'ton_api', tag = '0.2.128' }
 ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.51' }
 ton_executor = { git = 'https://github.com/tonlabs/ton-labs-executor', tag = '1.15.72' }
 ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.11.2' }
@@ -57,6 +58,8 @@ version = '0.26.0'
 pretty_assertions = '1.2'
 
 [features]
+local_node = [  ]
+startup_node = [  ]
 ci_run = [  ]
 log_file = [  ]
 verbose = [  ]
