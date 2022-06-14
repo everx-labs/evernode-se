@@ -46,7 +46,7 @@ pub mod routing_table;
 mod logical_time_generator;
 mod test_storage;
 mod documents_db_mock;
-mod stub_receiver;
+pub mod stub_receiver;
 use self::routing_table::*;
 
 use std::{io::Read, thread};
