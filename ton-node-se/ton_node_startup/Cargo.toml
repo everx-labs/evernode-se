@@ -1,4 +1,5 @@
 [package]
+edition = '2021'
 build = '../build/build.rs'
 name = 'ton_node_startup'
 version = '0.30.3'
@@ -7,7 +8,7 @@ version = '0.30.3'
 clap = '2.32.0'
 log = '0.4'
 log4rs = '1.1'
-ton_node = { features = [ 'startup_node' ], package = 'ton_node_old', path = '../ton_node' }
+ton_node = { package = 'ton_node_old', path = '../ton_node' }
 ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.51' }
 ton_block_json = { git = 'https://github.com/tonlabs/ton-labs-block-json.git', tag = '0.7.18' }
 ton_executor = { git = 'https://github.com/tonlabs/ton-labs-executor', tag = '1.15.72' }

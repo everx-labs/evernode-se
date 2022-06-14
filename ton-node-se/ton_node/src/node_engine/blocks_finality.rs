@@ -126,7 +126,7 @@ where
     blocks_storage: Arc<B>,
     tr_storage: Arc<T>,
     fn_storage: Arc<F>,
-    db: Option<Arc<Box<dyn DocumentsDb>>>,
+    db: Option<Arc<dyn DocumentsDb>>,
 
     current_block: Box<ShardBlock>,
     blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
@@ -154,7 +154,7 @@ where
         blocks_storage: Arc<B>,
         tr_storage: Arc<T>,
         fn_storage: Arc<F>,
-        db: Option<Arc<Box<dyn DocumentsDb>>>,
+        db: Option<Arc<dyn DocumentsDb>>,
         _public_keys: Vec<ed25519_dalek::PublicKey>,
     ) -> Self {
         let root_path = FileBasedStorage::create_workchains_dir(&root_path)
@@ -176,7 +176,7 @@ where
     }
 
     fn finality_blocks(&mut self, hashes: Vec<UInt256>, is_sync: bool) -> NodeResult<()> {
-        debug!("FIN-BLK {:?}", hashes);
+        log::debug!("FIN-BLK {:?}", hashes);
         for hash in hashes.iter() {
             if self.blocks_by_hash.contains_key(&hash) {
                 let fin_sb = self.blocks_by_hash.remove(&hash).unwrap();
@@ -213,18 +213,18 @@ where
                 );
 
                 if res.is_err() {
-                    warn!(target: "node", "reflect_block_in_db(Finalized) error: {:?}", res.unwrap_err());
+                    log::warn!(target: "node", "reflect_block_in_db(Finalized) error: {:?}", res.unwrap_err());
                 }
 
                 self.last_finalized_block = sb;
-                info!(target: "node", "FINALITY:save block seq_no: {:?}, serialized len = {}",
+                log::info!(target: "node", "FINALITY:save block seq_no: {:?}, serialized len = {}",
                     self.last_finalized_block.block.block().read_info()?.seq_no(),
                     self.last_finalized_block.serialized_block.len()
                 );
             } else {
                 if hash != &UInt256::from([0; 32]) && hash != &self.last_finalized_block.block_hash
                 {
-                    warn!(target: "node", "Can`t finality unknown hash!!!");
+                    log::warn!(target: "node", "Can`t finality unknown hash!!!");
                     return Err(NodeError::FinalityError);
                 }
             }
@@ -309,9 +309,8 @@ where
                 self.root_path.clone(),
                 &self.shard_ident,
             )?;
-        let finality_file_name = shard_path.clone();
         shard_path.push("blocks_finality.info");
-        info!(target: "node", "load: {}", shard_path.to_str().unwrap());
+        log::info!(target: "node", "load: {}", shard_path.to_str().unwrap());
         let mut file_info = File::open(shard_path)?;
         self.deserialize(&mut file_info)?;
         Ok(())
@@ -364,7 +363,7 @@ where
         // first read current block
         let hash = UInt256::from(rdr.read_u256()?);
         let seq_no = rdr.read_le_u64()?;
-        info!(target: "node", "read_one_sb:seq_no: {}", seq_no);
+        log::info!(target: "node", "read_one_sb:seq_no: {}", seq_no);
         if seq_no == 0 {
             Ok(Box::new(ShardBlock::default()))
         } else {
@@ -376,11 +375,11 @@ where
     }
 
     fn read_one_sb_from_file(&self, file_name: PathBuf) -> NodeResult<Box<ShardBlock>> {
-        info!(target: "node", "load {}", file_name.to_str().unwrap());
+        log::info!(target: "node", "load {}", file_name.to_str().unwrap());
         let mut file_info = File::open(file_name.clone())?;
         let mut data = Vec::new();
         file_info.read_to_end(&mut data)?;
-        info!(target: "node", "load {} ok.", file_name.to_str().unwrap());
+        log::info!(target: "node", "load {} ok.", file_name.to_str().unwrap());
         Ok(Box::new(ShardBlock::deserialize(
             &mut std::io::Cursor::new(data),
         )?))
@@ -393,12 +392,12 @@ where
     where
         R: Read + Seek,
     {
-        info!(target: "node", "load current block");
+        log::info!(target: "node", "load current block");
         self.current_block = self.read_one_sb(rdr)?;
-        info!(target: "node", "load last finalized block");
+        log::info!(target: "node", "load last finalized block");
         self.last_finalized_block = self.read_one_sb(rdr)?;
         loop {
-            info!(target: "node", "load non finalized block");
+            log::info!(target: "node", "load non finalized block");
             match self.read_one_sb_hash(rdr) {
                 Ok((seq_no, hash)) => {
                     let sb_hash = Box::new(FinalityBlock::Stored(Box::new(ShardBlockHash::with_hash(
@@ -438,7 +437,7 @@ where
 
                 extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
                     let msg = in_msg.read_message()?;
-                    debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
+                    log::debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
                     // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
                     // msg.prepare_boc_for_json()?;
                     let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
@@ -447,29 +446,29 @@ where
                         .map(|transaction| transaction.now());
                     db.put_message(msg, transaction_id, transaction_now, Some(block_id.clone()))
                         .map_err(
-                            |err| warn!(target: "node", "reflect message to DB(1). error: {}", err),
+                            |err| log::warn!(target: "node", "reflect message to DB(1). error: {}", err),
                         )
                         .ok();
                     Ok(true)
                 })?;
 
-                debug!(target: "node", "in_msg_descr.iterate - success");
+                log::debug!(target: "node", "in_msg_descr.iterate - success");
 
                 extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
                     let msg = out_msg.read_message()?.unwrap();
-                    debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
+                    log::debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
                     // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
                     // msg1.prepare_boc_for_json()?;
                     let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
                     db.put_message(msg, transaction_id, None, Some(block_id.clone()))
                         .map_err(
-                            |err| warn!(target: "node", "reflect message to DB(2). error: {}", err),
+                            |err| log::warn!(target: "node", "reflect message to DB(2). error: {}", err),
                         )
                         .ok();
                     Ok(true)
                 })?;
 
-                debug!(target: "node", "out_msg_descr.iterate - success");
+                log::debug!(target: "node", "out_msg_descr.iterate - success");
 
                 let mut changed_acc = HashSet::new();
 
@@ -480,13 +479,13 @@ where
                     account_block.transaction_iterate(|transaction| {
                         // transaction.prepare_proof_for_json(&block_info_cells, &block_root)?;
                         // transaction.prepare_boc_for_json()?;
-debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_string());
+log::debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_string());
                         if orig_status.is_none() {
                             orig_status = Some(transaction.orig_status.clone());
                         }
                         end_status = Some(transaction.end_status.clone());
                         if let Err(err) = db.put_transaction(transaction, Some(block_id.clone()), workchain_id) {
-                            warn!(target: "node", "reflect transaction to DB. error: {}", err);
+                            log::warn!(target: "node", "reflect transaction to DB. error: {}", err);
                         }
                         Ok(true)
                     })?;
@@ -495,7 +494,7 @@ debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_st
                     {
                         let account_id = account_block.account_id().clone();
                         if let Err(err) = db.put_deleted_account(workchain_id, account_id) {
-                            warn!(target: "node", "reflect deleted account to DB. error: {}", err);
+                            log::warn!(target: "node", "reflect deleted account to DB. error: {}", err);
                         }
                     }
                     Ok(true)
@@ -508,16 +507,16 @@ debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_st
                         // acc.account.prepare_boc_for_json()?;
                         let acc = acc.read_account()?;
                         if acc.is_none() {
-                            error!(target: "node", "something gone wrong with account {:x}", id);
+                            log::error!(target: "node", "something gone wrong with account {:x}", id);
                         } else if let Err(err) = db.put_account(acc) {
-                            warn!(target: "node", "reflect account to DB. error: {}", err);
+                            log::warn!(target: "node", "reflect account to DB. error: {}", err);
                         }
                     }
                     Ok(true)
                 })?;
                 //}
 
-                debug!(target: "node", "accounts.iterate - success");
+                log::debug!(target: "node", "accounts.iterate - success");
 
                 db.put_block(block)?;
             }
@@ -543,8 +542,8 @@ where
         finality_hash: Vec<UInt256>,
         is_sync: bool,
     ) -> NodeResult<()> {
-        info!(target: "node", "FINALITY: add block. hash: {:?}", block_hash);
-        info!(target: "node", "FINALITY:    block seq_no: {:?}", signed_block.block().read_info()?.seq_no());
+        log::info!(target: "node", "FINALITY: add block. hash: {:?}", block_hash);
+        log::info!(target: "node", "FINALITY:    block seq_no: {:?}", signed_block.block().read_info()?.seq_no());
 
         let sb = Box::new(ShardBlock::with_block_and_state(
             signed_block.clone(),
@@ -552,7 +551,7 @@ where
             block_hash,
             shard_state,
         ));
-        debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
+        log::debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.block_hash);
 
         self.current_block = sb.clone();
 
@@ -606,7 +605,7 @@ where
 
     /// get last shard bag
     fn get_last_shard_state(&self) -> Arc<ShardStateUnsplit> {
-        //warn!("LAST SHARD BAG {}", self.current_block.shard_bag.get_repr_hash_by_index(0).unwrap().to_hex_string()));
+        //log::warn!("LAST SHARD BAG {}", self.current_block.shard_bag.get_repr_hash_by_index(0).unwrap().to_hex_string()));
         Arc::clone(&self.current_block.shard_state)
     }
     /// find block by hash and return his sequence number (for sync)

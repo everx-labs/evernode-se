@@ -76,7 +76,7 @@ impl ArangoHelper {
             &context.config.database,
             &context.config.blocks_collection,
             &context.has_delivery_problems,
-            format!("{:#}", json!(doc)));
+            format!("{:#}", serde_json::json!(doc)));
         Ok(())
     }
 
@@ -87,7 +87,7 @@ impl ArangoHelper {
             &context.config.database,
             &context.config.messages_collection,
             &context.has_delivery_problems,
-            format!("{:#}", json!(doc)));
+            format!("{:#}", serde_json::json!(doc)));
         Ok(())
     }
 
@@ -98,7 +98,7 @@ impl ArangoHelper {
             &context.config.database,
             &context.config.transactions_collection,
             &context.has_delivery_problems,
-            format!("{:#}", json!(doc)));
+            format!("{:#}", serde_json::json!(doc)));
         Ok(())
     }
 
@@ -109,7 +109,7 @@ impl ArangoHelper {
             &context.config.database,
             &context.config.accounts_collection,
             &context.has_delivery_problems,
-            format!("{:#}", json!(doc)));
+            format!("{:#}", serde_json::json!(doc)));
         Ok(())
     }
 
@@ -120,7 +120,7 @@ impl ArangoHelper {
             &context.config.database,
             &context.config.accounts_collection,
             &context.has_delivery_problems,
-            format!("{:#}", json!(doc)));
+            format!("{:#}", serde_json::json!(doc)));
         Ok(())
     }
 
@@ -165,7 +165,7 @@ impl ArangoHelper {
                         log::error!(target: "node", "error sending to arango {}, ({:?})", url, resp.status().canonical_reason());
                     } else {
                         has_delivery_problems.store(false, Ordering::SeqCst);
-                        debug!(target: "node", "sucessfully sent to arango");
+                        log::debug!(target: "node", "sucessfully sent to arango");
                         break;
                     }
                 }
@@ -174,7 +174,7 @@ impl ArangoHelper {
                     log::error!(target: "node", "error sending to arango ({})", err);
                 }
             }
-            debug!(target: "node", "post_to_arango: timeout {}ms", timeout);
+            log::debug!(target: "node", "post_to_arango: timeout {}ms", timeout);
             thread::sleep(Duration::from_millis(timeout));
             timeout = min(MAX_TIMEOUT, timeout * TIMEOUT_BACKOFF_MULTIPLIER as u64);
         }
@@ -194,7 +194,7 @@ impl DocumentsDb for ArangoHelper {
         };
 
         if let Err(SendError(ArangoRecord::Block(set))) = self.sender.lock().send(ArangoRecord::Block(set)) {
-            error!(target: "node", "Error sending block {:x}:", set.id);
+            log::error!(target: "node", "Error sending block {:x}:", set.id);
         };
 
         Ok(())
@@ -219,7 +219,7 @@ impl DocumentsDb for ArangoHelper {
         };
 
         if let Err(SendError(ArangoRecord::Message(set))) = self.sender.lock().send(ArangoRecord::Message(set)) {
-            error!(target: "node", "Error sending message {:x}:", set.id);
+            log::error!(target: "node", "Error sending message {:x}:", set.id);
         };
 
         Ok(())
@@ -242,7 +242,7 @@ impl DocumentsDb for ArangoHelper {
         };
 
         if let Err(SendError(ArangoRecord::Transaction(set))) = self.sender.lock().send(ArangoRecord::Transaction(set)) {
-            error!(target: "node", "Error sending transaction {:x}:", set.id);
+            log::error!(target: "node", "Error sending transaction {:x}:", set.id);
         };
 
         Ok(())
@@ -268,7 +268,7 @@ impl DocumentsDb for ArangoHelper {
         };
 
         if let Err(SendError(ArangoRecord::Account(_))) = self.sender.lock().send(ArangoRecord::Account(set)) {
-            error!(target: "node", "Error sending account {:x}:", account_addr);
+            log::error!(target: "node", "Error sending account {:x}:", account_addr);
         };
 
         Ok(())
@@ -282,7 +282,7 @@ impl DocumentsDb for ArangoHelper {
         };
 
         if let Err(SendError(ArangoRecord::DeletedAccount(_))) = self.sender.lock().send(ArangoRecord::DeletedAccount(set)) {
-            error!(target: "node", "Error sending deleted account {}:{:x}:", workchain_id, account_id);
+            log::error!(target: "node", "Error sending deleted account {}:{:x}:", workchain_id, account_id);
         };
 
         Ok(())

@@ -1,22 +1,23 @@
 use super::*;
-#[allow(deprecated)]
 use crate::error::NodeResult;
 use crate::node_engine::stub_receiver::StubReceiver;
 use crate::node_engine::DocumentsDb;
-use node_engine::documents_db_mock::DocumentsDbMock;
+use crate::node_engine::documents_db_mock::DocumentsDbMock;
 use parking_lot::Mutex;
-use std::cmp::Ordering;
-use std::io::ErrorKind;
-use std::sync::atomic::AtomicU32;
-use std::sync::{
-    atomic::Ordering as AtomicOrdering,
-    atomic::AtomicUsize,
-    Arc,
+use std::{
+    cmp::Ordering,
+    io::ErrorKind,
+    sync::{
+        atomic::Ordering as AtomicOrdering,
+        atomic::AtomicU32,
+        atomic::AtomicUsize,
+        Arc,
+    },
+    time::{Duration, Instant},
 };
-use std::time::Duration;
 use ton_api::ton::ton_engine::NetworkProtocol;
-use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
 use ton_executor::BlockchainConfig;
+use ton_types::HashmapType;
 
 type PeerId = u64;
 type TimerToken = usize;
@@ -103,8 +104,7 @@ pub struct TonNodeEngine {
     pub message_queue: Arc<InMessagesQueue>,
     pub incoming_blocks: IncomingBlocksCache,
 
-    validator_index: u8,
-    pub last_step: AtomicUsize, // AtomicU32
+    pub last_step: AtomicU32,
 
     // network handler part
     timers_count: AtomicUsize,
@@ -118,8 +118,6 @@ pub struct TonNodeEngine {
     pub test_counter_out: Arc<Mutex<u32>>,
 
     pub(crate) private_key: Keypair,
-
-    pub documents_db: Arc<Box<dyn DocumentsDb>>,
 }
 
 impl TonNodeEngine {
@@ -141,14 +139,14 @@ impl TonNodeEngine {
             loop {
                 thread::sleep(Duration::from_secs(1));
                 match node.prepare_block(timestamp) {
-                    Ok(Some(block)) => {
-                        trace!(target: "node", "block generated successfully");
+                    Ok(Some(_block)) => {
+                        log::trace!(target: "node", "block generated successfully");
                     }
                     Ok(None) => {
-                        trace!(target: "node", "block was not generated successfully");
+                        log::trace!(target: "node", "block was not generated successfully");
                     }
                     Err(err) => {
-                        warn!(target: "node", "failed block generation: {}", err);
+                        log::warn!(target: "node", "failed block generation: {}", err);
                     }
                 }
             }
@@ -158,7 +156,7 @@ impl TonNodeEngine {
     }
 
     pub fn stop(self: Arc<Self>) -> NodeResult<()> {
-        info!(target: "node","TONNodeEngine stopped.");
+        log::info!(target: "node","TONNodeEngine stopped.");
         Ok(())
     }
 
@@ -167,27 +165,24 @@ impl TonNodeEngine {
     pub fn with_params(
         shard: ShardIdent,
         _local: bool,
-        port: u16,
-        node_index: u8,
+        _port: u16,
+        _node_index: u8,
         _poa_validators: u16,
         _poa_interval: u16,
         private_key: Keypair,
-        public_keys: Vec<ed25519_dalek::PublicKey>,
-        boot_list: Vec<String>,
+        _public_keys: Vec<ed25519_dalek::PublicKey>,
+        _boot_list: Vec<String>,
         receivers: Vec<Box<dyn MessagesReceiver>>,
         live_control_receiver: Box<dyn LiveControlReceiver>,
         blockchain_config: BlockchainConfig,
         documents_db: Option<Box<dyn DocumentsDb>>,
         storage_path: PathBuf,
     ) -> NodeResult<Self> {
-        info!(target: "node", "boot nodes:");
-        for n in boot_list.iter() {
-            info!(target: "node", "{}", n);
-        }
-
-        let documents_db = Arc::new(documents_db.unwrap_or_else(|| Box::new(DocumentsDbMock)));
-
-        let queue = Arc::new(InMessagesQueue::with_db(
+        let documents_db: Arc<dyn DocumentsDb> = match documents_db {
+            Some(documents_db) => Arc::from(documents_db),
+            None => Arc::new(DocumentsDbMock)
+        };
+        let message_queue = Arc::new(InMessagesQueue::with_db(
             shard.clone(),
             10000,
             documents_db.clone(),
@@ -206,7 +201,7 @@ impl TonNodeEngine {
         )));
         match block_finality.lock().load() {
             Ok(_) => {
-                info!(target: "node", "load block finality successfully");
+                log::info!(target: "node", "load block finality successfully");
             }
             Err(NodeError::Io(err)) => {
                     if err.kind() != ErrorKind::NotFound {
@@ -219,14 +214,10 @@ impl TonNodeEngine {
         }
 
         let mut validators_by_shard = HashMap::new();
-        validators_by_shard.insert(shard.clone(), vec![node_index as i32]);
+        validators_by_shard.insert(shard.clone(), vec![_node_index as i32]);
         let live_properties = Arc::new(EngineLiveProperties::new());
-        // private_key,
-        // public_keys,
-        // poa_interval,
-        // live_properties.time_delta.clone(),
 
-        queue.set_ready(true);
+        message_queue.set_ready(true);
 
         let mut receivers: Vec<Arc<Mutex<Box<dyn MessagesReceiver>>>> = receivers
             .into_iter()
@@ -245,8 +236,7 @@ impl TonNodeEngine {
             receivers,
             live_properties,
             live_control_receiver,
-            validator_index: node_index,
-            last_step: AtomicUsize::new(100500),
+            last_step: AtomicU32::new(100500),
 
             interval: 1,
             validators_by_shard: Arc::new(Mutex::new(validators_by_shard)),
@@ -255,7 +245,7 @@ impl TonNodeEngine {
             reset_sync_limit: RESET_SYNC_LIMIT,
 
             msg_processor: Arc::new(Mutex::new(MessagesProcessor::with_params(
-                queue.clone(),
+                message_queue.clone(),
                 storage.clone(),
                 shard.clone(),
                 blockchain_config,
@@ -265,7 +255,7 @@ impl TonNodeEngine {
                 block_finality.clone(),
                 documents_db.clone(),
             ))),
-            message_queue: queue.clone(),
+            message_queue,
             incoming_blocks: IncomingBlocksCache::new(),
             timers_count: AtomicUsize::new(0),
             timers: Arc::new(Mutex::new(HashMap::new())),
@@ -276,7 +266,6 @@ impl TonNodeEngine {
             #[cfg(test)]
             test_counter_in: Arc::new(Mutex::new(0)),
 
-            documents_db,
             private_key,
         })
     }
@@ -313,7 +302,7 @@ impl TonNodeEngine {
     pub fn push_message(&self, mut message: QueuedMessage, warning: &str, micros: u64) {
         while let Err(msg) = self.message_queue.queue(message) {
             message = msg;
-            warn!(target: "node", "{}", warning);
+            log::warn!(target: "node", "{}", warning);
             thread::sleep(Duration::from_micros(micros));
         }
     }
@@ -346,11 +335,6 @@ impl TonNodeEngine {
         &self.shard_ident
     }
 
-    /// Getter for validator index of node
-    pub fn validator_index(&self) -> i32 {
-        self.validator_index as i32
-    }
-
     /// Register new timer
     /// Only before start NetworkHandler
     #[allow(unused_assignments)]
@@ -368,36 +352,129 @@ impl TonNodeEngine {
         self.responses.lock().push((response, callback));
     }
 
-    // fn create_poa(
-    //     private_key: Keypair,
-    //     public_keys: Vec<ed25519_dalek::PublicKey>,
-    //     interval: u16,
-    //     delta: Arc<AtomicU32>,
-    // ) -> PoAContext {
-    //     let params = AuthorityRoundParams {
-    //         delta,
-    //         block_reward: U256::from(0u64),
-    //         block_reward_contract: None,
-    //         block_reward_contract_transition: 0,
-    //         empty_steps_transition: 0,
-    //         immediate_transitions: false,
-    //         maximum_empty_steps: std::usize::MAX,
-    //         maximum_uncle_count: 0,
-    //         maximum_uncle_count_transition: 0,
-    //         start_step: None,
-    //         step_duration: interval,
-    //         validate_score_transition: 0,
-    //         validate_step_transition: 0,
-    //         validators: Box::new(SimpleList::new(public_keys.clone())),
-    //         ton_key: private_key,
-    //     };
-    //     let engine = AuthorityRound::new(params, EthereumMachine::new()).unwrap();
-    //     let client: Arc<dyn EngineClient> = Arc::new(Client::new(engine.clone()));
+    fn print_block_info(block: &Block) {
+        let extra = block.read_extra().unwrap();
+        log::info!(target: "node",
+            "block: gen time = {}, in msg count = {}, out msg count = {}, account_blocks = {}",
+            block.read_info().unwrap().gen_utime(),
+            extra.read_in_msg_descr().unwrap().len().unwrap(),
+            extra.read_out_msg_descr().unwrap().len().unwrap(),
+            extra.read_account_blocks().unwrap().len().unwrap());
+    }
 
-    //     engine.register_client(Arc::downgrade(&client));
-    //     PoAContext { engine, client }
-    // }
+    ///
+    /// Generate new block if possible
+    ///
+    pub fn prepare_block(&self, timestamp: u32) -> NodeResult<Option<SignedBlock>> {
 
+        let mut time = [0u128; 10];
+        let mut now = Instant::now();
+
+        log::debug!("PREP_BLK_START");
+        let shard_state = self.finalizer.lock().get_last_shard_state();
+        let blk_prev_info = self.finalizer.lock().get_last_block_info()?;
+        log::info!(target: "node", "PARENT block: {:?}", blk_prev_info);
+        let seq_no = self.finalizer.lock().get_last_seq_no() + 1;
+        let gen_block_time = Duration::from_millis(self.gen_block_timeout());
+        time[0] = now.elapsed().as_micros();
+        now = Instant::now();
+
+        let result = self.msg_processor.lock().generate_block_multi(
+            &shard_state,
+            gen_block_time,
+            seq_no,
+            blk_prev_info,
+            timestamp,
+            true, //tvm code tracing enabled by default on trace level
+        );
+        let (block, new_shard_state) = match result? {
+            Some(result) => result,
+            None => return Ok(None)
+        };
+        time[1] = now.elapsed().as_micros();
+        now = Instant::now();
+        time[2] = now.elapsed().as_micros();
+        now = Instant::now();
+        time[3] = now.elapsed().as_micros();
+        now = Instant::now();
+
+        log::debug!("PREP_BLK_AFTER_GEN");
+        log::debug!("PREP_BLK2");
+
+        //        self.message_queue.set_ready(false);
+
+        // TODO remove debug print
+        Self::print_block_info(&block);
+
+        /*let res = self.propose_block_to_db(&mut block);
+
+        if res.is_err() {
+            log::warn!(target: "node", "Error propose_block_to_db: {}", res.unwrap_err());
+        }*/
+
+        time[4] = now.elapsed().as_micros();
+        now = Instant::now();
+
+        time[5] = now.elapsed().as_micros();
+        now = Instant::now();
+
+        let s_block = SignedBlock::with_block_and_key(block, &self.private_key)?;
+        let mut s_block_data = Vec::new();
+        s_block.write_to(&mut s_block_data)?;
+        time[6] = now.elapsed().as_micros();
+        now = Instant::now();
+        let (_, details) = self.finality_and_apply_block(
+            &s_block,
+            &s_block_data,
+            new_shard_state,
+            false,
+        )?;
+
+        time[7] = now.elapsed().as_micros();
+        log::info!(target: "profiler",
+            "{} {} / {} / {} / {} / {} / {} micros",
+            "Prepare block time: setup/gen/analysis1/analysis2/seal/finality",
+            time[0], time[1], time[2], time[3], time[4] + time[5], time[6] + time[7]
+        );
+
+        let mut str_details = String::new();
+        for detail in details {
+            str_details = if str_details.is_empty() {
+                format!("{}", detail)
+            } else {
+                format!("{} / {}", str_details, detail)
+            }
+        }
+        log::info!(target: "profiler", "Block finality details: {} / {} micros",  time[6], str_details);
+
+        log::debug!("PREP_BLK_SELF_STOP");
+
+        Ok(Some(s_block))
+    }
+
+    /// finality and apply block
+    fn finality_and_apply_block(
+        &self,
+        block: &SignedBlock,
+        block_data: &[u8],
+        applied_shard: ShardStateUnsplit,
+        is_sync: bool,
+    ) -> NodeResult<(Arc<ShardStateUnsplit>, Vec<u128>)> {
+
+        let mut time = Vec::new();
+        let now = Instant::now();
+        let hash = block.block().hash().unwrap();
+        let finality_hash = vec!(hash);
+        let new_state = self.block_applier.lock().apply(
+            block,
+            Some(block_data.to_vec()),
+            finality_hash,
+            applied_shard,
+            is_sync,
+        )?;
+        time.push(now.elapsed().as_micros());
+        Ok((new_state, time))
+    }
 }
 
 ///
@@ -476,33 +553,17 @@ impl TimerHandler {
     }
 }
 
-pub fn serialize<T: BoxedSerialize>(object: &T) -> NodeResult<Vec<u8>> {
-    let mut ret = Vec::<u8>::new();
-    {
-        let mut serializer = ton_api::Serializer::new(&mut ret);
-        let err = serializer.write_boxed(object);
-        if err.is_err() {
-            return Err(NodeError::TlSerializeError);
-        }
-    }
-    Ok(ret)
-}
-
-pub fn deserialize<T: BoxedDeserialize>(bytes: &mut &[u8]) -> T {
-    ton_api::Deserializer::new(bytes).read_boxed().unwrap()
-}
-
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {
     match NodeConfig::parse(json) {
         Ok(config) => match config.import_keys() {
             Ok(keys) => (config, keys),
             Err(err) => {
-                warn!(target: "node", "{}", err);
+                log::warn!(target: "node", "{}", err);
                 panic!("{} / {}", err, json)
             }
         },
         Err(err) => {
-            warn!(target: "node", "Error parsing configuration file. {}", err);
+            log::warn!(target: "node", "Error parsing configuration file. {}", err);
             panic!("Error parsing configuration file. {}", err)
         }
     }
@@ -587,23 +648,6 @@ impl IncomingBlocksCache {
     pub fn len(&self) -> usize {
         let blocks = self.blocks.lock();
         blocks.len()
-    }
-
-    /// Sort block by sequence number
-    pub fn sort(&self) {
-        let mut blocks = self.blocks.lock();
-        blocks.sort();
-    }
-
-    /// get minimum sequence number of blocks
-    pub fn get_min_seq_no(&self) -> u32 {
-        let mut blocks = self.blocks.lock();
-        blocks.sort();
-        if blocks.len() != 0 {
-            blocks[0].block.block().read_info().unwrap().seq_no()
-        } else {
-            0xFFFFFFFF
-        }
     }
 
     /// get pointer to vector of temporary blocks
