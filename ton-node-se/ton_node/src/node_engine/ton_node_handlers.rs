@@ -5,7 +5,7 @@ use ton_types::HashmapType;
 impl TonNodeEngine {
     pub fn print_block_info(block: &Block) {
         let extra = block.read_extra().unwrap();
-        info!(target: "node",
+        log::info!(target: "node",
             "block: gen time = {}, in msg count = {}, out msg count = {}, account_blocks = {}",
             block.read_info().unwrap().gen_utime(),
             extra.read_in_msg_descr().unwrap().len().unwrap(),
@@ -63,10 +63,10 @@ impl TonNodeEngine {
         let mut time = [0u128; 10];
         let mut now = Instant::now();
 
-        debug!("PREP_BLK_START");
+        log::debug!("PREP_BLK_START");
         let shard_state = self.finalizer.lock().get_last_shard_state();
         let blk_prev_info = self.finalizer.lock().get_last_block_info()?;
-        info!(target: "node", "PARENT block: {:?}", blk_prev_info);
+        log::info!(target: "node", "PARENT block: {:?}", blk_prev_info);
         let seq_no = self.finalizer.lock().get_last_seq_no() + 1;
         let gen_block_time = Duration::from_millis(self.gen_block_timeout());
         time[0] = now.elapsed().as_micros();
@@ -91,8 +91,8 @@ impl TonNodeEngine {
         time[3] = now.elapsed().as_micros();
         now = Instant::now();
 
-        debug!("PREP_BLK_AFTER_GEN");
-        debug!("PREP_BLK2");
+        log::debug!("PREP_BLK_AFTER_GEN");
+        log::debug!("PREP_BLK2");
 
         //        self.message_queue.set_ready(false);
 
@@ -102,7 +102,7 @@ impl TonNodeEngine {
         /*let res = self.propose_block_to_db(&mut block);
 
         if res.is_err() {
-            warn!(target: "node", "Error propose_block_to_db: {}", res.unwrap_err());
+            log::warn!(target: "node", "Error propose_block_to_db: {}", res.unwrap_err());
         }*/
 
         time[4] = now.elapsed().as_micros();
@@ -124,7 +124,7 @@ impl TonNodeEngine {
         )?;
 
         time[7] = now.elapsed().as_micros();
-        info!(target: "profiler",
+        log::info!(target: "profiler",
             "{} {} / {} / {} / {} / {} / {} micros",
             "Prepare block time: setup/gen/analysis1/analysis2/seal/finality",
             time[0], time[1], time[2], time[3], time[4] + time[5], time[6] + time[7]
@@ -138,9 +138,9 @@ impl TonNodeEngine {
                 format!("{} / {}", str_details, detail)
             }
         }
-        info!(target: "profiler", "Block finality details: {} / {} micros",  time[6], str_details);
+        log::info!(target: "profiler", "Block finality details: {} / {} micros",  time[6], str_details);
 
-        debug!("PREP_BLK_SELF_STOP");
+        log::debug!("PREP_BLK_SELF_STOP");
 
         Ok(Some(s_block))
     }

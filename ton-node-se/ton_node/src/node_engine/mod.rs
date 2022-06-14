@@ -48,7 +48,7 @@ pub mod stub_receiver;
 
 use std::thread;
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref ACCOUNTS: Mutex<Vec<AccountId>> = Mutex::new(vec![]);
     static ref SUPER_ACCOUNT_ID: AccountId = AccountId::from([0; 32]);
 }
@@ -85,5 +85,5 @@ pub fn hexdump(d: &[u8]) {
         ));
     }
 
-    debug!(target: "node", "{}", str);
+    log::debug!(target: "node", "{}", str);
 }

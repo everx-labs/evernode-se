@@ -67,7 +67,7 @@ impl<F> NewBlockApplier<F> where
         let new_shard_state = Arc::new(applied_shard);
         let root_hash = block.block().hash().unwrap();
 
-        info!(target: "node", "Apply block. finality hashes = {:?}", finality_hash);
+        log::info!(target: "node", "Apply block. finality hashes = {:?}", finality_hash);
 
         finality.put_block_with_info(
             block,

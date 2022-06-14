@@ -1,4 +1,5 @@
 [package]
+edition = '2021'
 build = '../build/build.rs'
 name = 'ton_node_startup'
 version = '0.30.3'

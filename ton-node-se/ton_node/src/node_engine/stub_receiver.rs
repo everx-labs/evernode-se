@@ -1,6 +1,6 @@
 use crate::error::NodeResult;
-use node_engine::logical_time_generator::LogicalTimeGenerator;
-use node_engine::{
+use super::{
+    logical_time_generator::LogicalTimeGenerator,
     InMessagesQueue, MessagesReceiver, QueuedMessage, ACCOUNTS, ACCOUNTS_COUNT,
     DEPRECATED_GIVER_ABI2_DEPLOY_MSG, GIVER_ABI1_DEPLOY_MSG, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE,
     MULTISIG_BALANCE, MULTISIG_DEPLOY_MSG, SUPER_ACCOUNT_ID,
@@ -15,6 +15,7 @@ use ton_block::{
 };
 use ton_labs_assembler::compile_code;
 use ton_types::{AccountId, Cell, SliceData};
+
 
 pub struct StubReceiver {
     stop_tx: Option<mpsc::Sender<bool>>,

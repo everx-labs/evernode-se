@@ -1,27 +1,3 @@
-#![cfg_attr(feature = "ci_run", deny(warnings))]
-
-extern crate clap;
-extern crate ton_node;
-#[macro_use]
-extern crate log;
-extern crate ed25519_dalek;
-extern crate http;
-extern crate iron;
-extern crate log4rs;
-extern crate parking_lot;
-extern crate reqwest;
-extern crate serde;
-extern crate ton_block;
-extern crate ton_types;
-extern crate ton_vm as tvm;
-#[macro_use]
-extern crate serde_json;
-extern crate base64;
-extern crate router;
-extern crate serde_derive;
-extern crate ton_block_json;
-extern crate ton_executor;
-
 mod message_api;
 
 use arango::ArangoHelper;
@@ -140,7 +116,7 @@ fn run() -> NodeResult<()> {
         config.node.log_path
     ));
 
-    info!(target: "node", "TON Node Startup Edition {}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
+    log::info!(target: "node", "TON Node Startup Edition {}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
         env!("CARGO_PKG_VERSION"),
         env!("BUILD_GIT_COMMIT"),
         env!("BUILD_TIME") ,

@@ -1,9 +1,8 @@
 use super::*;
-#[allow(deprecated)]
 use crate::error::NodeResult;
 use crate::node_engine::stub_receiver::StubReceiver;
 use crate::node_engine::DocumentsDb;
-use node_engine::documents_db_mock::DocumentsDbMock;
+use crate::node_engine::documents_db_mock::DocumentsDbMock;
 use parking_lot::Mutex;
 use std::cmp::Ordering;
 use std::io::ErrorKind;
@@ -126,13 +125,13 @@ impl TonNodeEngine {
                 thread::sleep(Duration::from_secs(1));
                 match node.prepare_block(timestamp) {
                     Ok(Some(_block)) => {
-                        trace!(target: "node", "block generated successfully");
+                        log::trace!(target: "node", "block generated successfully");
                     }
                     Ok(None) => {
-                        trace!(target: "node", "block was not generated successfully");
+                        log::trace!(target: "node", "block was not generated successfully");
                     }
                     Err(err) => {
-                        warn!(target: "node", "failed block generation: {}", err);
+                        log::warn!(target: "node", "failed block generation: {}", err);
                     }
                 }
             }
@@ -142,7 +141,7 @@ impl TonNodeEngine {
     }
 
     pub fn stop(self: Arc<Self>) -> NodeResult<()> {
-        info!(target: "node","TONNodeEngine stopped.");
+        log::info!(target: "node","TONNodeEngine stopped.");
         Ok(())
     }
 
@@ -187,7 +186,7 @@ impl TonNodeEngine {
         )));
         match block_finality.lock().load() {
             Ok(_) => {
-                info!(target: "node", "load block finality successfully");
+                log::info!(target: "node", "load block finality successfully");
             }
             Err(NodeError::Io(err)) => {
                     if err.kind() != ErrorKind::NotFound {
@@ -256,7 +255,7 @@ impl TonNodeEngine {
     pub fn push_message(&self, mut message: QueuedMessage, warning: &str, micros: u64) {
         while let Err(msg) = self.message_queue.queue(message) {
             message = msg;
-            warn!(target: "node", "{}", warning);
+            log::warn!(target: "node", "{}", warning);
             thread::sleep(Duration::from_micros(micros));
         }
     }
@@ -284,12 +283,12 @@ pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKe
         Ok(config) => match config.import_keys() {
             Ok(keys) => (config, keys),
             Err(err) => {
-                warn!(target: "node", "{}", err);
+                log::warn!(target: "node", "{}", err);
                 panic!("{} / {}", err, json)
             }
         },
         Err(err) => {
-            warn!(target: "node", "Error parsing configuration file. {}", err);
+            log::warn!(target: "node", "Error parsing configuration file. {}", err);
             panic!("Error parsing configuration file. {}", err)
         }
     }

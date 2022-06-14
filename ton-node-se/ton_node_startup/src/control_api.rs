@@ -19,8 +19,8 @@ impl ControlApi {
         req: &mut Request,
         control: &Box<dyn LiveControl>,
     ) -> Result<Response, IronError> {
-        info!(target: "node", "Control API: request got!");
-        info!(target: "node", "{:?}", req.url.path());
+        log::info!(target: "node", "Control API: request got!");
+        log::info!(target: "node", "{:?}", req.url.path());
         let command = ControlCommand::from_req(req)?;
         match command {
             ControlCommand::IncreaseTime(delta) => {
@@ -31,7 +31,7 @@ impl ControlApi {
         }
         return Ok(Response::with(status::Ok));
 
-        // warn!(target: "node", "Error handling control request");
+        // log::warn!(target: "node", "Error handling control request");
         // Ok(Response::with((
         //     status::BadRequest,
         //     "Error handling control request",
