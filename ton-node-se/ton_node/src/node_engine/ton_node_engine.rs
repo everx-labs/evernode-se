@@ -5,22 +5,15 @@ use crate::node_engine::DocumentsDb;
 use crate::node_engine::documents_db_mock::DocumentsDbMock;
 use parking_lot::Mutex;
 use std::{
-    cmp::Ordering,
     io::ErrorKind,
     sync::{
-        atomic::Ordering as AtomicOrdering,
-        atomic::AtomicU32,
-        atomic::AtomicUsize,
+        atomic::{Ordering, AtomicU32},
         Arc,
     },
     time::{Duration, Instant},
 };
-use ton_api::ton::ton_engine::NetworkProtocol;
 use ton_executor::BlockchainConfig;
 use ton_types::HashmapType;
-
-type PeerId = u64;
-type TimerToken = usize;
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
@@ -54,11 +47,11 @@ impl EngineLiveProperties {
     }
 
     fn get_time_delta(&self) -> u32 {
-        self.time_delta.load(AtomicOrdering::Relaxed)
+        self.time_delta.load(Ordering::Relaxed)
     }
 
     fn set_time_delta(&self, value: u32) {
-        self.time_delta.store(value, AtomicOrdering::Relaxed)
+        self.time_delta.store(value, Ordering::Relaxed)
     }
 
     fn increment_time(&self, delta: u32) {
@@ -93,7 +86,6 @@ pub struct TonNodeEngine {
     live_control_receiver: Box<dyn LiveControlReceiver>,
 
     interval: usize,
-    validators_by_shard: Arc<Mutex<HashMap<ShardIdent, Vec<i32>>>>,
     get_block_timout: u64,
     gen_block_timer: u64,
     reset_sync_limit: usize,
@@ -106,12 +98,6 @@ pub struct TonNodeEngine {
 
     pub last_step: AtomicU32,
 
-    // network handler part
-    timers_count: AtomicUsize,
-    timers: Arc<Mutex<HashMap<TimerToken, TimerHandler>>>,
-    requests: Arc<Mutex<HashMap<PeerId, HashMap<u32, RequestCallback>>>>,
-
-    responses: Arc<Mutex<Vec<(NetworkProtocol, ResponseCallback)>>>,
     #[cfg(test)]
     pub test_counter_in: Arc<Mutex<u32>>,
     #[cfg(test)]
@@ -213,8 +199,6 @@ impl TonNodeEngine {
             }
         }
 
-        let mut validators_by_shard = HashMap::new();
-        validators_by_shard.insert(shard.clone(), vec![_node_index as i32]);
         let live_properties = Arc::new(EngineLiveProperties::new());
 
         message_queue.set_ready(true);
@@ -239,7 +223,6 @@ impl TonNodeEngine {
             last_step: AtomicU32::new(100500),
 
             interval: 1,
-            validators_by_shard: Arc::new(Mutex::new(validators_by_shard)),
             get_block_timout: GEN_BLOCK_TIMEOUT,
             gen_block_timer: GEN_BLOCK_TIMER,
             reset_sync_limit: RESET_SYNC_LIMIT,
@@ -257,10 +240,6 @@ impl TonNodeEngine {
             ))),
             message_queue,
             incoming_blocks: IncomingBlocksCache::new(),
-            timers_count: AtomicUsize::new(0),
-            timers: Arc::new(Mutex::new(HashMap::new())),
-            responses: Arc::new(Mutex::new(Vec::new())),
-            requests: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(test)]
             test_counter_out: Arc::new(Mutex::new(0)),
             #[cfg(test)]
@@ -274,48 +253,12 @@ impl TonNodeEngine {
         self.interval
     }
 
-    //    pub fn validators(&self) -> usize {
-    //        self.validators
-    //    }
-
-    pub fn validators(&self, shard: &ShardIdent) -> Vec<i32> {
-        match self.validators_by_shard.lock().get(shard) {
-            None => Vec::new(),
-            Some(vals) => vals.to_vec(),
-        }
-    }
-
-    pub fn validators_for_account(&self, wc: i32, id: &AccountId) -> Vec<i32> {
-        for (shard, vals) in self.validators_by_shard.lock().iter() {
-            if is_in_current_shard(shard, wc, id) {
-                return vals.to_vec();
-            }
-        }
-        Vec::new()
-    }
-
-    pub fn is_active_on_step(&self, step: usize, shard: &ShardIdent, val: i32) -> bool {
-        let vals = self.validators(&shard);
-        self.get_active_on_step(step, &vals) == val
-    }
-
     pub fn push_message(&self, mut message: QueuedMessage, warning: &str, micros: u64) {
         while let Err(msg) = self.message_queue.queue(message) {
             message = msg;
             log::warn!(target: "node", "{}", warning);
             thread::sleep(Duration::from_micros(micros));
         }
-    }
-
-    pub fn get_active_on_step(&self, step: usize, vals: &Vec<i32>) -> i32 {
-        /*
-                let step = if (vals.len() % self.interval) == 0 {
-                    step / self.interval
-                } else {
-                    step
-                };
-        */
-        vals[step % vals.len()]
     }
 
     pub fn gen_block_timeout(&self) -> u64 {
@@ -333,23 +276,6 @@ impl TonNodeEngine {
     /// Getter for current shard identifier
     pub fn current_shard_id(&self) -> &ShardIdent {
         &self.shard_ident
-    }
-
-    /// Register new timer
-    /// Only before start NetworkHandler
-    #[allow(unused_assignments)]
-    pub fn register_timer(&self, timeout: Duration, callback: TimerCallback) {
-        let timers_count = self.timers_count.fetch_add(1, AtomicOrdering::SeqCst);
-        let th = TimerHandler::with_params(timers_count, timeout, callback);
-        self.timers.lock().insert(timers_count, th);
-    }
-
-    pub fn register_response_callback(
-        &self,
-        response: NetworkProtocol,
-        callback: ResponseCallback,
-    ) {
-        self.responses.lock().push((response, callback));
     }
 
     fn print_block_info(block: &Block) {
@@ -477,82 +403,6 @@ impl TonNodeEngine {
     }
 }
 
-///
-/// Protocol packets
-///
-type PacketId = u8;
-pub const REQUEST: PacketId = 1;
-pub const RESPONSE: PacketId = 2;
-
-impl TonNodeEngine {
-    fn initialize(&self) {
-    }
-
-    // fn read(&self, peer: &PeerId, packet_id: u8, data: &[u8]) {
-    //     let res = self.read_internal(peer, packet_id, data);
-    //     if res.is_err() {
-    //         warn!(target: "node", "Error in TonNodeEngine.read: {:?}", res);
-    //     }
-    // }
-
-    fn timeout(&self, timer: TimerToken) {
-        //debug!("TIMEOUT");
-        let callback = {
-            let timers = self.timers.lock();
-            if let Some(handler) = timers.get(&timer) {
-                Some(handler.get_callback())
-            } else {
-                None
-            }
-        };
-        if let Some(callback) = callback {
-            callback(self);
-        }
-        /*
-                let timers = self.timers.lock();
-                if timers.contains_key(&timer) {
-                    if let Some(handler) = timers.get(&timer) {
-                        let timer = handler.get_callback();
-                        timer(self);
-                    }
-                }
-        */
-    }
-}
-
-type TimerCallback = fn(engine: &TonNodeEngine);
-type RequestCallback = fn(
-    engine: &TonNodeEngine,
-    peer: &PeerId,
-    reply: NetworkProtocol,
-) -> NodeResult<()>;
-type ResponseCallback = fn(
-    engine: &TonNodeEngine,
-    peer: &PeerId,
-    reply: NetworkProtocol,
-) -> NodeResult<NetworkProtocol>;
-
-struct TimerHandler {
-    // TODO: timer_id: TimerToken,
-    timeout: Duration,
-    callback: TimerCallback,
-}
-
-impl TimerHandler {
-    pub fn with_params(_timer_id: TimerToken, timeout: Duration, callback: TimerCallback) -> Self {
-        TimerHandler {
-            // TODO: timer_id,
-            timeout,
-            callback,
-        }
-    }
-
-    pub fn get_callback(&self) -> TimerCallback {
-        let callback = self.callback;
-        callback
-    }
-}
-
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {
     match NodeConfig::parse(json) {
         Ok(config) => match config.import_keys() {
@@ -569,7 +419,7 @@ pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKe
     }
 }
 
-#[derive(Eq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct FinalityBlockInfo {
     pub block: SignedBlock,
     pub block_data: Option<Vec<u8>>,
@@ -590,30 +440,6 @@ impl FinalityBlockInfo {
     }
 }
 
-impl Ord for FinalityBlockInfo {
-    fn cmp(&self, other: &FinalityBlockInfo) -> Ordering {
-        self.block
-            .block()
-            .read_info()
-            .unwrap()
-            .seq_no()
-            .cmp(&other.block.block().read_info().unwrap().seq_no())
-    }
-}
-
-impl PartialOrd for FinalityBlockInfo {
-    fn partial_cmp(&self, other: &FinalityBlockInfo) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for FinalityBlockInfo {
-    fn eq(&self, other: &FinalityBlockInfo) -> bool {
-        self.block.block().read_info().unwrap().seq_no()
-            == other.block.block().read_info().unwrap().seq_no()
-    }
-}
-
 pub struct IncomingBlocksCache {
     blocks: Arc<Mutex<Vec<FinalityBlockInfo>>>,
 }
@@ -628,26 +454,22 @@ impl IncomingBlocksCache {
 
     /// push block to end of vector
     pub fn push(&self, block_info: FinalityBlockInfo) {
-        let mut blocks = self.blocks.lock();
-        blocks.push(block_info);
+        self.blocks.lock().push(block_info);
     }
 
     /// pop block from end of vector
     pub fn pop(&self) -> Option<FinalityBlockInfo> {
-        let mut blocks = self.blocks.lock();
-        blocks.pop()
+        self.blocks.lock().pop()
     }
 
     /// remove block from arbitrary place of vector and return it
     pub fn remove(&self, i: usize) -> FinalityBlockInfo {
-        let mut blocks = self.blocks.lock();
-        blocks.remove(i)
+        self.blocks.lock().remove(i)
     }
 
     /// Get count of temporary blocks
     pub fn len(&self) -> usize {
-        let blocks = self.blocks.lock();
-        blocks.len()
+        self.blocks.lock().len()
     }
 
     /// get pointer to vector of temporary blocks
@@ -657,8 +479,7 @@ impl IncomingBlocksCache {
 
     /// check if block with sequence number exists in temporary blocks
     pub fn exists(&self, seq_no: u32) -> bool {
-        let blocks = self.blocks.lock();
-        blocks
+        self.blocks.lock()
             .iter()
             .find(|x| x.block.block().read_info().unwrap().seq_no() == seq_no)
             .is_some()
