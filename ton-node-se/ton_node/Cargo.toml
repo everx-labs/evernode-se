@@ -31,7 +31,6 @@ tokio-io-timeout = '1.2'
 x25519-dalek = '1.2'
 
 # Domestic
-ton_api = { git = 'https://github.com/tonlabs/ton-labs-tl', package = 'ton_api', tag = '0.2.128' }
 ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.51' }
 ton_executor = { git = 'https://github.com/tonlabs/ton-labs-executor', tag = '1.15.72' }
 ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.11.2' }

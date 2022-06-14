@@ -7,19 +7,13 @@ use node_engine::documents_db_mock::DocumentsDbMock;
 use parking_lot::Mutex;
 use std::cmp::Ordering;
 use std::io::ErrorKind;
-use std::sync::atomic::AtomicU32;
 use std::sync::{
     atomic::Ordering as AtomicOrdering,
-    atomic::AtomicUsize,
+    atomic::AtomicU32,
     Arc,
 };
 use std::time::Duration;
-use ton_api::ton::ton_engine::NetworkProtocol;
-use ton_api::{BoxedDeserialize, BoxedSerialize};
 use ton_executor::BlockchainConfig;
-
-type PeerId = u64;
-type TimerToken = usize;
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
@@ -28,8 +22,8 @@ mod tests;
 type Storage = FileBasedStorage;
 type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 type ArcMsgProcessor = Arc<Mutex<MessagesProcessor<Storage>>>;
-type ArcBlockApplier =
-    Arc<Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>>;
+type BlockApplier =
+    Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 
 // TODO do interval and validator field of TonNodeEngine
 // and read from config
@@ -88,7 +82,7 @@ pub struct TonNodeEngine {
     shard_ident: ShardIdent,
 
     live_properties: Arc<EngineLiveProperties>,
-    receivers: Vec<Arc<Mutex<Box<dyn MessagesReceiver>>>>,
+    receivers: Vec<Mutex<Box<dyn MessagesReceiver>>>,
     live_control_receiver: Box<dyn LiveControlReceiver>,
 
     interval: usize,
@@ -98,15 +92,11 @@ pub struct TonNodeEngine {
 
     pub msg_processor: ArcMsgProcessor,
     pub finalizer: ArcBlockFinality,
-    pub block_applier: ArcBlockApplier,
+    pub block_applier: BlockApplier,
     pub message_queue: Arc<InMessagesQueue>,
     pub incoming_blocks: IncomingBlocksCache,
 
-    pub last_step: AtomicUsize, // AtomicU32
-
-    // network handler part
-    timers_count: AtomicUsize,
-    timers: Arc<Mutex<HashMap<TimerToken, TimerHandler>>>,
+    pub last_step: AtomicU32,
 
     #[cfg(test)]
     pub test_counter_in: Arc<Mutex<u32>>,
@@ -114,8 +104,6 @@ pub struct TonNodeEngine {
     pub test_counter_out: Arc<Mutex<u32>>,
 
     pub(crate) private_key: Keypair,
-
-    pub documents_db: Arc<Box<dyn DocumentsDb>>,
 }
 
 impl TonNodeEngine {
@@ -137,7 +125,7 @@ impl TonNodeEngine {
             loop {
                 thread::sleep(Duration::from_secs(1));
                 match node.prepare_block(timestamp) {
-                    Ok(Some(block)) => {
+                    Ok(Some(_block)) => {
                         trace!(target: "node", "block generated successfully");
                     }
                     Ok(None) => {
@@ -163,27 +151,24 @@ impl TonNodeEngine {
     pub fn with_params(
         shard: ShardIdent,
         _local: bool,
-        port: u16,
+        _port: u16,
         _node_index: u8,
         _poa_validators: u16,
         _poa_interval: u16,
         private_key: Keypair,
-        public_keys: Vec<ed25519_dalek::PublicKey>,
-        boot_list: Vec<String>,
+        _public_keys: Vec<ed25519_dalek::PublicKey>,
+        _boot_list: Vec<String>,
         receivers: Vec<Box<dyn MessagesReceiver>>,
         live_control_receiver: Box<dyn LiveControlReceiver>,
         blockchain_config: BlockchainConfig,
         documents_db: Option<Box<dyn DocumentsDb>>,
         storage_path: PathBuf,
     ) -> NodeResult<Self> {
-        info!(target: "node", "boot nodes:");
-        for n in boot_list.iter() {
-            info!(target: "node", "{}", n);
-        }
-
-        let documents_db = Arc::new(documents_db.unwrap_or_else(|| Box::new(DocumentsDbMock)));
-
-        let queue = Arc::new(InMessagesQueue::with_db(
+        let documents_db: Arc<dyn DocumentsDb> = match documents_db {
+            Some(documents_db) => Arc::from(documents_db),
+            None => Arc::new(DocumentsDbMock)
+        };
+        let message_queue = Arc::new(InMessagesQueue::with_db(
             shard.clone(),
             10000,
             documents_db.clone(),
@@ -215,31 +200,27 @@ impl TonNodeEngine {
         }
 
         let live_properties = Arc::new(EngineLiveProperties::new());
-        // private_key,
-        // public_keys,
-        // poa_interval,
-        // live_properties.time_delta.clone(),
 
-        queue.set_ready(true);
+        message_queue.set_ready(true);
 
-        let mut receivers: Vec<Arc<Mutex<Box<dyn MessagesReceiver>>>> = receivers
+        let mut receivers = receivers
             .into_iter()
-            .map(|r| Arc::new(Mutex::new(r)))
-            .collect();
+            .map(|r| Mutex::new(r))
+            .collect::<Vec<_>>();
 
         //TODO: remove on production or use only for tests
-        receivers.push(Arc::new(Mutex::new(Box::new(StubReceiver::with_params(
+        receivers.push(Mutex::new(Box::new(StubReceiver::with_params(
             shard.workchain_id() as i8,
             block_finality.lock().get_last_seq_no(),
             0,
-        )))));
+        ))));
 
         Ok(TonNodeEngine {
             shard_ident: shard.clone(),
             receivers,
             live_properties,
             live_control_receiver,
-            last_step: AtomicUsize::new(100500),
+            last_step: AtomicU32::new(100500),
 
             interval: 1,
             get_block_timout: GEN_BLOCK_TIMEOUT,
@@ -247,26 +228,23 @@ impl TonNodeEngine {
             reset_sync_limit: RESET_SYNC_LIMIT,
 
             msg_processor: Arc::new(Mutex::new(MessagesProcessor::with_params(
-                queue.clone(),
+                message_queue.clone(),
                 storage.clone(),
                 shard.clone(),
                 blockchain_config,
             ))),
             finalizer: block_finality.clone(),
-            block_applier: Arc::new(Mutex::new(NewBlockApplier::with_params(
-                block_finality.clone(),
-                documents_db.clone(),
-            ))),
-            message_queue: queue.clone(),
+            block_applier: Mutex::new(NewBlockApplier::with_params(
+                block_finality,
+                documents_db,
+            )),
+            message_queue,
             incoming_blocks: IncomingBlocksCache::new(),
-            timers_count: AtomicUsize::new(0),
-            timers: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(test)]
             test_counter_out: Arc::new(Mutex::new(0)),
             #[cfg(test)]
             test_counter_in: Arc::new(Mutex::new(0)),
 
-            documents_db,
             private_key,
         })
     }
@@ -299,86 +277,6 @@ impl TonNodeEngine {
     pub fn current_shard_id(&self) -> &ShardIdent {
         &self.shard_ident
     }
-}
-
-///
-/// Protocol packets
-///
-type PacketId = u8;
-pub const REQUEST: PacketId = 1;
-pub const RESPONSE: PacketId = 2;
-
-impl TonNodeEngine {
-    fn initialize(&self) {
-    }
-
-    fn timeout(&self, timer: TimerToken) {
-        //debug!("TIMEOUT");
-        let callback = {
-            let timers = self.timers.lock();
-            if let Some(handler) = timers.get(&timer) {
-                Some(handler.get_callback())
-            } else {
-                None
-            }
-        };
-        if let Some(callback) = callback {
-            callback(self);
-        }
-        /*
-                let timers = self.timers.lock();
-                if timers.contains_key(&timer) {
-                    if let Some(handler) = timers.get(&timer) {
-                        let timer = handler.get_callback();
-                        timer(self);
-                    }
-                }
-        */
-    }
-}
-
-type TimerCallback = fn(engine: &TonNodeEngine);
-type ResponseCallback = fn(
-    engine: &TonNodeEngine,
-    peer: &PeerId,
-    reply: NetworkProtocol,
-) -> NodeResult<NetworkProtocol>;
-
-struct TimerHandler {
-    // TODO: timer_id: TimerToken,
-    timeout: Duration,
-    callback: TimerCallback,
-}
-
-impl TimerHandler {
-    pub fn with_params(_timer_id: TimerToken, timeout: Duration, callback: TimerCallback) -> Self {
-        TimerHandler {
-            // TODO: timer_id,
-            timeout,
-            callback,
-        }
-    }
-
-    pub fn get_callback(&self) -> TimerCallback {
-        let callback = self.callback;
-        callback
-    }
-}
-
-pub fn serialize<T: BoxedSerialize>(object: &T) -> NodeResult<Vec<u8>> {
-    let mut ret = Vec::<u8>::new();
-    {
-        let mut serializer = ton_api::Serializer::new(&mut ret);
-        let err = serializer.write_boxed(object);
-        if err.is_err() {
-            return Err(NodeError::TlSerializeError);
-        }
-    }
-    Ok(ret)
-}
-
-pub fn deserialize<T: BoxedDeserialize>(bytes: &mut &[u8]) -> T {
-    ton_api::Deserializer::new(bytes).read_boxed().unwrap()
 }
 
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {

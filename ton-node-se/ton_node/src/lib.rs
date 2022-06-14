@@ -27,9 +27,6 @@ extern crate tokio;
 extern crate x25519_dalek;
 extern crate tokio_io_timeout;
 
-// Domestic
-extern crate ton_api;
-// #[macro_use]
 extern crate ton_vm as tvm;
 extern crate ton_types;
 extern crate ton_block;

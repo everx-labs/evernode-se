@@ -38,7 +38,7 @@ pub trait BlockFinality {
 pub struct NewBlockApplier<F> where
     F: BlockFinality
 {
-    db: Arc<Box<dyn DocumentsDb>>,
+    db: Arc<dyn DocumentsDb>,
     finality: Arc<Mutex<F>>,
 }
 
@@ -46,7 +46,7 @@ impl<F> NewBlockApplier<F> where
     F: BlockFinality
 {
     /// Create new NewBlockApplier with given storages and shard state
-    pub fn with_params(finality: Arc<Mutex<F>>, db: Arc<Box<dyn DocumentsDb>>) -> Self {
+    pub fn with_params(finality: Arc<Mutex<F>>, db: Arc<dyn DocumentsDb>) -> Self {
 
         NewBlockApplier {
             finality,

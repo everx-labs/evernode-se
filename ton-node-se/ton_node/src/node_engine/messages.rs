@@ -674,7 +674,7 @@ pub struct InMessagesQueue {
     shard_id: ShardIdent,
     storage: Mutex<BTreeSet<QueuedMessage>>,
     out_storage: Mutex<VecDeque<QueuedMessage>>,
-    db: Option<Arc<Box<dyn DocumentsDb>>>,
+    db: Option<Arc<dyn DocumentsDb>>,
     used_accs: Mutex<HashSet<AccountId>>,
     capacity: usize,
     ready_to_process: AtomicBool,
@@ -695,7 +695,7 @@ impl InMessagesQueue {
         }
     }
 
-    pub fn with_db(shard_id: ShardIdent, capacity: usize, db: Arc<Box<dyn DocumentsDb>>) -> Self {
+    pub fn with_db(shard_id: ShardIdent, capacity: usize, db: Arc<dyn DocumentsDb>) -> Self {
         InMessagesQueue {
             shard_id,
             storage: Mutex::new(BTreeSet::new()),

@@ -126,7 +126,7 @@ where
     blocks_storage: Arc<B>,
     tr_storage: Arc<T>,
     fn_storage: Arc<F>,
-    db: Option<Arc<Box<dyn DocumentsDb>>>,
+    db: Option<Arc<dyn DocumentsDb>>,
 
     current_block: Box<ShardBlock>,
     blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
@@ -154,7 +154,7 @@ where
         blocks_storage: Arc<B>,
         tr_storage: Arc<T>,
         fn_storage: Arc<F>,
-        db: Option<Arc<Box<dyn DocumentsDb>>>,
+        db: Option<Arc<dyn DocumentsDb>>,
         _public_keys: Vec<ed25519_dalek::PublicKey>,
     ) -> Self {
         let root_path = FileBasedStorage::create_workchains_dir(&root_path)
@@ -309,7 +309,6 @@ where
                 self.root_path.clone(),
                 &self.shard_ident,
             )?;
-        let finality_file_name = shard_path.clone();
         shard_path.push("blocks_finality.info");
         info!(target: "node", "load: {}", shard_path.to_str().unwrap());
         let mut file_info = File::open(shard_path)?;
