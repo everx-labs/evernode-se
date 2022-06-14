@@ -15,7 +15,7 @@ use std::sync::{
 };
 use std::time::Duration;
 use ton_api::ton::ton_engine::NetworkProtocol;
-use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
+use ton_api::{BoxedDeserialize, BoxedSerialize};
 use ton_executor::BlockchainConfig;
 
 type PeerId = u64;
@@ -92,7 +92,6 @@ pub struct TonNodeEngine {
     live_control_receiver: Box<dyn LiveControlReceiver>,
 
     interval: usize,
-    validators_by_shard: Arc<Mutex<HashMap<ShardIdent, Vec<i32>>>>,
     get_block_timout: u64,
     gen_block_timer: u64,
     reset_sync_limit: usize,
@@ -103,15 +102,12 @@ pub struct TonNodeEngine {
     pub message_queue: Arc<InMessagesQueue>,
     pub incoming_blocks: IncomingBlocksCache,
 
-    validator_index: u8,
     pub last_step: AtomicUsize, // AtomicU32
 
     // network handler part
     timers_count: AtomicUsize,
     timers: Arc<Mutex<HashMap<TimerToken, TimerHandler>>>,
-    requests: Arc<Mutex<HashMap<PeerId, HashMap<u32, RequestCallback>>>>,
 
-    responses: Arc<Mutex<Vec<(NetworkProtocol, ResponseCallback)>>>,
     #[cfg(test)]
     pub test_counter_in: Arc<Mutex<u32>>,
     #[cfg(test)]
@@ -168,7 +164,7 @@ impl TonNodeEngine {
         shard: ShardIdent,
         _local: bool,
         port: u16,
-        node_index: u8,
+        _node_index: u8,
         _poa_validators: u16,
         _poa_interval: u16,
         private_key: Keypair,
@@ -218,8 +214,6 @@ impl TonNodeEngine {
             }
         }
 
-        let mut validators_by_shard = HashMap::new();
-        validators_by_shard.insert(shard.clone(), vec![node_index as i32]);
         let live_properties = Arc::new(EngineLiveProperties::new());
         // private_key,
         // public_keys,
@@ -245,11 +239,9 @@ impl TonNodeEngine {
             receivers,
             live_properties,
             live_control_receiver,
-            validator_index: node_index,
             last_step: AtomicUsize::new(100500),
 
             interval: 1,
-            validators_by_shard: Arc::new(Mutex::new(validators_by_shard)),
             get_block_timout: GEN_BLOCK_TIMEOUT,
             gen_block_timer: GEN_BLOCK_TIMER,
             reset_sync_limit: RESET_SYNC_LIMIT,
@@ -269,8 +261,6 @@ impl TonNodeEngine {
             incoming_blocks: IncomingBlocksCache::new(),
             timers_count: AtomicUsize::new(0),
             timers: Arc::new(Mutex::new(HashMap::new())),
-            responses: Arc::new(Mutex::new(Vec::new())),
-            requests: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(test)]
             test_counter_out: Arc::new(Mutex::new(0)),
             #[cfg(test)]
@@ -285,48 +275,12 @@ impl TonNodeEngine {
         self.interval
     }
 
-    //    pub fn validators(&self) -> usize {
-    //        self.validators
-    //    }
-
-    pub fn validators(&self, shard: &ShardIdent) -> Vec<i32> {
-        match self.validators_by_shard.lock().get(shard) {
-            None => Vec::new(),
-            Some(vals) => vals.to_vec(),
-        }
-    }
-
-    pub fn validators_for_account(&self, wc: i32, id: &AccountId) -> Vec<i32> {
-        for (shard, vals) in self.validators_by_shard.lock().iter() {
-            if is_in_current_shard(shard, wc, id) {
-                return vals.to_vec();
-            }
-        }
-        Vec::new()
-    }
-
-    pub fn is_active_on_step(&self, step: usize, shard: &ShardIdent, val: i32) -> bool {
-        let vals = self.validators(&shard);
-        self.get_active_on_step(step, &vals) == val
-    }
-
     pub fn push_message(&self, mut message: QueuedMessage, warning: &str, micros: u64) {
         while let Err(msg) = self.message_queue.queue(message) {
             message = msg;
             warn!(target: "node", "{}", warning);
             thread::sleep(Duration::from_micros(micros));
         }
-    }
-
-    pub fn get_active_on_step(&self, step: usize, vals: &Vec<i32>) -> i32 {
-        /*
-                let step = if (vals.len() % self.interval) == 0 {
-                    step / self.interval
-                } else {
-                    step
-                };
-        */
-        vals[step % vals.len()]
     }
 
     pub fn gen_block_timeout(&self) -> u64 {
@@ -345,59 +299,6 @@ impl TonNodeEngine {
     pub fn current_shard_id(&self) -> &ShardIdent {
         &self.shard_ident
     }
-
-    /// Getter for validator index of node
-    pub fn validator_index(&self) -> i32 {
-        self.validator_index as i32
-    }
-
-    /// Register new timer
-    /// Only before start NetworkHandler
-    #[allow(unused_assignments)]
-    pub fn register_timer(&self, timeout: Duration, callback: TimerCallback) {
-        let timers_count = self.timers_count.fetch_add(1, AtomicOrdering::SeqCst);
-        let th = TimerHandler::with_params(timers_count, timeout, callback);
-        self.timers.lock().insert(timers_count, th);
-    }
-
-    pub fn register_response_callback(
-        &self,
-        response: NetworkProtocol,
-        callback: ResponseCallback,
-    ) {
-        self.responses.lock().push((response, callback));
-    }
-
-    // fn create_poa(
-    //     private_key: Keypair,
-    //     public_keys: Vec<ed25519_dalek::PublicKey>,
-    //     interval: u16,
-    //     delta: Arc<AtomicU32>,
-    // ) -> PoAContext {
-    //     let params = AuthorityRoundParams {
-    //         delta,
-    //         block_reward: U256::from(0u64),
-    //         block_reward_contract: None,
-    //         block_reward_contract_transition: 0,
-    //         empty_steps_transition: 0,
-    //         immediate_transitions: false,
-    //         maximum_empty_steps: std::usize::MAX,
-    //         maximum_uncle_count: 0,
-    //         maximum_uncle_count_transition: 0,
-    //         start_step: None,
-    //         step_duration: interval,
-    //         validate_score_transition: 0,
-    //         validate_step_transition: 0,
-    //         validators: Box::new(SimpleList::new(public_keys.clone())),
-    //         ton_key: private_key,
-    //     };
-    //     let engine = AuthorityRound::new(params, EthereumMachine::new()).unwrap();
-    //     let client: Arc<dyn EngineClient> = Arc::new(Client::new(engine.clone()));
-
-    //     engine.register_client(Arc::downgrade(&client));
-    //     PoAContext { engine, client }
-    // }
-
 }
 
 ///
@@ -410,13 +311,6 @@ pub const RESPONSE: PacketId = 2;
 impl TonNodeEngine {
     fn initialize(&self) {
     }
-
-    // fn read(&self, peer: &PeerId, packet_id: u8, data: &[u8]) {
-    //     let res = self.read_internal(peer, packet_id, data);
-    //     if res.is_err() {
-    //         warn!(target: "node", "Error in TonNodeEngine.read: {:?}", res);
-    //     }
-    // }
 
     fn timeout(&self, timer: TimerToken) {
         //debug!("TIMEOUT");
@@ -444,11 +338,6 @@ impl TonNodeEngine {
 }
 
 type TimerCallback = fn(engine: &TonNodeEngine);
-type RequestCallback = fn(
-    engine: &TonNodeEngine,
-    peer: &PeerId,
-    reply: NetworkProtocol,
-) -> NodeResult<()>;
 type ResponseCallback = fn(
     engine: &TonNodeEngine,
     peer: &PeerId,

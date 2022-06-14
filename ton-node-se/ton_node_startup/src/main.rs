@@ -42,7 +42,6 @@ use ton_executor::BlockchainConfig;
 use ton_node::error::{NodeError, NodeResult};
 use ton_node::node_engine::config::NodeConfig;
 use ton_node::node_engine::ton_node_engine::TonNodeEngine;
-use ton_node::node_engine::ton_node_handlers::init_ton_node_handlers;
 use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 
 mod arango;
@@ -194,7 +193,6 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
         PathBuf::from("./"),
     )?;
 
-    init_ton_node_handlers(&ton);
     let ton = Arc::new(ton);
     TonNodeEngine::start(ton.clone())?;
     let addr = format!("{}:{}", config.node.api.address, config.node.api.port);
