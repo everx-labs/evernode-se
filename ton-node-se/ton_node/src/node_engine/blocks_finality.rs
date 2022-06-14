@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use ton_block::{AccountStatus, ExtOutMessageHeader, InMsg, MsgEnvelope, OutMsg};
 use ton_block::{BlkPrevInfo, Deserializable, HashmapAugType, ShardIdent};
 use ton_types::{deserialize_tree_of_cells, UInt256};
+use self::test_storage::TestStorage;
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_block_finality.rs"]
@@ -153,7 +154,7 @@ where
         tr_storage: Arc<T>,
         fn_storage: Arc<F>,
         db: Option<Arc<Box<dyn DocumentsDb>>>,
-        public_keys: Vec<ed25519_dalek::PublicKey>,
+        _public_keys: Vec<ed25519_dalek::PublicKey>,
     ) -> Self {
         let root_path = FileBasedStorage::create_workchains_dir(&root_path)
             .expect("cannot create shards directory");

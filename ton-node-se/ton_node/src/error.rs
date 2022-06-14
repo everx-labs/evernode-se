@@ -11,6 +11,8 @@ pub enum NodeError {
     #[error("Requested item not found")]
     NotFound,
     #[error("Database problem")]
+    PathError(String),
+    #[error("Path problem {}", 0)]
     DataBaseProblem,
     #[error("Invalid external message")]
     InvalidExtMessage,
@@ -60,7 +62,7 @@ pub enum NodeError {
     ApiError(String),
 }
 
-pub(crate) type NodeResult<T> = Result<T, NodeError>;
+pub type NodeResult<T> = Result<T, NodeError>;
 
 impl From<failure::Error> for NodeError {
     fn from(error: failure::Error) -> Self {

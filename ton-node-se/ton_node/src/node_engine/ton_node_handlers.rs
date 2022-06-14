@@ -1,6 +1,6 @@
 use super::*;
 use crate::error::NodeError;
-use std::{io::Cursor, sync::atomic::Ordering as AtomicOrdering, time::Instant};
+use std::time::Instant;
 use ton_api::{
     ton::ton_engine::{network_protocol::*, NetworkProtocol},
     IntoBoxed,
@@ -58,28 +58,6 @@ impl TonNodeEngine {
         }
     }
 
-    fn process_send_message_result(
-        &self,
-        peer: &PeerId,
-        request: NetworkProtocol,
-    ) -> NodeResult<()> {
-        match request {
-            NetworkProtocol::TonEngine_NetworkProtocol_SendMessageResponse(_confirmation) => {
-                //info!(target: "node", "!!!!! Confirm message send !!!!");
-                //info!(target: "node", "result = {}", confirmation.result);
-
-                // TODO check result
-                // if error, back message to queue
-            }
-            NetworkProtocol::TonEngine_NetworkProtocol_Error(error) => {
-                // validate and process block
-                warn!(target: "node", "Confirmation massage send  from client {} failure: {}", peer, error.msg);
-            }
-            _ => return Err(NodeError::TlIncompatiblePacketType),
-        }
-        Ok(())
-    }
-
     fn process_request_send_message(
         &self,
         _peer: &PeerId,
@@ -101,21 +79,6 @@ impl TonNodeEngine {
 
 impl TonNodeEngine {
     ///
-    /// Process request for node routing info
-    ///
-    fn process_node_info_request(&self) -> NodeResult<networkprotocol::ResponseNodeInfo> {
-        let shard = self.current_shard_id();
-        let info = networkprotocol::ResponseNodeInfo {
-            id: 0,
-            validator_no: self.validator_index(),
-            workchain: shard.workchain_id(),
-            shard_prefix: shard.shard_prefix_without_tag() as i64,
-            shard_pfx_len: shard.prefix_len() as i32,
-        };
-        Ok(info)
-    }
-
-    ///
     /// Process request for routing message received
     ///
     fn process_send_message_request(
@@ -132,28 +95,6 @@ impl TonNodeEngine {
             return Ok(networkprotocol::SendMessageResponse { id: 0, result: -1 });
         }
         Ok(networkprotocol::SendMessageResponse { id: 0, result: 0 })
-    }
-
-    ///
-    /// Call generate new block if validator time is right
-    ///
-    fn get_new_block(&self) -> Option<SignedBlock> {
-        debug!("GET-NEW");
-        let step = self.last_step.fetch_add(1, AtomicOrdering::SeqCst);
-        match self.prepare_block(step as u32) {
-            Err(err) => {
-                warn!(target: "node", "Error in prepare block: {:?}", err);
-                None
-            }
-            Ok(Some(data)) => {
-                debug!(target: "node", "new Block");
-                Some(data)
-            }
-            Ok(None) => {
-                debug!(target: "node", "no new Block");
-                None
-            }
-        }
     }
 
     pub fn print_block_info(block: &Block) {
@@ -316,64 +257,6 @@ impl TonNodeEngine {
         debug!("PREP_BLK_SELF_STOP");
 
         Ok(Some(s_block))
-    }
-
-    fn process_block(
-        &self,
-        data: &[u8],
-        peer: &PeerId,
-    ) -> NodeResult<()> {
-
-        let s_block = SignedBlock::read_from(&mut Cursor::new(&data)).unwrap();
-        let expected_seq_no = self.finalizer.lock().get_last_seq_no() + 1;
-        info!(target: "node", "Expected seq_no = {}, block", expected_seq_no);
-
-        let res = self.finality_and_apply_block(&s_block, data, None, false);
-
-        if res.is_err() {
-            warn!(target: "node", "!!! received block not applied !!!\n{:?}", res.unwrap_err());
-        } else {
-            info!(target: "node", "!!! received block applied successfully !!!");
-        }
-
-        Ok(())
-    }
-
-    fn apply_incoming_blocks(&self) {
-        self.incoming_blocks.sort();
-        info!(target: "node", "Apply incoming blocks");
-
-        loop {
-            if self.incoming_blocks.len() > 0 {
-                let finality_block_info = self.incoming_blocks.remove(0);
-                let expected_seq_no = self.finalizer.lock().get_last_seq_no() + 1;
-                let block_seq_no = finality_block_info
-                    .block
-                    .block()
-                    .read_info()
-                    .unwrap()
-                    .seq_no();
-
-                if block_seq_no == expected_seq_no {
-                    let res = self.finality_and_apply_block(
-                        &finality_block_info.block,
-                        &finality_block_info.block_data.unwrap(),
-                        None,
-                        false,
-                    );
-
-                    if res.is_ok() {
-                        info!(target: "node", "incoming block seq_no = {} applied", block_seq_no);
-                    } else {
-                        warn!(target: "node", "temporary block seq_no = {} apply error {:?}!",
-                            block_seq_no, res
-                        );
-                    }
-                }
-            } else {
-                break;
-            }
-        }
     }
 
     /// finality and apply block

@@ -107,7 +107,6 @@ pub struct TonNodeEngine {
     pub last_step: AtomicUsize, // AtomicU32
 
     // network handler part
-    peer_list: Arc<Mutex<Vec<PeerId>>>,
     timers_count: AtomicUsize,
     timers: Arc<Mutex<HashMap<TimerToken, TimerHandler>>>,
     requests: Arc<Mutex<HashMap<PeerId, HashMap<u32, RequestCallback>>>>,
@@ -163,8 +162,11 @@ impl TonNodeEngine {
     /// with given time to generate block candidate
     pub fn with_params(
         shard: ShardIdent,
+        _local: bool,
         port: u16,
         node_index: u8,
+        _poa_validators: u16,
+        _poa_interval: u16,
         private_key: Keypair,
         public_keys: Vec<ed25519_dalek::PublicKey>,
         boot_list: Vec<String>,
@@ -262,7 +264,6 @@ impl TonNodeEngine {
             message_queue: queue.clone(),
             incoming_blocks: IncomingBlocksCache::new(),
             is_network_enabled: port != 0,
-            peer_list: Arc::new(Mutex::new(vec![])),
             timers_count: AtomicUsize::new(0),
             timers: Arc::new(Mutex::new(HashMap::new())),
             responses: Arc::new(Mutex::new(Vec::new())),
@@ -347,75 +348,6 @@ impl TonNodeEngine {
         self.validator_index as i32
     }
 
-    fn read_internal(
-        &self,
-        peer: &PeerId,
-        packet_id: u8,
-        data: &[u8],
-    ) -> NodeResult<()> {
-        #[cfg(test)]
-        debug!(target: "node",
-            "\nReceived {} ({} bytes) from {}",
-            packet_id,
-            data.len(),
-            peer
-        );
-        match packet_id {
-            REQUEST => {
-                // request processing
-                let mut r = [0u8; 4];
-                r.copy_from_slice(&data[0..4]);
-                let request_id = u32::from_be_bytes(r);
-                let request = deserialize::<NetworkProtocol>(&mut &data[4..]);
-
-                let funcs = self
-                    .responses
-                    .lock()
-                    .iter()
-                    .filter(|(key, _val)| variant_eq(key, &request))
-                    .map(|(_key, val)| val.clone())
-                    .collect::<Vec<ResponseCallback>>();
-
-                if funcs.len() == 1 {
-                    let response = funcs[0](self, peer, request);
-                    // if response.is_err() {
-                    //     //send error response
-                    //     let error = networkprotocol::Error {
-                    //         err_code: -1,
-                    //         msg: format!("{:?}", response.unwrap_err()).to_string(),
-                    //     };
-                    //     self.send_response(peer, request_id, &error.into_boxed())?;
-                    // } else {
-                    //     // send som response
-                    //     self.send_response(peer, request_id, &response.unwrap())?;
-                    // }
-                }
-            }
-            RESPONSE => {
-                // reply processing
-                let mut r = [0u8; 4];
-                r.copy_from_slice(&data[0..4]);
-                let request_id = u32::from_be_bytes(r);
-
-                let callback = self
-                    .requests
-                    .lock()
-                    .get_mut(peer)
-                    .unwrap()
-                    .remove(&request_id);
-                if let Some(callback) = callback {
-                    let request = deserialize::<NetworkProtocol>(&mut &data[4..]);
-                    callback(self, peer, request)?;
-                }
-            }
-            x => {
-                warn!(target: "node", "Unknown packet id: {}", x);
-            }
-        }
-
-        Ok(())
-    }
-
     /// Register new timer
     /// Only before start NetworkHandler
     #[allow(unused_assignments)]
@@ -431,26 +363,6 @@ impl TonNodeEngine {
         callback: ResponseCallback,
     ) {
         self.responses.lock().push((response, callback));
-    }
-
-    fn disconnected_internal(&self, peer: &PeerId) -> NodeResult<()> {
-        let mut peer_list = self.peer_list.lock();
-        let index = peer_list.iter().position(|x| *x == peer.clone());
-        if let Some(index) = index {
-            peer_list.remove(index);
-            info!(target: "node", "client {} deleted from peer list", peer);
-
-            if let Some(r) = self.requests.lock().remove(peer) {
-                for (_request_id, callback) in r.iter() {
-                    let error = networkprotocol::Error {
-                        err_code: -2,
-                        msg: "peer disconnected unexpectedly".to_string(),
-                    };
-                    callback(self, peer, error.into_boxed())?;
-                }
-            }
-        }
-        Ok(())
     }
 
     // fn create_poa(
@@ -496,12 +408,12 @@ impl TonNodeEngine {
     fn initialize(&self) {
     }
 
-    fn read(&self, peer: &PeerId, packet_id: u8, data: &[u8]) {
-        let res = self.read_internal(peer, packet_id, data);
-        if res.is_err() {
-            warn!(target: "node", "Error in TonNodeEngine.read: {:?}", res);
-        }
-    }
+    // fn read(&self, peer: &PeerId, packet_id: u8, data: &[u8]) {
+    //     let res = self.read_internal(peer, packet_id, data);
+    //     if res.is_err() {
+    //         warn!(target: "node", "Error in TonNodeEngine.read: {:?}", res);
+    //     }
+    // }
 
     fn timeout(&self, timer: TimerToken) {
         //debug!("TIMEOUT");
@@ -575,10 +487,6 @@ pub fn serialize<T: BoxedSerialize>(object: &T) -> NodeResult<Vec<u8>> {
 
 pub fn deserialize<T: BoxedDeserialize>(bytes: &mut &[u8]) -> T {
     ton_api::Deserializer::new(bytes).read_boxed().unwrap()
-}
-
-fn variant_eq<T>(a: &T, b: &T) -> bool {
-    std::mem::discriminant(a) == std::mem::discriminant(b)
 }
 
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {

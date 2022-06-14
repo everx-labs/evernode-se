@@ -57,7 +57,7 @@ fn main() {
 
 fn read_str(path: &str) -> NodeResult<String> {
     Ok(fs::read_to_string(Path::new(path))
-        .map_err(|err| NodeError::from(format!("Failed to read {}: {}", path, err)))?)
+        .map_err(|err| NodeError::PathError(format!("Failed to read {}: {}", path, err)))?)
 }
 
 pub struct StartNodeConfig {
@@ -179,8 +179,11 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
 
     let ton = TonNodeEngine::with_params(
         config.node.shard_id_config().shard_ident(),
+        true,
         config.node.port,
         config.node.node_index,
+        0,
+        0,
         private_key,
         config.public_keys,
         config.node.boot,
