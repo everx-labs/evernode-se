@@ -1,4 +1,3 @@
-#[allow(deprecated)]
 use super::error::*;
 use ed25519_dalek::Keypair;
 use parking_lot::Mutex;
@@ -34,9 +33,6 @@ pub mod blocks_finality;
 pub use self::blocks_finality::*;
 
 pub mod ton_node_engine;
-use self::ton_node_engine::*;
-
-pub mod ton_node_handlers;
 
 pub mod config;
 use self::config::*;

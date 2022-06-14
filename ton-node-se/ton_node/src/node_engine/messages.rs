@@ -211,10 +211,7 @@ where
                 .insert(acc_id.clone(), Arc::new(Mutex::new(e)));
         }
 
-        log::debug!(
-            "Executing message {}",
-            msg.message().hash()?.to_hex_string()
-        );
+        log::debug!("Executing message {:x}", msg.message_hash());
         let now = Instant::now();
         let executor = executors.lock().get(acc_id).unwrap().clone();
         let (mut transaction, max_lt) = Self::try_prepare_transaction(
@@ -620,6 +617,10 @@ impl QueuedMessage {
 
     pub fn message(&self) -> &Message {
         self.internal.message()
+    }
+
+    pub fn message_hash(&self) -> &UInt256 {
+        &self.hash
     }
 
     pub fn message_mut(&mut self) -> &mut Message {

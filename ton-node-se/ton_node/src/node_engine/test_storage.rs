@@ -1,3 +1,4 @@
+#![cfg(test)]
 use super::{BlocksStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage};
 use ton_block::{ShardIdent, ShardStateUnsplit, SignedBlock, Transaction};
 use ton_types::{AccountId, Cell, UInt256};

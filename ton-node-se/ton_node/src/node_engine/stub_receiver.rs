@@ -13,7 +13,7 @@ use ton_block::{
     CommonMsgInfo, CurrencyCollection, Deserializable, ExternalInboundMessageHeader, Grams,
     InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, Serializable, StateInit,
 };
-use ton_labs_assembler::compile_code;
+use ton_labs_assembler::compile_code_to_cell;
 use ton_types::{AccountId, Cell, SliceData};
 
 
@@ -216,11 +216,11 @@ impl StubReceiver {
         data: Cell,
         body: Option<SliceData>,
     ) -> Message {
-        let code_cell = compile_code(code).unwrap().into_cell();
+        let code_cell = compile_code_to_cell(code).unwrap();
 
         let mut msg = Message::with_ext_in_header(ExternalInboundMessageHeader {
             src: MsgAddressExt::default(),
-            dst: MsgAddressInt::with_standart(None, workchain_id, account_id.clone()).unwrap(),
+            dst: MsgAddressInt::with_standart(None, workchain_id, account_id).unwrap(),
             import_fee: Grams::zero(),
         });
 
@@ -243,15 +243,8 @@ impl StubReceiver {
         value: u128,
         lt: u64,
     ) -> Message {
-        let mut balance = CurrencyCollection::default();
-        balance.grams = value.into();
-
-        let mut msg = Message::with_int_header(InternalMessageHeader::with_addresses_and_bounce(
-            MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
-            MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
-            balance,
-            false,
-        ));
+        let hdr = Self::create_transfer_int_header(workchain_id, src, dst, value);
+        let mut msg = Message::with_int_header(hdr);
 
         msg.set_at_and_lt(
             SystemTime::now()
@@ -291,14 +284,15 @@ impl StubReceiver {
     pub fn create_transfer_int_header(
         workchain_id: i8,
         src: AccountId,
-        dest: AccountId,
+        dst: AccountId,
         value: u128,
     ) -> InternalMessageHeader {
-        let msg = Self::create_transfer_message(workchain_id, src, dest, value, 0);
-        match msg.withdraw_header() {
-            CommonMsgInfo::IntMsgInfo(int_hdr) => int_hdr,
-            _ => panic!("must be internal message header"),
-        }
+        InternalMessageHeader::with_addresses_and_bounce(
+            MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
+            MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
+            CurrencyCollection::from_grams(Grams::new(value).unwrap()),
+            false
+        )
     }
 
     fn try_receive_message(
