@@ -44,7 +44,7 @@ use self::config::*;
 mod logical_time_generator;
 mod test_storage;
 mod documents_db_mock;
-mod stub_receiver;
+pub mod stub_receiver;
 
 use std::thread;
 
