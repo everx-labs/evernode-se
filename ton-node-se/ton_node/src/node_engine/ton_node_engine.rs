@@ -14,7 +14,7 @@ use std::sync::{
     Arc,
 };
 use std::time::Duration;
-use ton_api::ton::ton_engine::{network_protocol::*, NetworkProtocol};
+use ton_api::ton::ton_engine::NetworkProtocol;
 use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
 use ton_executor::BlockchainConfig;
 
@@ -112,7 +112,6 @@ pub struct TonNodeEngine {
     requests: Arc<Mutex<HashMap<PeerId, HashMap<u32, RequestCallback>>>>,
 
     responses: Arc<Mutex<Vec<(NetworkProtocol, ResponseCallback)>>>,
-    is_network_enabled: bool,
     #[cfg(test)]
     pub test_counter_in: Arc<Mutex<u32>>,
     #[cfg(test)]
@@ -120,7 +119,7 @@ pub struct TonNodeEngine {
 
     pub(crate) private_key: Keypair,
 
-    pub db: Arc<Box<dyn DocumentsDb>>,
+    pub documents_db: Arc<Box<dyn DocumentsDb>>,
 }
 
 impl TonNodeEngine {
@@ -141,11 +140,16 @@ impl TonNodeEngine {
                 + self.live_properties.get_time_delta();
             loop {
                 thread::sleep(Duration::from_secs(1));
-                let res = node.prepare_block(timestamp);
-                if res.is_ok() {
-                    trace!(target: "node", "block generated successfully");
-                } else {
-                    warn!(target: "node", "failed block generation: {:?}", res.unwrap_err());
+                match node.prepare_block(timestamp) {
+                    Ok(Some(block)) => {
+                        trace!(target: "node", "block generated successfully");
+                    }
+                    Ok(None) => {
+                        trace!(target: "node", "block was not generated successfully");
+                    }
+                    Err(err) => {
+                        warn!(target: "node", "failed block generation: {}", err);
+                    }
                 }
             }
         });
@@ -263,7 +267,6 @@ impl TonNodeEngine {
             ))),
             message_queue: queue.clone(),
             incoming_blocks: IncomingBlocksCache::new(),
-            is_network_enabled: port != 0,
             timers_count: AtomicUsize::new(0),
             timers: Arc::new(Mutex::new(HashMap::new())),
             responses: Arc::new(Mutex::new(Vec::new())),
@@ -273,7 +276,7 @@ impl TonNodeEngine {
             #[cfg(test)]
             test_counter_in: Arc::new(Mutex::new(0)),
 
-            db: documents_db,
+            documents_db,
             private_key,
         })
     }

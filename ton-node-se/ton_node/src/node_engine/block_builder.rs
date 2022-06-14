@@ -442,7 +442,7 @@ impl BlockBuilder {
         account_blocks_tree.iterate_objects(|mut account_block| {
             match account_block.calculate_and_write_state(shard_state, new_shard_state) {
                 Ok(_) => account_blocks.push(account_block),
-                Err(err) => warn!(target: "node", "Error update account state {}", err.to_string()),
+                Err(err) => warn!(target: "node", "Error update account state {}", err),
             }
             Ok(true)
         })?;

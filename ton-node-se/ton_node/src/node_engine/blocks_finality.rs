@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use ton_block::{AccountStatus, ExtOutMessageHeader, InMsg, MsgEnvelope, OutMsg};
 use ton_block::{BlkPrevInfo, Deserializable, HashmapAugType, ShardIdent};
 use ton_types::{deserialize_tree_of_cells, UInt256};
+#[cfg(test)]
 use self::test_storage::TestStorage;
 
 #[cfg(test)]
@@ -532,14 +533,6 @@ where
     T: TransactionsStorage,
     F: FinalityStorage,
 {
-    /// finalize block through empty step
-    fn finalize_without_new_block(&mut self, finality_hash: Vec<UInt256>) -> NodeResult<()> {
-        debug!(target: "node", "NO-BLOCK {:?}", finality_hash);
-        self.finality_blocks(finality_hash, false)?;
-        self.save_finality()?;
-        Ok(())
-    }
-
     /// Save block until finality comes
     fn put_block_with_info(
         &mut self,

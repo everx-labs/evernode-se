@@ -115,92 +115,6 @@ where
         Ok(())
     }
 
-    //     ///
-    //     /// Generate new block
-    //     ///
-    //     pub fn generate_block(
-    //         &mut self,
-    //         shard_state: &ShardStateUnsplit,
-    //         timeout: Duration,
-    //         seq_no: u32,
-    //         prev_ref: BlkPrevInfo,
-    //         required_block_at: u32,
-    //         debug: bool
-    //     ) -> NodeResult<Option<(Block, Option<ShardStateUnsplit>)>> {
-
-    // debug!("GENBLK");
-    //         let start_time = Instant::now();
-
-    //         let new_shard_state = Arc::new(Mutex::new(shard_state.clone()));
-
-    //         let builder = BlockBuilder::with_shard_ident(
-    //                 self.shard_id.clone(),
-    //                 seq_no, prev_ref, 0, Option::None,
-    //                 required_block_at);
-
-    //         while start_time.elapsed() < timeout {
-    //             if let Some(msg) = self.queue.dequeue_first_unused() {
-    //                 let res = self.db.put_message(msg.message().clone(), MessageProcessingStatus::Processing, None, None);
-    //                 if res.is_err() {
-    //                     warn!(target: "node", "generate_block_multi reflect to db failed. error: {}", res.unwrap_err());
-    //                 }
-
-    //                 let acc_id = msg.message().header().dest_account_address()
-    //                     .expect("Can't get dest account address. Seems like outbound message into in-queue");
-
-    //                 let mut acc_opt = new_shard_state.lock().read_accounts()?.account(&acc_id)?;
-    //                 // TODO it is possible to make account immutable,
-    //                 // because in executor it is cloned for MerkleUpdate creation
-    //                 if !self.executors.lock().contains_key(&acc_id) {
-    //                     self.executors.lock().insert(acc_id.clone(), Arc::new(Mutex::new(E::new())));
-    //                 }
-
-    //                 let (block_at, block_lt) = builder.at_and_lt();
-    //                 let executor = self.executors.lock().get(&acc_id).unwrap().clone();
-
-    //                 let now = Instant::now();
-    //                 let transaction = Arc::new(executor.lock().execute(
-    //                     msg.message().clone(), &mut acc_opt, block_at, block_lt, debug
-    //                 )?);
-    //                 let d = now.elapsed();
-    //                 debug!(target: "node", "transaction execute time elapsed sec={}.{:06} ", d.as_secs(), d.subsec_micros());
-    //                 debug!(target: "node", "transaction status: {}", if transaction.read_description()?.is_aborted() { "Aborted" } else { "Success" });
-
-    //                 if let Some(ref acc) = acc_opt {
-    //                     new_shard_state.lock().insert_account(acc)?;
-    //                 } else {
-    //                     unreachable!("where account?")
-    //                 }
-
-    //                 // loop-back for messages to current-shardchain
-    //                 Self::route_out_messages(&self.shard_id, self.queue.clone(), transaction.clone(), new_shard_state.clone())?;
-
-    //                 self.tr_storage.save_transaction(Arc::clone(&transaction))?;
-    //                 let in_message = Arc::new(
-    //                     Self::get_in_msg_from_transaction(&self.shard_id, &transaction)?.unwrap()
-    //                 );
-    //                 let out_messages = Self::get_out_msgs_from_transaction(&self.shard_id, &transaction, &in_message)?;
-
-    //                 if !builder.add_transaction(in_message.clone(), out_messages) { // think about how to remove clone
-    //                     // TODO log error, write to transaction DB about error
-    //                 }
-    //             } else {
-    //                 thread::sleep(Duration::from_millis(1));
-    //             }
-    //         }
-
-    //         info!(target: "node", "in messages queue len={}", self.queue.len());
-    //         self.executors.lock().clear();
-
-    //         if !builder.is_empty() {
-    //             let new_shard_state = std::mem::replace(&mut *new_shard_state.lock(), ShardStateUnsplit::default());
-    //             let (block, _count) = builder.finalize_block(shard_state, &new_shard_state)?;
-    //             Ok(Some((block, Some(new_shard_state))))
-    //         } else {
-    //             Ok(None)
-    //         }
-    //     }
-
     fn try_prepare_transaction(
         builder: &BlockBuilder,
         executor: &OrdinaryTransactionExecutor,
@@ -407,7 +321,7 @@ where
         prev_ref: BlkPrevInfo,
         required_block_at: u32,
         debug: bool,
-    ) -> NodeResult<Option<(Block, Option<ShardStateUnsplit>)>> {
+    ) -> NodeResult<Option<(Block, ShardStateUnsplit)>> {
         debug!("GENBLKMUL");
         let now = Instant::now();
         let start_time = Instant::now();
@@ -480,7 +394,7 @@ where
                 "Block time: non-final/final {} / {} micros, transaction count: {}",
                 time0, now.elapsed().as_micros(), count
             );
-            Ok(Some((block, Some(new_shard_state))))
+            Ok(Some((block, new_shard_state)))
         } else {
             Ok(None)
         }
