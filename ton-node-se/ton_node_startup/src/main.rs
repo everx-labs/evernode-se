@@ -179,11 +179,8 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
 
     let ton = TonNodeEngine::with_params(
         config.node.shard_id_config().shard_ident(),
-        false,
         config.node.port,
         config.node.node_index,
-        config.node.poa_validators,
-        config.node.poa_interval,
         private_key,
         config.public_keys,
         config.node.boot,

@@ -1,6 +1,5 @@
 use super::*;
-use crate::error::{NodeError, NodeErrorKind};
-use poa::engines::authority_round::RollingFinality;
+use crate::error::NodeError;
 use rand::Rng;
 use std::collections::HashSet;
 use std::fs::{create_dir_all, File};
@@ -127,7 +126,6 @@ where
     fn_storage: Arc<F>,
     db: Option<Arc<Box<dyn DocumentsDb>>>,
 
-    pub finality: RollingFinality,
     current_block: Box<ShardBlock>,
     blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
     blocks_by_no: HashMap<u64, Box<FinalityBlock>>,
@@ -168,7 +166,6 @@ where
             tr_storage,
             fn_storage,
             db,
-            finality: RollingFinality::blank(public_keys),
             current_block: Box::new(ShardBlock::default()),
             blocks_by_hash: HashMap::new(),
             blocks_by_no: HashMap::new(),
@@ -206,8 +203,6 @@ where
                 self.blocks_by_no
                     .remove(&sb.seq_no)
                     .expect("block by number remove error");
-                // remove old_last_finality block from finality storage
-                self.remove_form_finality_storage(&self.last_finalized_block.block_hash)?;
 
                 let res = self.reflect_block_in_db(
                     sb.block.block().clone(),
@@ -228,7 +223,7 @@ where
                 if hash != &UInt256::from([0; 32]) && hash != &self.last_finalized_block.block_hash
                 {
                     warn!(target: "node", "Can`t finality unknown hash!!!");
-                    return node_err!(NodeErrorKind::FinalityError);
+                    return Err(NodeError::FinalityError);
                 }
             }
         }
@@ -256,40 +251,6 @@ where
             }
             FinalityBlock::Loaded(l_sb) => l_sb,
         })
-    }
-
-    pub fn save_rolling_finality(&self) -> NodeResult<()> {
-        // save to disk
-        let (mut finality_file_name, _blocks_path, _tr_dir) =
-            FileBasedStorage::create_default_shard_catalog(
-                self.root_path.clone(),
-                &self.shard_ident,
-            )?;
-        finality_file_name.push("rolling_finality.info");
-        self.finality.save(
-            finality_file_name
-                .to_str()
-                .expect("Can`t get rolling finality file name."),
-        )?;
-        Ok(())
-    }
-
-    fn remove_form_finality_storage(&self, hash: &UInt256) -> NodeResult<()> {
-        let (shard_path, _blocks_path, _tr_dir) = FileBasedStorage::create_default_shard_catalog(
-            self.root_path.clone(),
-            &self.shard_ident,
-        )?;
-        let mut block_finality_path = shard_path.clone();
-        block_finality_path.push("block_finality");
-        if !block_finality_path.as_path().exists() {
-            create_dir_all(block_finality_path.as_path())?;
-        }
-        let mut name = block_finality_path.clone();
-        name.push(hash.to_hex_string());
-        if name.as_path().exists() {
-            std::fs::remove_file(name)?;
-        }
-        Ok(())
     }
 
     fn save_one(sb: Box<ShardBlock>, file_name: PathBuf) -> NodeResult<()> {
@@ -334,7 +295,6 @@ where
         let mut file_info = File::create(shard_path)?;
         self.serialize(&mut file_info)?;
         file_info.flush()?;
-        self.save_rolling_finality()?;
         Ok(())
     }
 
@@ -347,18 +307,11 @@ where
                 self.root_path.clone(),
                 &self.shard_ident,
             )?;
-        let mut finality_file_name = shard_path.clone();
+        let finality_file_name = shard_path.clone();
         shard_path.push("blocks_finality.info");
         info!(target: "node", "load: {}", shard_path.to_str().unwrap());
         let mut file_info = File::open(shard_path)?;
         self.deserialize(&mut file_info)?;
-        finality_file_name.push("rolling_finality.info");
-        info!(target: "node", "load: {}", finality_file_name.to_str().unwrap());
-        self.finality.load(
-            finality_file_name
-                .to_str()
-                .expect("Can`t get rolling finality file name."),
-        )?;
         Ok(())
     }
 
@@ -444,27 +397,19 @@ where
         self.last_finalized_block = self.read_one_sb(rdr)?;
         loop {
             info!(target: "node", "load non finalized block");
-            let res = self.read_one_sb_hash(rdr);
-            if res.is_ok() {
-                let (seq_no, hash) = res.unwrap();
-                let sb_hash = Box::new(FinalityBlock::Stored(Box::new(ShardBlockHash::with_hash(
-                    seq_no.clone(),
-                    hash.clone(),
-                ))));
-
-                self.blocks_by_hash.insert(hash.clone(), sb_hash.clone());
-                self.blocks_by_no.insert(seq_no.clone(), sb_hash.clone());
-            } else {
-                match res.unwrap_err() {
-                    NodeError(NodeErrorKind::Io(err), _) => {
-                        if err.kind() == ErrorKind::UnexpectedEof {
-                            break;
-                        }
-                    }
-                    err => {
-                        bail!(err);
-                    }
+            match self.read_one_sb_hash(rdr) {
+                Ok((seq_no, hash)) => {
+                    let sb_hash = Box::new(FinalityBlock::Stored(Box::new(ShardBlockHash::with_hash(
+                        seq_no.clone(),
+                        hash.clone(),
+                    ))));
+                    self.blocks_by_hash.insert(hash.clone(), sb_hash.clone());
+                    self.blocks_by_no.insert(seq_no.clone(), sb_hash.clone());
                 }
+                Err(NodeError::Io(err)) if err.kind() == ErrorKind::UnexpectedEof => {
+                    break;
+                }
+                Err(err) => return Err(err)
             }
         }
         Ok(())
@@ -597,7 +542,7 @@ where
     /// Save block until finality comes
     fn put_block_with_info(
         &mut self,
-        signed_block: SignedBlock,
+        signed_block: &SignedBlock,
         signed_block_data: Option<Vec<u8>>,
         block_hash: Option<UInt256>,
         shard_state: Arc<ShardStateUnsplit>,
@@ -608,7 +553,7 @@ where
         info!(target: "node", "FINALITY:    block seq_no: {:?}", signed_block.block().read_info()?.seq_no());
 
         let sb = Box::new(ShardBlock::with_block_and_state(
-            signed_block,
+            signed_block.clone(),
             signed_block_data,
             block_hash,
             shard_state,
@@ -699,7 +644,7 @@ where
 
             Ok(())
         } else {
-            node_err!(NodeErrorKind::RoolbackBlockError)
+            Err(NodeError::RoolbackBlockError)
         }
     }
 
@@ -734,9 +679,6 @@ where
     fn reset(&mut self) -> NodeResult<()> {
         self.current_block = self.last_finalized_block.clone();
         // remove files from disk
-        for (hash, _sb) in self.blocks_by_hash.iter() {
-            self.remove_form_finality_storage(&hash)?;
-        }
         self.blocks_by_hash.clear();
         self.blocks_by_no.clear();
         Ok(())

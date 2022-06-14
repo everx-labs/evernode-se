@@ -3,7 +3,6 @@ use iron::prelude::*;
 use iron::status;
 use router::Router;
 use std::sync::Mutex;
-use ton_node::error::NodeErrorKind;
 use ton_node::node_engine::{LiveControl, LiveControlReceiver};
 
 pub struct ControlApi {
@@ -93,6 +92,6 @@ fn internal_server_error(msg: String) -> IronError {
 }
 
 fn iron_error(status: status::Status, msg: String) -> IronError {
-    let err = NodeError::from_kind(NodeErrorKind::ApiError(msg.clone()));
+    let err = NodeError::ApiError(msg.clone());
     IronError::new(err, (status, msg))
 }

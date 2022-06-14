@@ -5,8 +5,6 @@ extern crate bytes;
 extern crate clap;
 extern crate curve25519_dalek;
 extern crate ed25519_dalek;
-#[macro_use]
-extern crate error_chain;
 extern crate failure;
 extern crate futures;
 extern crate hex;
@@ -30,7 +28,6 @@ extern crate x25519_dalek;
 extern crate tokio_io_timeout;
 
 // Domestic
-extern crate poa;
 extern crate ton_api;
 // #[macro_use]
 extern crate ton_vm as tvm;
@@ -40,8 +37,6 @@ extern crate ton_executor;
 extern crate ton_labs_assembler;
 
 // TBD
-extern crate ethcore_network;
-extern crate ethcore_network_devp2p;
 extern crate iron;
 extern crate jsonrpc_http_server;
 extern crate router;

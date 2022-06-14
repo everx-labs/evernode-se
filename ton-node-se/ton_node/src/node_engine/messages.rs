@@ -546,7 +546,7 @@ impl MessagesReceiver for JsonRpcMsgReceiver {
     /// Start to receive messages. The function runs the receive thread and returns control.
     fn run(&mut self, queue: Arc<InMessagesQueue>) -> NodeResult<()> {
         if self.server.is_some() {
-            node_err!(NodeErrorKind::InvalidOperation)
+            Err(NodeError::InvalidOperation)
         } else {
             let mut io = IoHandler::default();
             io.add_method("call", move |params| {
@@ -584,7 +584,7 @@ impl JsonRpcMsgReceiver {
             s.unwrap().close();
             Ok(())
         } else {
-            node_err!(NodeErrorKind::InvalidOperation)
+            Err(NodeError::InvalidOperation)
         }
     }
 

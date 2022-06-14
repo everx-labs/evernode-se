@@ -10,7 +10,7 @@ pub trait BlockFinality {
 
     fn put_block_with_info(
         &mut self,
-        signed_block: SignedBlock,
+        signed_block: &SignedBlock,
         signed_block_data: Option<Vec<u8>>,
         block_hash: Option<UInt256>,
         shard_state: Arc<ShardStateUnsplit>,
@@ -60,7 +60,7 @@ impl<F> NewBlockApplier<F> where
 
     /// Applies changes provided by given block, returns new shard state
     pub fn apply(&mut self,
-        block: SignedBlock,
+        block: &SignedBlock,
         block_data: Option<Vec<u8>>,
         finality_hash: Vec<UInt256>,
         applied_shard: Option<ShardStateUnsplit>,
@@ -82,7 +82,7 @@ impl<F> NewBlockApplier<F> where
             let new_ss_cell = block.block().read_state_update()?.apply_for(&old_ss_cell)
                 .map_err(|err| {
                     warn!(target: "node", "{}", err.to_string());
-                    NodeError::from_kind(NodeErrorKind::InvalidMerkleUpdate)
+                    NodeError::InvalidMerkleUpdate
                 })?;
 
             new_shard_state = Arc::new(ShardStateUnsplit::construct_from(&mut SliceData::from(new_ss_cell))?);

@@ -4,7 +4,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
-use ton_block::*;
+use ton_block::{AddSub, ShardIdent, HashmapAugType, Transaction, Block, OutMsg, ShardStateUnsplit, Serializable, ValueFlow, BlkPrevInfo, UnixTime32, BlockInfo, ImportFees, CurrencyCollection, InMsg, BlockExtra, Grams, MerkleUpdate};
 use ton_types::Cell;
 use ton_types::HashmapType;
 use ton_types::Result;

@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use std::time::Duration;
 use std::cmp::min;
 use serde_derive::Deserialize;
-use ton_node::error::{NodeError, NodeErrorKind, NodeResult};
+use ton_node::error::{NodeError, NodeResult};
 use ton_node::node_engine::DocumentsDb;
 
 const FIRST_TIMEOUT: u64 = 1000;
@@ -49,8 +49,8 @@ impl ArangoHelper {
     pub fn from_config(config: &str) -> NodeResult<Self> {
 
         let config: ArangoHelperConfig = serde_json::from_str(config)
-            .map_err(|e| NodeError::from(NodeErrorKind::InvalidData(
-                format!("can't deserialize ArangoHelperConfig: {}", e))))?;
+            .map_err(|e| NodeError::InvalidData(
+                format!("can't deserialize ArangoHelperConfig: {}", e)))?;
 
         let (sender, receiver) = channel::<ArangoRecord>();
         let has_delivery_problems = Arc::new(AtomicBool::new(false));
