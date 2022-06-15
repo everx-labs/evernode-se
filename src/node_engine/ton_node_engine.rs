@@ -83,7 +83,7 @@ pub struct TonNodeEngine {
 
     live_properties: Arc<EngineLiveProperties>,
     receivers: Vec<Mutex<Box<dyn MessagesReceiver>>>,
-    live_control_receiver: Box<dyn LiveControlReceiver>,
+    live_control_receiver: Option<Box<dyn LiveControlReceiver>>,
 
     interval: usize,
     get_block_timout: u64,
@@ -113,7 +113,10 @@ impl TonNodeEngine {
         }
 
         let live_control = EngineLiveControl::new(self.live_properties.clone());
-        self.live_control_receiver.run(Box::new(live_control))?;
+        if let Some(ref control_receiver) = self.live_control_receiver {
+            control_receiver.run(Box::new(live_control))?;
+        }
+
 
         let node = self.clone();
         thread::spawn(move || {
@@ -153,13 +156,11 @@ impl TonNodeEngine {
         _local: bool,
         _port: u16,
         _node_index: u8,
-        _poa_validators: u16,
-        _poa_interval: u16,
         private_key: Keypair,
         _public_keys: Vec<ed25519_dalek::PublicKey>,
         _boot_list: Vec<String>,
         receivers: Vec<Box<dyn MessagesReceiver>>,
-        live_control_receiver: Box<dyn LiveControlReceiver>,
+        live_control_receiver: Option<Box<dyn LiveControlReceiver>>,
         blockchain_config: BlockchainConfig,
         documents_db: Option<Box<dyn DocumentsDb>>,
         storage_path: PathBuf,
