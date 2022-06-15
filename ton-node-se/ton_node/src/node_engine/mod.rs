@@ -1,6 +1,4 @@
-#[allow(deprecated)]
 use super::error::*;
-use crate::ethcore_network::*;
 use ed25519_dalek::Keypair;
 use parking_lot::Mutex;
 use std;
@@ -35,23 +33,18 @@ pub mod blocks_finality;
 pub use self::blocks_finality::*;
 
 pub mod ton_node_engine;
-use self::ton_node_engine::*;
-
-pub mod ton_node_handlers;
 
 pub mod config;
 use self::config::*;
 
-pub mod routing_table;
 mod logical_time_generator;
 mod test_storage;
 mod documents_db_mock;
 pub mod stub_receiver;
-use self::routing_table::*;
 
-use std::{io::Read, thread};
+use std::thread;
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref ACCOUNTS: Mutex<Vec<AccountId>> = Mutex::new(vec![]);
     static ref SUPER_ACCOUNT_ID: AccountId = AccountId::from([0; 32]);
 }
@@ -88,5 +81,5 @@ pub fn hexdump(d: &[u8]) {
         ));
     }
 
-    debug!(target: "node", "{}", str);
+    log::debug!(target: "node", "{}", str);
 }

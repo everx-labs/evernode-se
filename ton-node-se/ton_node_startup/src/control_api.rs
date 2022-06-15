@@ -3,7 +3,6 @@ use iron::prelude::*;
 use iron::status;
 use router::Router;
 use std::sync::Mutex;
-use ton_node::error::NodeErrorKind;
 use ton_node::node_engine::{LiveControl, LiveControlReceiver};
 
 pub struct ControlApi {
@@ -20,8 +19,8 @@ impl ControlApi {
         req: &mut Request,
         control: &Box<dyn LiveControl>,
     ) -> Result<Response, IronError> {
-        info!(target: "node", "Control API: request got!");
-        info!(target: "node", "{:?}", req.url.path());
+        log::info!(target: "node", "Control API: request got!");
+        log::info!(target: "node", "{:?}", req.url.path());
         let command = ControlCommand::from_req(req)?;
         match command {
             ControlCommand::IncreaseTime(delta) => {
@@ -32,7 +31,7 @@ impl ControlApi {
         }
         return Ok(Response::with(status::Ok));
 
-        // warn!(target: "node", "Error handling control request");
+        // log::warn!(target: "node", "Error handling control request");
         // Ok(Response::with((
         //     status::BadRequest,
         //     "Error handling control request",
@@ -93,6 +92,6 @@ fn internal_server_error(msg: String) -> IronError {
 }
 
 fn iron_error(status: status::Status, msg: String) -> IronError {
-    let err = NodeError::from_kind(NodeErrorKind::ApiError(msg.clone()));
+    let err = NodeError::ApiError(msg.clone());
     IronError::new(err, (status, msg))
 }

@@ -1,44 +1,29 @@
 use super::*;
-#[allow(deprecated)]
 use crate::error::NodeResult;
-use crate::ethcore_network_devp2p::NetworkService;
 use crate::node_engine::stub_receiver::StubReceiver;
 use crate::node_engine::DocumentsDb;
-use node_engine::documents_db_mock::DocumentsDbMock;
+use crate::node_engine::documents_db_mock::DocumentsDbMock;
 use parking_lot::Mutex;
-use poa::engines::authority_round::subst::{Client, EngineClient, EthereumMachine, U256};
-use poa::engines::authority_round::{AuthorityRound, AuthorityRoundParams};
-use poa::engines::validator_set::SimpleList;
-use poa::engines::Engine;
-use std::cmp::Ordering;
-use std::io::ErrorKind;
-use std::sync::atomic::AtomicU32;
-use std::sync::{
-    atomic::Ordering as AtomicOrdering,
-    atomic::{AtomicBool, AtomicUsize},
-    Arc,
+use std::{
+    io::ErrorKind,
+    sync::{
+        atomic::{Ordering, AtomicU32},
+        Arc,
+    },
+    time::{Duration, Instant},
 };
-use std::time::Duration;
-use ton_api::ton::ton_engine::{network_protocol::*, NetworkProtocol};
-use ton_api::{BoxedDeserialize, BoxedSerialize, IntoBoxed};
 use ton_executor::BlockchainConfig;
+use ton_types::HashmapType;
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
 mod tests;
 
-#[derive(Clone, Debug)]
-pub enum BlockData {
-    Block(Vec<u8>),
-    EmptyStep(Vec<u8>),
-    None,
-}
-
 type Storage = FileBasedStorage;
 type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 type ArcMsgProcessor = Arc<Mutex<MessagesProcessor<Storage>>>;
-type ArcBlockApplier =
-    Arc<Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>>;
+type BlockApplier =
+    Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 
 // TODO do interval and validator field of TonNodeEngine
 // and read from config
@@ -62,11 +47,11 @@ impl EngineLiveProperties {
     }
 
     fn get_time_delta(&self) -> u32 {
-        self.time_delta.load(AtomicOrdering::Relaxed)
+        self.time_delta.load(Ordering::Relaxed)
     }
 
     fn set_time_delta(&self, value: u32) {
-        self.time_delta.store(value, AtomicOrdering::Relaxed)
+        self.time_delta.store(value, Ordering::Relaxed)
     }
 
     fn increment_time(&self, delta: u32) {
@@ -94,51 +79,31 @@ impl LiveControl for EngineLiveControl {
 /// It is top level struct provided node functionality related to transactions processing.
 /// Initialises instances of: all messages receivers, InMessagesQueue, MessagesProcessor.
 pub struct TonNodeEngine {
-    local: bool,
     shard_ident: ShardIdent,
 
     live_properties: Arc<EngineLiveProperties>,
-    receivers: Vec<Arc<Mutex<Box<dyn MessagesReceiver>>>>,
+    receivers: Vec<Mutex<Box<dyn MessagesReceiver>>>,
     live_control_receiver: Box<dyn LiveControlReceiver>,
 
     interval: usize,
-    validators_by_shard: Arc<Mutex<HashMap<ShardIdent, Vec<i32>>>>,
     get_block_timout: u64,
     gen_block_timer: u64,
     reset_sync_limit: usize,
 
     pub msg_processor: ArcMsgProcessor,
     pub finalizer: ArcBlockFinality,
-    pub block_applier: ArcBlockApplier,
+    pub block_applier: BlockApplier,
     pub message_queue: Arc<InMessagesQueue>,
-    pub analyzers: Arc<Mutex<HashMap<u32, ConfirmationAnalyzer>>>,
-    pub poa_context: Arc<Mutex<PoAContext>>,
     pub incoming_blocks: IncomingBlocksCache,
 
-    validator_index: u8,
-    pub last_step: AtomicUsize,
-    pub is_synchronize: AtomicBool,
-    pub is_self_block_processing: AtomicBool,
-    pub is_starting: AtomicBool,
-    pub sync_limit: AtomicUsize,
+    pub last_step: AtomicU32,
 
-    // network handler part
-    peer_list: Arc<Mutex<Vec<PeerId>>>,
-    timers_count: AtomicUsize,
-    timers: Arc<Mutex<HashMap<TimerToken, TimerHandler>>>,
-    requests: Arc<Mutex<HashMap<PeerId, HashMap<u32, RequestCallback>>>>,
-
-    responses: Arc<Mutex<Vec<(NetworkProtocol, ResponseCallback)>>>,
-    is_network_enabled: bool,
-    service: Arc<NetworkService>,
     #[cfg(test)]
     pub test_counter_in: Arc<Mutex<u32>>,
     #[cfg(test)]
     pub test_counter_out: Arc<Mutex<u32>>,
 
-    routing_table: RoutingTable,
-
-    pub db: Arc<Box<dyn DocumentsDb>>,
+    pub(crate) private_key: Keypair,
 }
 
 impl TonNodeEngine {
@@ -150,45 +115,34 @@ impl TonNodeEngine {
         let live_control = EngineLiveControl::new(self.live_properties.clone());
         self.live_control_receiver.run(Box::new(live_control))?;
 
-        if self.is_network_enabled {
-            self.service.start().expect("Error starting service");
-        }
-        self.service
-            .register_protocol(self.clone(), *b"tvm", &[(1u8, 20u8)])
-            .unwrap();
-
         let node = self.clone();
-        if node.local {
-            node.is_starting.store(false, AtomicOrdering::SeqCst);
-            thread::spawn(move || {
-                let timestamp = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as u32
-                    + self.live_properties.get_time_delta();
-                loop {
-                    thread::sleep(Duration::from_secs(1));
-                    let res = node.prepare_block(timestamp);
-                    if res.is_ok() {
-                        trace!(target: "node", "block generated successfully");
-                    } else {
-                        warn!(target: "node", "failed block generation: {:?}", res.unwrap_err());
+        thread::spawn(move || {
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as u32
+                + self.live_properties.get_time_delta();
+            loop {
+                thread::sleep(Duration::from_secs(1));
+                match node.prepare_block(timestamp) {
+                    Ok(Some(_block)) => {
+                        log::trace!(target: "node", "block generated successfully");
+                    }
+                    Ok(None) => {
+                        log::trace!(target: "node", "block was not generated successfully");
+                    }
+                    Err(err) => {
+                        log::warn!(target: "node", "failed block generation: {}", err);
                     }
                 }
-            });
-        } else {
-            thread::spawn(move || loop {
-                thread::sleep(Duration::from_millis(10));
-                node.set_ready_mode_timer();
-            });
-        }
+            }
+        });
 
         Ok(())
     }
 
     pub fn stop(self: Arc<Self>) -> NodeResult<()> {
-        self.service.stop();
-        info!(target: "node","TONNodeEngine stopped.");
+        log::info!(target: "node","TONNodeEngine stopped.");
         Ok(())
     }
 
@@ -196,31 +150,25 @@ impl TonNodeEngine {
     /// with given time to generate block candidate
     pub fn with_params(
         shard: ShardIdent,
-        local: bool,
-        port: u16,
-        node_index: u8,
+        _local: bool,
+        _port: u16,
+        _node_index: u8,
         _poa_validators: u16,
-        poa_interval: u16,
+        _poa_interval: u16,
         private_key: Keypair,
-        public_keys: Vec<ed25519_dalek::PublicKey>,
-        boot_list: Vec<String>,
+        _public_keys: Vec<ed25519_dalek::PublicKey>,
+        _boot_list: Vec<String>,
         receivers: Vec<Box<dyn MessagesReceiver>>,
         live_control_receiver: Box<dyn LiveControlReceiver>,
         blockchain_config: BlockchainConfig,
         documents_db: Option<Box<dyn DocumentsDb>>,
         storage_path: PathBuf,
     ) -> NodeResult<Self> {
-        let mut config = NetworkConfiguration::new_with_port(port);
-        info!(target: "node", "boot nodes:");
-        for n in boot_list.iter() {
-            info!(target: "node", "{}", n);
-        }
-        config.boot_nodes = boot_list;
-        config.use_secret = get_devp2p_secret(&private_key);
-
-        let documents_db = Arc::new(documents_db.unwrap_or_else(|| Box::new(DocumentsDbMock)));
-
-        let queue = Arc::new(InMessagesQueue::with_db(
+        let documents_db: Arc<dyn DocumentsDb> = match documents_db {
+            Some(documents_db) => Arc::from(documents_db),
+            None => Arc::new(DocumentsDbMock)
+        };
+        let message_queue = Arc::new(InMessagesQueue::with_db(
             shard.clone(),
             10000,
             documents_db.clone(),
@@ -237,102 +185,67 @@ impl TonNodeEngine {
             Some(documents_db.clone()),
             Vec::new(),
         )));
-        let res = block_finality.lock().load();
-        if res.is_ok() {
-            info!(target: "node", "load block finality successfully");
-        } else {
-            match res.unwrap_err() {
-                NodeError(NodeErrorKind::Io(err), _) => {
+        match block_finality.lock().load() {
+            Ok(_) => {
+                log::info!(target: "node", "load block finality successfully");
+            }
+            Err(NodeError::Io(err)) => {
                     if err.kind() != ErrorKind::NotFound {
-                        bail!(err);
+                        return Err(NodeError::Io(err));
                     }
                 }
-                err => {
-                    bail!(err);
-                }
+            Err(err) => {
+                return Err(err);
             }
         }
 
-        let network_service = Arc::new(NetworkService::new(config, None)?);
-        let mut validators_by_shard = HashMap::new();
-        validators_by_shard.insert(shard.clone(), vec![node_index as i32]);
-        block_finality
-            .lock()
-            .finality
-            .add_signer(public_keys[node_index as usize].clone());
         let live_properties = Arc::new(EngineLiveProperties::new());
-        let poa = Arc::new(Mutex::new(TonNodeEngine::create_poa(
-            private_key,
-            public_keys,
-            poa_interval,
-            live_properties.time_delta.clone(),
-        )));
-        poa.lock().engine.set_validator(node_index as usize);
 
-        if local {
-            queue.set_ready(true);
-        }
+        message_queue.set_ready(true);
 
-        let mut receivers: Vec<Arc<Mutex<Box<dyn MessagesReceiver>>>> = receivers
+        let mut receivers = receivers
             .into_iter()
-            .map(|r| Arc::new(Mutex::new(r)))
-            .collect();
+            .map(|r| Mutex::new(r))
+            .collect::<Vec<_>>();
 
         //TODO: remove on production or use only for tests
-        receivers.push(Arc::new(Mutex::new(Box::new(StubReceiver::with_params(
+        receivers.push(Mutex::new(Box::new(StubReceiver::with_params(
             shard.workchain_id() as i8,
             block_finality.lock().get_last_seq_no(),
             0,
-        )))));
+        ))));
 
         Ok(TonNodeEngine {
-            local,
             shard_ident: shard.clone(),
             receivers,
             live_properties,
             live_control_receiver,
-            validator_index: node_index,
-            last_step: AtomicUsize::new(100500),
-            is_synchronize: AtomicBool::new(false),
-            is_self_block_processing: AtomicBool::new(false),
-            is_starting: AtomicBool::new(false),
-            sync_limit: AtomicUsize::new(0),
+            last_step: AtomicU32::new(100500),
 
-            interval: poa_interval as usize,
-            validators_by_shard: Arc::new(Mutex::new(validators_by_shard)),
+            interval: 1,
             get_block_timout: GEN_BLOCK_TIMEOUT,
             gen_block_timer: GEN_BLOCK_TIMER,
             reset_sync_limit: RESET_SYNC_LIMIT,
 
             msg_processor: Arc::new(Mutex::new(MessagesProcessor::with_params(
-                queue.clone(),
+                message_queue.clone(),
                 storage.clone(),
                 shard.clone(),
                 blockchain_config,
             ))),
             finalizer: block_finality.clone(),
-            block_applier: Arc::new(Mutex::new(NewBlockApplier::with_params(
-                block_finality.clone(),
-                documents_db.clone(),
-            ))),
-            message_queue: queue.clone(),
-            analyzers: Arc::new(Mutex::new(HashMap::new())),
-            poa_context: poa,
+            block_applier: Mutex::new(NewBlockApplier::with_params(
+                block_finality,
+                documents_db,
+            )),
+            message_queue,
             incoming_blocks: IncomingBlocksCache::new(),
-            is_network_enabled: port != 0,
-            service: network_service,
-            peer_list: Arc::new(Mutex::new(vec![])),
-            timers_count: AtomicUsize::new(0),
-            timers: Arc::new(Mutex::new(HashMap::new())),
-            responses: Arc::new(Mutex::new(Vec::new())),
-            requests: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(test)]
             test_counter_out: Arc::new(Mutex::new(0)),
             #[cfg(test)]
             test_counter_in: Arc::new(Mutex::new(0)),
 
-            db: documents_db,
-            routing_table: RoutingTable::new(shard),
+            private_key,
         })
     }
 
@@ -340,93 +253,12 @@ impl TonNodeEngine {
         self.interval
     }
 
-    //    pub fn validators(&self) -> usize {
-    //        self.validators
-    //    }
-
-    pub fn validators(&self, shard: &ShardIdent) -> Vec<i32> {
-        match self.validators_by_shard.lock().get(shard) {
-            None => Vec::new(),
-            Some(vals) => vals.to_vec(),
-        }
-    }
-
-    pub fn validators_for_account(&self, wc: i32, id: &AccountId) -> Vec<i32> {
-        for (shard, vals) in self.validators_by_shard.lock().iter() {
-            if is_in_current_shard(shard, wc, id) {
-                return vals.to_vec();
-            }
-        }
-        Vec::new()
-    }
-
-    pub fn is_active_on_step(&self, step: usize, shard: &ShardIdent, val: i32) -> bool {
-        let vals = self.validators(&shard);
-        self.get_active_on_step(step, &vals) == val
-    }
-
     pub fn push_message(&self, mut message: QueuedMessage, warning: &str, micros: u64) {
         while let Err(msg) = self.message_queue.queue(message) {
             message = msg;
-            warn!(target: "node", "{}", warning);
+            log::warn!(target: "node", "{}", warning);
             thread::sleep(Duration::from_micros(micros));
         }
-    }
-
-    pub fn get_active_on_step(&self, step: usize, vals: &Vec<i32>) -> i32 {
-        /*
-                let step = if (vals.len() % self.interval) == 0 {
-                    step / self.interval
-                } else {
-                    step
-                };
-        */
-        vals[step % vals.len()]
-    }
-
-    pub fn set_validator(&self, shard: &ShardIdent, val: i32) {
-        self.remove_validator(val);
-        if shard == self.current_shard_id() {
-            let engine = &self.poa_context.lock().engine;
-            let val = val as usize;
-            engine.set_validator(val);
-            self.finalizer
-                .lock()
-                .finality
-                .add_signer(engine.validator_key(val));
-        }
-        let mut vals = self.validators_by_shard.lock();
-        let vals = vals.entry(shard.clone()).or_insert(Vec::new());
-        for i in 0..vals.len() {
-            if vals[i] > val {
-                vals.insert(i, val);
-            }
-            if vals[i] == val {
-                return;
-            }
-        }
-        vals.push(val);
-    }
-
-    pub fn remove_validator(&self, val: i32) -> bool {
-        for (shard, vals) in self.validators_by_shard.lock().iter_mut() {
-            for i in 0..vals.len() {
-                if vals[i] == val {
-                    if shard == self.current_shard_id() {
-                        let engine = &self.poa_context.lock().engine;
-                        let val = val as usize;
-                        self.finalizer
-                            .lock()
-                            .finality
-                            .remove_signer(&engine.validator_key_id(val));
-                        engine.remove_validator(val);
-                    }
-                    vals.remove(i);
-                    return true;
-                }
-            }
-        }
-        false
     }
 
     pub fn gen_block_timeout(&self) -> u64 {
@@ -446,381 +278,129 @@ impl TonNodeEngine {
         &self.shard_ident
     }
 
-    /// Getter for local node mode
-    pub fn is_local(&self) -> bool {
-        self.local
-    }
-
-    /// Getter for validator index of node
-    pub fn validator_index(&self) -> i32 {
-        self.validator_index as i32
-    }
-
-    /// Getter for routing table
-    pub fn routing_table(&self) -> &RoutingTable {
-        &self.routing_table
+    fn print_block_info(block: &Block) {
+        let extra = block.read_extra().unwrap();
+        log::info!(target: "node",
+            "block: gen time = {}, in msg count = {}, out msg count = {}, account_blocks = {}",
+            block.read_info().unwrap().gen_utime(),
+            extra.read_in_msg_descr().unwrap().len().unwrap(),
+            extra.read_out_msg_descr().unwrap().len().unwrap(),
+            extra.read_account_blocks().unwrap().len().unwrap());
     }
 
     ///
-    /// Get network service
+    /// Generate new block if possible
     ///
-    pub fn get_network_service(&self) -> Arc<NetworkService> {
-        self.service.clone()
-    }
+    pub fn prepare_block(&self, timestamp: u32) -> NodeResult<Option<SignedBlock>> {
 
-    ///
-    /// Get dev p2p external url of current server
-    ///
-    pub fn external_url(&self) -> Option<String> {
-        self.service.external_url()
-    }
+        let mut time = [0u128; 10];
+        let mut now = Instant::now();
 
-    fn read_internal(
-        &self,
-        io: &dyn NetworkContext,
-        peer: &PeerId,
-        packet_id: u8,
-        data: &[u8],
-    ) -> NodeResult<()> {
-        #[cfg(test)]
-        debug!(target: "node",
-            "\nReceived {} ({} bytes) from {}",
-            packet_id,
-            data.len(),
-            peer
+        log::debug!("PREP_BLK_START");
+        let shard_state = self.finalizer.lock().get_last_shard_state();
+        let blk_prev_info = self.finalizer.lock().get_last_block_info()?;
+        log::info!(target: "node", "PARENT block: {:?}", blk_prev_info);
+        let seq_no = self.finalizer.lock().get_last_seq_no() + 1;
+        let gen_block_time = Duration::from_millis(self.gen_block_timeout());
+        time[0] = now.elapsed().as_micros();
+        now = Instant::now();
+
+        let result = self.msg_processor.lock().generate_block_multi(
+            &shard_state,
+            gen_block_time,
+            seq_no,
+            blk_prev_info,
+            timestamp,
+            true, //tvm code tracing enabled by default on trace level
         );
-        match packet_id {
-            REQUEST => {
-                // request processing
-                let mut r = [0u8; 4];
-                r.copy_from_slice(&data[0..4]);
-                let request_id = u32::from_be_bytes(r);
-                let request = deserialize::<NetworkProtocol>(&mut &data[4..]);
-
-                let funcs = self
-                    .responses
-                    .lock()
-                    .iter()
-                    .filter(|(key, _val)| variant_eq(key, &request))
-                    .map(|(_key, val)| val.clone())
-                    .collect::<Vec<ResponseCallback>>();
-
-                if funcs.len() == 1 {
-                    let response = funcs[0](self, io, peer, request);
-                    if response.is_err() {
-                        //send error response
-                        let error = networkprotocol::Error {
-                            err_code: -1,
-                            msg: format!("{:?}", response.unwrap_err()).to_string(),
-                        };
-                        self.send_response(io, peer, request_id, &error.into_boxed())?;
-                    } else {
-                        // send som response
-                        self.send_response(io, peer, request_id, &response.unwrap())?;
-                    }
-                }
-            }
-            RESPONSE => {
-                // reply processing
-                let mut r = [0u8; 4];
-                r.copy_from_slice(&data[0..4]);
-                let request_id = u32::from_be_bytes(r);
-
-                let callback = self
-                    .requests
-                    .lock()
-                    .get_mut(peer)
-                    .unwrap()
-                    .remove(&request_id);
-                if let Some(callback) = callback {
-                    let request = deserialize::<NetworkProtocol>(&mut &data[4..]);
-                    callback(self, io, peer, request)?;
-                }
-            }
-            x => {
-                warn!(target: "node", "Unknown packet id: {}", x);
-            }
-        }
-
-        Ok(())
-    }
-
-    ///
-    /// Send request to peer
-    ///
-    pub fn send_request(
-        &self,
-        io: &dyn NetworkContext,
-        peer: &PeerId,
-        request: &NetworkProtocol,
-        callback: RequestCallback,
-    ) -> NodeResult<()> {
-        let mut r_data = serialize(request)?;
-        let request_id = rand::random::<u32>();
-        let mut data = request_id.to_be_bytes().to_vec();
-        data.append(&mut r_data);
-        io.send(*peer, REQUEST, data.clone())?;
-        self.requests
-            .lock()
-            .entry(peer.clone())
-            .or_insert(HashMap::new())
-            .insert(request_id, callback);
-        Ok(())
-    }
-
-    fn send_response(
-        &self,
-        io: &dyn NetworkContext,
-        peer: &PeerId,
-        request_id: u32,
-        response: &NetworkProtocol,
-    ) -> NodeResult<()> {
-        let mut r_data = serialize(response)?;
-        let mut data = request_id.to_be_bytes().to_vec();
-        data.append(&mut r_data);
-
-        io.send(*peer, RESPONSE, data)?;
-        Ok(())
-    }
-
-    /// Register new timer
-    /// Only before start NetworkHandler
-    #[allow(unused_assignments)]
-    pub fn register_timer(&self, timeout: Duration, callback: TimerCallback) {
-        let timers_count = self.timers_count.fetch_add(1, AtomicOrdering::SeqCst);
-        let th = TimerHandler::with_params(timers_count, timeout, callback);
-        self.timers.lock().insert(timers_count, th);
-    }
-
-    pub fn register_response_callback(
-        &self,
-        response: NetworkProtocol,
-        callback: ResponseCallback,
-    ) {
-        self.responses.lock().push((response, callback));
-    }
-
-    fn disconnected_internal(&self, io: &dyn NetworkContext, peer: &PeerId) -> NodeResult<()> {
-        let mut peer_list = self.peer_list.lock();
-        let index = peer_list.iter().position(|x| *x == peer.clone());
-        if let Some(index) = index {
-            peer_list.remove(index);
-            info!(target: "node", "client {} deleted from peer list", peer);
-
-            if let Some(r) = self.requests.lock().remove(peer) {
-                for (_request_id, callback) in r.iter() {
-                    let error = networkprotocol::Error {
-                        err_code: -2,
-                        msg: "peer disconnected unexpectedly".to_string(),
-                    };
-                    callback(self, io, peer, error.into_boxed())?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn create_poa(
-        private_key: Keypair,
-        public_keys: Vec<ed25519_dalek::PublicKey>,
-        interval: u16,
-        delta: Arc<AtomicU32>,
-    ) -> PoAContext {
-        let params = AuthorityRoundParams {
-            delta,
-            block_reward: U256::from(0u64),
-            block_reward_contract: None,
-            block_reward_contract_transition: 0,
-            empty_steps_transition: 0,
-            immediate_transitions: false,
-            maximum_empty_steps: std::usize::MAX,
-            maximum_uncle_count: 0,
-            maximum_uncle_count_transition: 0,
-            start_step: None,
-            step_duration: interval,
-            validate_score_transition: 0,
-            validate_step_transition: 0,
-            validators: Box::new(SimpleList::new(public_keys.clone())),
-            ton_key: private_key,
+        let (block, new_shard_state) = match result? {
+            Some(result) => result,
+            None => return Ok(None)
         };
-        let engine = AuthorityRound::new(params, EthereumMachine::new()).unwrap();
-        let client: Arc<dyn EngineClient> = Arc::new(Client::new(engine.clone()));
+        time[1] = now.elapsed().as_micros();
+        now = Instant::now();
+        time[2] = now.elapsed().as_micros();
+        now = Instant::now();
+        time[3] = now.elapsed().as_micros();
+        now = Instant::now();
 
-        engine.register_client(Arc::downgrade(&client));
-        PoAContext { engine, client }
-    }
+        log::debug!("PREP_BLK_AFTER_GEN");
+        log::debug!("PREP_BLK2");
 
-    fn request_to_node_info(&self, io: &dyn NetworkContext, peer: &PeerId) -> NodeResult<()> {
-        let request = networkprotocol::RequestNodeInfo { id: 0 };
-        self.send_request(
-            io,
-            peer,
-            &request.into_boxed(),
-            TonNodeEngine::process_node_info,
-        )
-    }
+        //        self.message_queue.set_ready(false);
 
-    fn process_node_info(
-        &self,
-        _io: &dyn NetworkContext,
-        peer: &PeerId,
-        request: NetworkProtocol,
-    ) -> NodeResult<()> {
-        match request {
-            NetworkProtocol::TonEngine_NetworkProtocol_ResponseNodeInfo(info) => {
-                let shard = ShardIdent::with_prefix_len(
-                    info.shard_pfx_len as u8,
-                    info.workchain,
-                    info.shard_prefix as u64,
-                )?;
+        // TODO remove debug print
+        Self::print_block_info(&block);
 
-                self.set_validator(&shard, info.validator_no);
+        /*let res = self.propose_block_to_db(&mut block);
 
-                let node_info = NodeInfo::new(info.validator_no as usize, shard);
-                println!("ROUTING: insert peer {}, info {:?}", peer, node_info);
-                self.routing_table()
-                    .insert(node_info, peer.clone() as usize);
-            }
-            NetworkProtocol::TonEngine_NetworkProtocol_Error(error) => {
-                warn!(target: "node", "Get route node info FAILED: {}", error.msg);
-            }
-            _ => return node_err!(NodeErrorKind::TlIncompatiblePacketType),
-        }
-        Ok(())
-    }
-}
-
-///
-/// internal context
-///
-pub struct PoAContext {
-    pub engine: Arc<AuthorityRound>,
-    pub client: Arc<dyn EngineClient>,
-}
-
-///
-/// Protocol packets
-///
-pub const REQUEST: PacketId = 1;
-pub const RESPONSE: PacketId = 2;
-
-impl NetworkProtocolHandler for TonNodeEngine {
-    fn initialize(&self, io: &dyn NetworkContext) {
-        let timers = self.timers.lock();
-        for (t_id, timer) in timers.iter() {
-            let res = io.register_timer(t_id.clone(), timer.timeout);
-            if res.is_err() {
-                log::error!(target: "node", "Register timer error {:?}", res.unwrap_err());
-            }
-        }
-    }
-
-    fn read(&self, io: &dyn NetworkContext, peer: &PeerId, packet_id: u8, data: &[u8]) {
-        let res = self.read_internal(io, peer, packet_id, data);
         if res.is_err() {
-            warn!(target: "node", "Error in TonNodeEngine.read: {:?}", res);
-        }
-    }
+            log::warn!(target: "node", "Error propose_block_to_db: {}", res.unwrap_err());
+        }*/
 
-    fn connected(&self, io: &dyn NetworkContext, peer: &PeerId) {
-        let mut peer_list = self.peer_list.lock();
-        peer_list.push(peer.clone());
-        // send request to NodeInfo
-        let res = self.request_to_node_info(io, peer);
-        if res.is_err() {
-            warn!(target: "node", "Request to node info failed: {:?}", res.unwrap_err());
-        }
-        info!(target: "node", "Client {} added to peer list", peer);
-    }
+        time[4] = now.elapsed().as_micros();
+        now = Instant::now();
 
-    fn disconnected(&self, io: &dyn NetworkContext, peer: &PeerId) {
-        let res = self.disconnected_internal(io, peer);
-        // remove peer from routing table
-        self.routing_table().remove_by_peer(peer);
-        info!(target: "node", "Disconnected {}", peer);
-        if res.is_err() {
-            warn!(target: "node", "Error in disconnected: {:?}", res);
-        }
-    }
+        time[5] = now.elapsed().as_micros();
+        now = Instant::now();
 
-    fn timeout(&self, io: &dyn NetworkContext, timer: TimerToken) {
-        //debug!("TIMEOUT");
-        let callback = {
-            let timers = self.timers.lock();
-            if let Some(handler) = timers.get(&timer) {
-                Some(handler.get_callback())
+        let s_block = SignedBlock::with_block_and_key(block, &self.private_key)?;
+        let mut s_block_data = Vec::new();
+        s_block.write_to(&mut s_block_data)?;
+        time[6] = now.elapsed().as_micros();
+        now = Instant::now();
+        let (_, details) = self.finality_and_apply_block(
+            &s_block,
+            &s_block_data,
+            new_shard_state,
+            false,
+        )?;
+
+        time[7] = now.elapsed().as_micros();
+        log::info!(target: "profiler",
+            "{} {} / {} / {} / {} / {} / {} micros",
+            "Prepare block time: setup/gen/analysis1/analysis2/seal/finality",
+            time[0], time[1], time[2], time[3], time[4] + time[5], time[6] + time[7]
+        );
+
+        let mut str_details = String::new();
+        for detail in details {
+            str_details = if str_details.is_empty() {
+                format!("{}", detail)
             } else {
-                None
+                format!("{} / {}", str_details, detail)
             }
-        };
-        if let Some(callback) = callback {
-            callback(self, io);
         }
-        /*
-                let timers = self.timers.lock();
-                if timers.contains_key(&timer) {
-                    if let Some(handler) = timers.get(&timer) {
-                        let timer = handler.get_callback();
-                        timer(self, io);
-                    }
-                }
-        */
-    }
-}
+        log::info!(target: "profiler", "Block finality details: {} / {} micros",  time[6], str_details);
 
-type TimerCallback = fn(engine: &TonNodeEngine, io: &dyn NetworkContext);
-type RequestCallback = fn(
-    engine: &TonNodeEngine,
-    io: &dyn NetworkContext,
-    peer: &PeerId,
-    reply: NetworkProtocol,
-) -> NodeResult<()>;
-type ResponseCallback = fn(
-    engine: &TonNodeEngine,
-    io: &dyn NetworkContext,
-    peer: &PeerId,
-    reply: NetworkProtocol,
-) -> NodeResult<NetworkProtocol>;
+        log::debug!("PREP_BLK_SELF_STOP");
 
-struct TimerHandler {
-    // TODO: timer_id: TimerToken,
-    timeout: Duration,
-    callback: TimerCallback,
-}
-
-impl TimerHandler {
-    pub fn with_params(_timer_id: TimerToken, timeout: Duration, callback: TimerCallback) -> Self {
-        TimerHandler {
-            // TODO: timer_id,
-            timeout,
-            callback,
-        }
+        Ok(Some(s_block))
     }
 
-    pub fn get_callback(&self) -> TimerCallback {
-        let callback = self.callback;
-        callback
+    /// finality and apply block
+    fn finality_and_apply_block(
+        &self,
+        block: &SignedBlock,
+        block_data: &[u8],
+        applied_shard: ShardStateUnsplit,
+        is_sync: bool,
+    ) -> NodeResult<(Arc<ShardStateUnsplit>, Vec<u128>)> {
+
+        let mut time = Vec::new();
+        let now = Instant::now();
+        let hash = block.block().hash().unwrap();
+        let finality_hash = vec!(hash);
+        let new_state = self.block_applier.lock().apply(
+            block,
+            Some(block_data.to_vec()),
+            finality_hash,
+            applied_shard,
+            is_sync,
+        )?;
+        time.push(now.elapsed().as_micros());
+        Ok((new_state, time))
     }
-}
-
-pub fn serialize<T: BoxedSerialize>(object: &T) -> NodeResult<Vec<u8>> {
-    let mut ret = Vec::<u8>::new();
-    {
-        let mut serializer = ton_api::Serializer::new(&mut ret);
-        let err = serializer.write_boxed(object);
-        if err.is_err() {
-            return node_err!(NodeErrorKind::TlSerializeError);
-        }
-    }
-    Ok(ret)
-}
-
-pub fn deserialize<T: BoxedDeserialize>(bytes: &mut &[u8]) -> T {
-    ton_api::Deserializer::new(bytes).read_boxed().unwrap()
-}
-
-fn variant_eq<T>(a: &T, b: &T) -> bool {
-    std::mem::discriminant(a) == std::mem::discriminant(b)
 }
 
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {
@@ -828,128 +408,18 @@ pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKe
         Ok(config) => match config.import_keys() {
             Ok(keys) => (config, keys),
             Err(err) => {
-                warn!(target: "node", "{}", err);
+                log::warn!(target: "node", "{}", err);
                 panic!("{} / {}", err, json)
             }
         },
         Err(err) => {
-            warn!(target: "node", "Error parsing configuration file. {}", err);
+            log::warn!(target: "node", "Error parsing configuration file. {}", err);
             panic!("Error parsing configuration file. {}", err)
         }
     }
 }
 
-extern crate ethkey;
-
-pub fn get_devp2p_secret(key: &Keypair) -> Option<ethkey::Secret> {
-    let key = key.secret.to_bytes();
-    ethkey::Secret::from_slice(&key)
-}
-
-pub struct ConfirmationContext {
-    pub peer: PeerId,
-    pub result: u8,
-    pub block_seq_no: u32,
-    pub block_start_lt: u64,
-    pub block_end_lt: u64,
-    pub block_gen_utime: u32,
-}
-
-impl ConfirmationContext {
-    pub fn new() -> Self {
-        Self {
-            peer: 0,
-            result: 0,
-            block_seq_no: 0,
-            block_start_lt: 0,
-            block_end_lt: 0,
-            block_gen_utime: 0,
-        }
-    }
-
-    pub fn serialize(&self) -> Vec<u8> {
-        let mut data = vec![];
-        data.extend_from_slice(&(self.peer as u64).to_le_bytes());
-        data.extend_from_slice(&(self.result).to_le_bytes());
-        data.extend_from_slice(&(self.block_seq_no).to_le_bytes());
-        data.extend_from_slice(&(self.block_start_lt).to_le_bytes());
-        data.extend_from_slice(&(self.block_end_lt).to_le_bytes());
-        data.extend_from_slice(&(self.block_gen_utime).to_le_bytes());
-        data
-    }
-
-    pub fn deserialize(data: &mut impl Read) -> NodeResult<Self> {
-        let mut res = Self::new();
-        res.peer = data.read_le_u64()? as usize;
-        res.result = data.read_byte()?;
-        res.block_seq_no = data.read_le_u32()?;
-        res.block_start_lt = data.read_le_u64()?;
-        res.block_end_lt = data.read_le_u64()?;
-        res.block_gen_utime = data.read_le_u32()?;
-        Ok(res)
-    }
-}
-
-///
-/// Analyzer for confirmations
-///
-pub struct ConfirmationAnalyzer {
-    validators_count: i32,
-    pub confirmations: Vec<networkprotocol::ConfirmValidation>,
-    pub block_candidate: Block,
-    pub applied: bool,
-}
-
-impl ConfirmationAnalyzer {
-    pub fn new(validators: i32) -> Self {
-        Self {
-            validators_count: validators,
-            confirmations: vec![],
-            block_candidate: Block::default(),
-            applied: false,
-        }
-    }
-
-    pub fn select_actual_validators(&self) -> Option<Vec<PeerId>> {
-        let mut succeeded_count = 0;
-        let mut succeeded_validators = vec![];
-
-        for c in self.confirmations.iter() {
-            if Self::is_success_status(c.result) {
-                succeeded_count += 1;
-                succeeded_validators.push(c.peer as PeerId);
-            }
-        }
-        if succeeded_count > (self.validators_count / 2) {
-            Some(succeeded_validators)
-        } else {
-            None
-        }
-    }
-
-    pub fn is_success_status(result: i64) -> bool {
-        result == 0 || result == 2
-    }
-
-    pub fn select_failed_validators(&self) -> Option<Vec<PeerId>> {
-        let mut count = 0;
-        let mut failed_validators = vec![];
-
-        for c in self.confirmations.iter() {
-            if !Self::is_success_status(c.result) {
-                count += 1;
-                failed_validators.push(c.peer as PeerId);
-            }
-        }
-        if count > (self.validators_count / 2) {
-            Some(failed_validators)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Eq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct FinalityBlockInfo {
     pub block: SignedBlock,
     pub block_data: Option<Vec<u8>>,
@@ -970,30 +440,6 @@ impl FinalityBlockInfo {
     }
 }
 
-impl Ord for FinalityBlockInfo {
-    fn cmp(&self, other: &FinalityBlockInfo) -> Ordering {
-        self.block
-            .block()
-            .read_info()
-            .unwrap()
-            .seq_no()
-            .cmp(&other.block.block().read_info().unwrap().seq_no())
-    }
-}
-
-impl PartialOrd for FinalityBlockInfo {
-    fn partial_cmp(&self, other: &FinalityBlockInfo) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for FinalityBlockInfo {
-    fn eq(&self, other: &FinalityBlockInfo) -> bool {
-        self.block.block().read_info().unwrap().seq_no()
-            == other.block.block().read_info().unwrap().seq_no()
-    }
-}
-
 pub struct IncomingBlocksCache {
     blocks: Arc<Mutex<Vec<FinalityBlockInfo>>>,
 }
@@ -1008,43 +454,22 @@ impl IncomingBlocksCache {
 
     /// push block to end of vector
     pub fn push(&self, block_info: FinalityBlockInfo) {
-        let mut blocks = self.blocks.lock();
-        blocks.push(block_info);
+        self.blocks.lock().push(block_info);
     }
 
     /// pop block from end of vector
     pub fn pop(&self) -> Option<FinalityBlockInfo> {
-        let mut blocks = self.blocks.lock();
-        blocks.pop()
+        self.blocks.lock().pop()
     }
 
     /// remove block from arbitrary place of vector and return it
     pub fn remove(&self, i: usize) -> FinalityBlockInfo {
-        let mut blocks = self.blocks.lock();
-        blocks.remove(i)
+        self.blocks.lock().remove(i)
     }
 
     /// Get count of temporary blocks
     pub fn len(&self) -> usize {
-        let blocks = self.blocks.lock();
-        blocks.len()
-    }
-
-    /// Sort block by sequence number
-    pub fn sort(&self) {
-        let mut blocks = self.blocks.lock();
-        blocks.sort();
-    }
-
-    /// get minimum sequence number of blocks
-    pub fn get_min_seq_no(&self) -> u32 {
-        let mut blocks = self.blocks.lock();
-        blocks.sort();
-        if blocks.len() != 0 {
-            blocks[0].block.block().read_info().unwrap().seq_no()
-        } else {
-            0xFFFFFFFF
-        }
+        self.blocks.lock().len()
     }
 
     /// get pointer to vector of temporary blocks
@@ -1054,8 +479,7 @@ impl IncomingBlocksCache {
 
     /// check if block with sequence number exists in temporary blocks
     pub fn exists(&self, seq_no: u32) -> bool {
-        let blocks = self.blocks.lock();
-        blocks
+        self.blocks.lock()
             .iter()
             .find(|x| x.block.block().read_info().unwrap().seq_no() == seq_no)
             .is_some()

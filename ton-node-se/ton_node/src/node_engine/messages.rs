@@ -115,92 +115,6 @@ where
         Ok(())
     }
 
-    //     ///
-    //     /// Generate new block
-    //     ///
-    //     pub fn generate_block(
-    //         &mut self,
-    //         shard_state: &ShardStateUnsplit,
-    //         timeout: Duration,
-    //         seq_no: u32,
-    //         prev_ref: BlkPrevInfo,
-    //         required_block_at: u32,
-    //         debug: bool
-    //     ) -> NodeResult<Option<(Block, Option<ShardStateUnsplit>)>> {
-
-    // debug!("GENBLK");
-    //         let start_time = Instant::now();
-
-    //         let new_shard_state = Arc::new(Mutex::new(shard_state.clone()));
-
-    //         let builder = BlockBuilder::with_shard_ident(
-    //                 self.shard_id.clone(),
-    //                 seq_no, prev_ref, 0, Option::None,
-    //                 required_block_at);
-
-    //         while start_time.elapsed() < timeout {
-    //             if let Some(msg) = self.queue.dequeue_first_unused() {
-    //                 let res = self.db.put_message(msg.message().clone(), MessageProcessingStatus::Processing, None, None);
-    //                 if res.is_err() {
-    //                     warn!(target: "node", "generate_block_multi reflect to db failed. error: {}", res.unwrap_err());
-    //                 }
-
-    //                 let acc_id = msg.message().header().dest_account_address()
-    //                     .expect("Can't get dest account address. Seems like outbound message into in-queue");
-
-    //                 let mut acc_opt = new_shard_state.lock().read_accounts()?.account(&acc_id)?;
-    //                 // TODO it is possible to make account immutable,
-    //                 // because in executor it is cloned for MerkleUpdate creation
-    //                 if !self.executors.lock().contains_key(&acc_id) {
-    //                     self.executors.lock().insert(acc_id.clone(), Arc::new(Mutex::new(E::new())));
-    //                 }
-
-    //                 let (block_at, block_lt) = builder.at_and_lt();
-    //                 let executor = self.executors.lock().get(&acc_id).unwrap().clone();
-
-    //                 let now = Instant::now();
-    //                 let transaction = Arc::new(executor.lock().execute(
-    //                     msg.message().clone(), &mut acc_opt, block_at, block_lt, debug
-    //                 )?);
-    //                 let d = now.elapsed();
-    //                 debug!(target: "node", "transaction execute time elapsed sec={}.{:06} ", d.as_secs(), d.subsec_micros());
-    //                 debug!(target: "node", "transaction status: {}", if transaction.read_description()?.is_aborted() { "Aborted" } else { "Success" });
-
-    //                 if let Some(ref acc) = acc_opt {
-    //                     new_shard_state.lock().insert_account(acc)?;
-    //                 } else {
-    //                     unreachable!("where account?")
-    //                 }
-
-    //                 // loop-back for messages to current-shardchain
-    //                 Self::route_out_messages(&self.shard_id, self.queue.clone(), transaction.clone(), new_shard_state.clone())?;
-
-    //                 self.tr_storage.save_transaction(Arc::clone(&transaction))?;
-    //                 let in_message = Arc::new(
-    //                     Self::get_in_msg_from_transaction(&self.shard_id, &transaction)?.unwrap()
-    //                 );
-    //                 let out_messages = Self::get_out_msgs_from_transaction(&self.shard_id, &transaction, &in_message)?;
-
-    //                 if !builder.add_transaction(in_message.clone(), out_messages) { // think about how to remove clone
-    //                     // TODO log error, write to transaction DB about error
-    //                 }
-    //             } else {
-    //                 thread::sleep(Duration::from_millis(1));
-    //             }
-    //         }
-
-    //         info!(target: "node", "in messages queue len={}", self.queue.len());
-    //         self.executors.lock().clear();
-
-    //         if !builder.is_empty() {
-    //             let new_shard_state = std::mem::replace(&mut *new_shard_state.lock(), ShardStateUnsplit::default());
-    //             let (block, _count) = builder.finalize_block(shard_state, &new_shard_state)?;
-    //             Ok(Some((block, Some(new_shard_state))))
-    //         } else {
-    //             Ok(None)
-    //         }
-    //     }
-
     fn try_prepare_transaction(
         builder: &BlockBuilder,
         executor: &OrdinaryTransactionExecutor,
@@ -287,7 +201,7 @@ where
             .read_accounts()?
             .account(acc_id)?
             .unwrap_or_default();
-        let mut acc_root = shard_acc.account_cell().clone();
+        let mut acc_root = shard_acc.account_cell();
         // TODO it is possible to make account immutable,
         // because in executor it is cloned for MerkleUpdate creation
         if !executors.lock().contains_key(acc_id) {
@@ -297,10 +211,7 @@ where
                 .insert(acc_id.clone(), Arc::new(Mutex::new(e)));
         }
 
-        debug!(
-            "Executing message {}",
-            msg.message().hash()?.to_hex_string()
-        );
+        log::debug!("Executing message {:x}", msg.message_hash());
         let now = Instant::now();
         let executor = executors.lock().get(acc_id).unwrap().clone();
         let (mut transaction, max_lt) = Self::try_prepare_transaction(
@@ -314,13 +225,13 @@ where
         transaction.set_prev_trans_hash(shard_acc.last_trans_hash().clone());
         transaction.set_prev_trans_lt(shard_acc.last_trans_lt());
         let transaction = Arc::new(transaction);
-        info!(target: "profiler", "Transaction time: {} micros", now.elapsed().as_micros());
-        // info!(target: "profiler", "Init time: {} micros", executor.lock().timing(0));
-        // info!(target: "profiler", "Compute time: {} micros", executor.lock().timing(1));
-        // info!(target: "profiler", "Finalization time: {} micros", executor.lock().timing(2));
+        log::info!(target: "profiler", "Transaction time: {} micros", now.elapsed().as_micros());
+        // log::info!(target: "profiler", "Init time: {} micros", executor.lock().timing(0));
+        // log::info!(target: "profiler", "Compute time: {} micros", executor.lock().timing(1));
+        // log::info!(target: "profiler", "Finalization time: {} micros", executor.lock().timing(2));
 
-        debug!("Transaction ID {}", transaction.hash()?.to_hex_string());
-        debug!(target: "executor", "Transaction aborted: {}", transaction.read_description()?.is_aborted());
+        log::debug!("Transaction ID {:x}", transaction.hash()?);
+        log::debug!("Transaction aborted: {}", transaction.read_description()?.is_aborted());
 
         let now = Instant::now();
         // update or remove shard account in new shard state
@@ -389,10 +300,10 @@ where
         };
 
         if !builder.add_serialized_transaction(context) {
-            warn!(target: "node", "Error append serialized transaction info to BlockBuilder");
+            log::warn!(target: "node", "Error append serialized transaction info to BlockBuilder");
             // TODO log error, write to transaction DB about error
         }
-        info!(target: "profiler", "Transaction saving time: {} micros", now.elapsed().as_micros());
+        log::info!(target: "profiler", "Transaction saving time: {} micros", now.elapsed().as_micros());
         Ok(())
     }
 
@@ -407,8 +318,8 @@ where
         prev_ref: BlkPrevInfo,
         required_block_at: u32,
         debug: bool,
-    ) -> NodeResult<Option<(Block, Option<ShardStateUnsplit>)>> {
-        debug!("GENBLKMUL");
+    ) -> NodeResult<Option<(Block, ShardStateUnsplit)>> {
+        log::debug!("GENBLKMUL");
         let now = Instant::now();
         let start_time = Instant::now();
         let pool = ThreadPool::new(16);
@@ -454,7 +365,7 @@ where
                     );
                     queue.unlock_account(&acc_id);
                     if !res.is_ok() {
-                        warn!(target: "node", "Executor execute failed. {}", res.unwrap_err());
+                        log::warn!(target: "node", "Executor execute failed. {}", res.unwrap_err());
                     }
                 };
 
@@ -469,18 +380,18 @@ where
         pool.join();
         let time0 = now.elapsed().as_micros();
 
-        info!(target: "node", "in messages queue len={}", self.queue.len());
+        log::info!(target: "node", "in messages queue len={}", self.queue.len());
         self.executors.lock().clear();
         self.queue.locks_clear();
 
         if !is_empty {
             let new_shard_state = std::mem::take(&mut *new_shard_state.lock());
             let (block, count) = builder.finalize_block(shard_state, &new_shard_state)?;
-            info!(target: "profiler",
+            log::info!(target: "profiler",
                 "Block time: non-final/final {} / {} micros, transaction count: {}",
                 time0, now.elapsed().as_micros(), count
             );
-            Ok(Some((block, Some(new_shard_state))))
+            Ok(Some((block, new_shard_state)))
         } else {
             Ok(None)
         }
@@ -546,7 +457,7 @@ impl MessagesReceiver for JsonRpcMsgReceiver {
     /// Start to receive messages. The function runs the receive thread and returns control.
     fn run(&mut self, queue: Arc<InMessagesQueue>) -> NodeResult<()> {
         if self.server.is_some() {
-            node_err!(NodeErrorKind::InvalidOperation)
+            Err(NodeError::InvalidOperation)
         } else {
             let mut io = IoHandler::default();
             io.add_method("call", move |params| {
@@ -584,7 +495,7 @@ impl JsonRpcMsgReceiver {
             s.unwrap().close();
             Ok(())
         } else {
-            node_err!(NodeErrorKind::InvalidOperation)
+            Err(NodeError::InvalidOperation)
         }
     }
 
@@ -708,6 +619,10 @@ impl QueuedMessage {
         self.internal.message()
     }
 
+    pub fn message_hash(&self) -> &UInt256 {
+        &self.hash
+    }
+
     pub fn message_mut(&mut self) -> &mut Message {
         self.internal.message_mut()
     }
@@ -760,7 +675,7 @@ pub struct InMessagesQueue {
     shard_id: ShardIdent,
     storage: Mutex<BTreeSet<QueuedMessage>>,
     out_storage: Mutex<VecDeque<QueuedMessage>>,
-    db: Option<Arc<Box<dyn DocumentsDb>>>,
+    db: Option<Arc<dyn DocumentsDb>>,
     used_accs: Mutex<HashSet<AccountId>>,
     capacity: usize,
     ready_to_process: AtomicBool,
@@ -781,7 +696,7 @@ impl InMessagesQueue {
         }
     }
 
-    pub fn with_db(shard_id: ShardIdent, capacity: usize, db: Arc<Box<dyn DocumentsDb>>) -> Self {
+    pub fn with_db(shard_id: ShardIdent, capacity: usize, db: Arc<dyn DocumentsDb>) -> Self {
         InMessagesQueue {
             shard_id,
             storage: Mutex::new(BTreeSet::new()),
@@ -799,7 +714,7 @@ impl InMessagesQueue {
     /// false - node receive messages and route they to another nodes
     ///
     pub fn set_ready(&self, mode: bool) {
-        info!(target: "node", "in message queue set ready-mode: {}", mode);
+        log::info!(target: "node", "in message queue set ready-mode: {}", mode);
         self.ready_to_process.store(mode, AtomicOrdering::SeqCst);
     }
 
@@ -836,12 +751,12 @@ impl InMessagesQueue {
     pub fn queue(&self, msg: QueuedMessage) -> std::result::Result<(), QueuedMessage> {
         // messages unsuitable to this node route all time
         if !self.is_message_to_current_node(msg.message()) {
-            debug!(target: "node", "MESSAGE-IS-FOR-OTHER-NODE {:?}", msg);
+            log::debug!(target: "node", "MESSAGE-IS-FOR-OTHER-NODE {:?}", msg);
             return self.route_message_to_other_node(msg);
         }
 
         if self.has_delivery_problems() {
-            debug!(target: "node", "Has delivery problems");
+            log::debug!(target: "node", "Has delivery problems");
             return Err(msg);
         }
 
@@ -851,7 +766,7 @@ impl InMessagesQueue {
         }
 
         storage.insert(msg.clone());
-        debug!(target: "node", "Queued message: {:?}", msg.message());
+        log::debug!(target: "node", "Queued message: {:?}", msg.message());
 
         Ok(())
     }
@@ -865,7 +780,7 @@ impl InMessagesQueue {
         let mut storage = self.storage.lock();
         let msg_str = format!("{:?}", msg.message());
         storage.insert(msg);
-        debug!(target: "node", "Priority queued message: {}", msg_str);
+        log::debug!(target: "node", "Priority queued message: {}", msg_str);
 
         Ok(())
     }
@@ -948,7 +863,7 @@ impl InMessagesQueue {
 /// is account_id has prefix identically prefix of shard
 pub fn is_in_current_shard(shard_id: &ShardIdent, account_wc: i32, account_id: &AccountId) -> bool {
     if shard_id.workchain_id() != account_wc {
-        debug!(target: "node", "WORKCHAIN mismatch: Node {}, Msg {}", shard_id.workchain_id(), account_wc);
+        log::debug!(target: "node", "WORKCHAIN mismatch: Node {}, Msg {}", shard_id.workchain_id(), account_wc);
     }
     shard_id.contains_account(account_id.clone()).unwrap()
 }

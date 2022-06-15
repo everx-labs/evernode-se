@@ -29,6 +29,3 @@ cargo test
 cargo run --release --bin ton_node_startup -- --workdir ./node0 --config ./config/cfg_startup
 ```
 Don't forget, this kind of node needs properly configured Arango DB. Add db's address and collection's names to config file. 
-
-## Subpackages
-* [PoA: Proof-of-Authority implementation](poa)

@@ -1,143 +1,77 @@
-extern crate ethcore_network as network;
-
-// use poa::error::PoaError;
 use std::io;
-// use tvm::types::Exception;
 
-error_chain! {
-
-    types {
-        NodeError, NodeErrorKind, NodeResultExt, NodeResult;
-    }
-
-    foreign_links {
-        Eth(network::Error);
-        Io(io::Error);
-    }
-
-    errors {
-        FailureError(error: failure::Error) {
-            description("Failure error"),
-            display("Failure error: {}", error.to_string())
-        }
-        BlockError(error: ton_block::BlockError) {
-            description("Block error"),
-            display("Block error: {}", error.to_string())
-        }
-        NotFound {
-            description("Requested item not found")
-        }
-        DataBaseProblem {
-            description("Database problem")
-        }
-        InvalidExtMessage {
-            description("Invalid external message")
-        }
-        InvalidMerkleUpdate {
-            description("Invalid Merkle update")
-        }
-        InvalidOperation {
-            description("Invalid operation")
-        }
-        LoadFinalityError {
-            description("Load finality error")
-        }
-        FinalityError {
-            description("Finality error. Block not found into cache")
-        }
-        RoolbackBlockError {
-            description("Rollback block error. Block not found into cache")
-        }
-        NetworkError {
-            description("Devp2p network error")
-        }
-        TlSerializeError {
-            description("TL data serialize error")
-        }
-        TlDeserializeError {
-            description("TL data deserialize error")
-        }
-        TlIncompatiblePacketType {
-            description("TL packet has unknown type")
-        }
-        ValidationEmptyStepError {
-            description("Validation empty step error")
-        }
-        ValidationBlockError {
-            description("Validation block error")
-        }
-        SignatureError {
-            description("Signature key invalid")
-        }
-        InvalidShardState {
-            description("ShardState is invalid")
-        }
-        SynchronizeEnded {
-            description("Synchronize node ended.")
-        }
-        SynchronizeError {
-            description("Synchronize node error.")
-        }
-        SynchronizeInProcess {
-            description("Synchronize node in process.")
-        }
-        QueueFull {
-            description("Internal message queue is full")
-        }
-        TrExecutorError(t: String) {
-            description("Transaction executor internal error")
-            display("Transaction executor internal error: '{}'", t)
-        }
-        InvalidData(msg: String) {
-            description("Invalid data"),
-            display("Invalid data: {}", msg)
-        }
-        DocumentDbError(msg: String) {
-            description("Document DB error"),
-            display("Document DB error: {}", msg)
-        }
-        ConfigError(msg: String) {
-            description("Config error"),
-            display("Config read error: {}", msg)
-        }
-        ApiError(msg: String) {
-            description("SE API error"),
-            display("SE API failed: {}", msg)
-        }
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum NodeError {
+    #[error("Io error: {}", 0)]
+    Io(io::Error),
+    #[error("Failure error: {}", 0)]
+    FailureError(failure::Error),
+    #[error("Block error: {}", 0)]
+    BlockError(ton_block::BlockError),
+    #[error("Requested item not found")]
+    NotFound,
+    #[error("Database problem")]
+    PathError(String),
+    #[error("Path problem {}", 0)]
+    DataBaseProblem,
+    #[error("Invalid external message")]
+    InvalidExtMessage,
+    #[error("Invalid Merkle update")]
+    InvalidMerkleUpdate,
+    #[error("Invalid operation")]
+    InvalidOperation,
+    #[error("Load finality error")]
+    LoadFinalityError,
+    #[error("Finality error. Block not found into cache")]
+    FinalityError,
+    #[error("Rollback block error. Block not found into cache")]
+    RoolbackBlockError,
+    #[error("Devp2p network error")]
+    NetworkError,
+    #[error("TL data serialize error")]
+    TlSerializeError,
+    #[error("TL data deserialize error")]
+    TlDeserializeError,
+    #[error("TL packet has unknown type")]
+    TlIncompatiblePacketType,
+    #[error("Validation empty step error")]
+    ValidationEmptyStepError,
+    #[error("Validation block error")]
+    ValidationBlockError,
+    #[error("Signature key invalid")]
+    SignatureError,
+    #[error("ShardState is invalid")]
+    InvalidShardState,
+    #[error("Synchronize node ended")]
+    SynchronizeEnded,
+    #[error("Synchronize node error")]
+    SynchronizeError,
+    #[error("Synchronize node in process")]
+    SynchronizeInProcess,
+    #[error("Internal message queue is full")]
+    QueueFull,
+    #[error("Transaction executor internal error: '{}'", 0)]
+    TrExecutorError(String),
+    #[error("Invalid data: {}", 0)]
+    InvalidData(String),
+    #[error("Document DB error: {}", 0)]
+    DocumentDbError(String),
+    #[error("Config read error: {}", 0)]
+    ConfigError(String),
+    #[error("SE API failed: {}", 0)]
+    ApiError(String),
 }
 
-#[macro_export]
-macro_rules! node_err {
-    ($code:expr) => {
-        Err(NodeError::from_kind($code))
-    };
-}
-
-// error_chain!
-
-//     types {
-//         TonError, TonErrorKind, TonResultExt, TonResult;
-//     }
-
-//     foreign_links {
-//         Adnl(AdnlError) #[doc = "Adnl error"];
-//         Node(NodeError) #[doc = "Node error"];
-//         Poa(PoaError) #[doc = "PoA error"];
-//         Tvm(Exception) #[doc = "TVM exception"];
-//         Block(BlockError) #[doc = "TonBlock error"];
-//     }
-
-// }
-
-// impl From<Exception> for NodeError {
-//     fn from(error: Exception) -> Self {
-//         NodeError::from_kind(NodeErrorKind::Tvm(TvmError::from_kind(TvmErrorKind::Tvm(error))))
-//     }
-// }
+pub type NodeResult<T> = Result<T, NodeError>;
 
 impl From<failure::Error> for NodeError {
     fn from(error: failure::Error) -> Self {
-        NodeErrorKind::FailureError(error).into()
+        NodeError::FailureError(error).into()
+    }
+}
+
+impl From<io::Error> for NodeError {
+    fn from(error: io::Error) -> Self {
+        NodeError::Io(error).into()
     }
 }

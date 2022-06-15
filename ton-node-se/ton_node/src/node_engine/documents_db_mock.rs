@@ -1,7 +1,7 @@
 use crate::error::NodeResult;
 use ton_block::{Account, Block, Message, Transaction};
 use ton_types::{AccountId, UInt256};
-use node_engine::blocks_finality::DocumentsDb;
+use super::DocumentsDb;
 
 pub struct DocumentsDbMock;
 

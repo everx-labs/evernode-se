@@ -1,6 +1,6 @@
-use ed25519_dalek::{Keypair};
-use error::NodeResult;
-use node_engine::{
+use ed25519_dalek::Keypair;
+use crate::error::NodeResult;
+use super::{
     BlocksStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage
 };
 use parking_lot::Mutex;
@@ -184,7 +184,7 @@ impl FinalityStorage for FileBasedStorage {
 
         let mut name = block_finality_path.clone();
         name.push(hash.to_hex_string());
-        info!(target: "node", "save finality block name: {:?}", name);
+        log::info!(target: "node", "save finality block name: {:?}", name);
         if !name.as_path().exists() {
             let mut file_info = File::create(name)?;
             file_info.write_all(&mut data[..])?;
@@ -210,7 +210,7 @@ impl FinalityStorage for FileBasedStorage {
         let mut name = block_finality_path.clone();
         name.push(hash.to_hex_string());
 
-        info!(target: "node", "load finality block name: {:?}", name);
+        log::info!(target: "node", "load finality block name: {:?}", name);
         let mut file_info = File::open(name)?;
         let mut data = Vec::new();
         file_info.read_to_end(&mut data)?;
@@ -279,16 +279,8 @@ impl ShardStateStorage for FileBasedStorage {
     /// Get selected shard state from file
     ///
     fn shard_state(&self) -> NodeResult<ShardStateUnsplit>{
-        let shard_dir = self.shards_path.clone();
-        let (mut shard_path, _blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
-        shard_path.push("shard_state.block");
-
-        let mut file = File::open(shard_path.as_path())?;
-        let mut shard_slice = deserialize_tree_of_cells(&mut file)?.into();
-        let mut shard_state = ShardStateUnsplit::default();
-        shard_state.read_from(&mut shard_slice)?;
-
-        Ok(shard_state)
+        let cell = self.shard_bag()?;
+        Ok(ShardStateUnsplit::construct_from_cell(cell)?)
     }
 
     fn shard_bag(&self) -> NodeResult<Cell> {
@@ -298,8 +290,7 @@ impl ShardStateStorage for FileBasedStorage {
 
         let mut file = File::open(shard_path.as_path())?;
         // TODO: BOC from file
-        let shard_cell = deserialize_tree_of_cells(&mut file)?;
-        Ok(shard_cell)
+        Ok(deserialize_tree_of_cells(&mut file)?)
     }
 
     ///
@@ -352,7 +343,7 @@ impl ShardStateStorage for FileBasedStorage {
             shard_state_info: ShardStateInfo
         ) -> NodeResult<()> {
 
-        assert_ne!(*shard_hash, UInt256::from([0; 32]), "There should be no empty hashes!");
+        assert_ne!(*shard_hash, UInt256::ZERO, "There should be no empty hashes!");
 
         let shard_dir = self.shards_path.clone();
         let (shard_path, _blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;

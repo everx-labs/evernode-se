@@ -1,16 +1,12 @@
 
 use super::*;
 use std::sync::Arc;
-use ton_block::{Deserializable, ShardStateUnsplit};
-//use console::style;
-
+use ton_block::ShardStateUnsplit;
 /// Trait for save finality states blockchain
 pub trait BlockFinality {
-    fn finalize_without_new_block(&mut self, finality_hash: Vec<UInt256>) -> NodeResult<()>;
-
     fn put_block_with_info(
         &mut self,
-        signed_block: SignedBlock,
+        signed_block: &SignedBlock,
         signed_block_data: Option<Vec<u8>>,
         block_hash: Option<UInt256>,
         shard_state: Arc<ShardStateUnsplit>,
@@ -42,7 +38,7 @@ pub trait BlockFinality {
 pub struct NewBlockApplier<F> where
     F: BlockFinality
 {
-    db: Arc<Box<dyn DocumentsDb>>,
+    db: Arc<dyn DocumentsDb>,
     finality: Arc<Mutex<F>>,
 }
 
@@ -50,7 +46,7 @@ impl<F> NewBlockApplier<F> where
     F: BlockFinality
 {
     /// Create new NewBlockApplier with given storages and shard state
-    pub fn with_params(finality: Arc<Mutex<F>>, db: Arc<Box<dyn DocumentsDb>>) -> Self {
+    pub fn with_params(finality: Arc<Mutex<F>>, db: Arc<dyn DocumentsDb>) -> Self {
 
         NewBlockApplier {
             finality,
@@ -60,36 +56,18 @@ impl<F> NewBlockApplier<F> where
 
     /// Applies changes provided by given block, returns new shard state
     pub fn apply(&mut self,
-        block: SignedBlock,
+        block: &SignedBlock,
         block_data: Option<Vec<u8>>,
         finality_hash: Vec<UInt256>,
-        applied_shard: Option<ShardStateUnsplit>,
+        applied_shard: ShardStateUnsplit,
         is_sync: bool,
         ) -> NodeResult<Arc<ShardStateUnsplit>> {
 
         let mut finality = self.finality.lock();
-        let new_shard_state: Arc<ShardStateUnsplit>;
-
-        if let Some(applied_shard_state) = applied_shard {
-            new_shard_state = Arc::new(applied_shard_state);
-        } else {
-            // update shard state's bag of cells by Merkle update
-//            info!(target: "node", "updating shard state by Merkle update {:?}", block.block().state_update);
-            info!(target: "node", "updating shard state by Merkle update");
-
-            let old_ss_cell = finality.get_last_shard_state().serialize()?;
-
-            let new_ss_cell = block.block().read_state_update()?.apply_for(&old_ss_cell)
-                .map_err(|err| {
-                    warn!(target: "node", "{}", err.to_string());
-                    NodeError::from_kind(NodeErrorKind::InvalidMerkleUpdate)
-                })?;
-
-            new_shard_state = Arc::new(ShardStateUnsplit::construct_from(&mut SliceData::from(new_ss_cell))?);
-        }
+        let new_shard_state = Arc::new(applied_shard);
         let root_hash = block.block().hash().unwrap();
 
-        info!(target: "node", "Apply block. finality hashes = {:?}", finality_hash);
+        log::info!(target: "node", "Apply block. finality hashes = {:?}", finality_hash);
 
         finality.put_block_with_info(
             block,

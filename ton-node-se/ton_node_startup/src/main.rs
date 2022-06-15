@@ -1,27 +1,3 @@
-#![cfg_attr(feature = "ci_run", deny(warnings))]
-
-extern crate clap;
-extern crate ton_node;
-#[macro_use]
-extern crate log;
-extern crate ed25519_dalek;
-extern crate http;
-extern crate iron;
-extern crate log4rs;
-extern crate parking_lot;
-extern crate reqwest;
-extern crate serde;
-extern crate ton_block;
-extern crate ton_types;
-extern crate ton_vm as tvm;
-#[macro_use]
-extern crate serde_json;
-extern crate base64;
-extern crate router;
-extern crate serde_derive;
-extern crate ton_block_json;
-extern crate ton_executor;
-
 mod message_api;
 
 use arango::ArangoHelper;
@@ -42,7 +18,6 @@ use ton_executor::BlockchainConfig;
 use ton_node::error::{NodeError, NodeResult};
 use ton_node::node_engine::config::NodeConfig;
 use ton_node::node_engine::ton_node_engine::TonNodeEngine;
-use ton_node::node_engine::ton_node_handlers::init_ton_node_handlers;
 use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 
 mod arango;
@@ -57,7 +32,7 @@ fn main() {
 
 fn read_str(path: &str) -> NodeResult<String> {
     Ok(fs::read_to_string(Path::new(path))
-        .map_err(|err| NodeError::from(format!("Failed to read {}: {}", path, err)))?)
+        .map_err(|err| NodeError::PathError(format!("Failed to read {}: {}", path, err)))?)
 }
 
 pub struct StartNodeConfig {
@@ -141,7 +116,7 @@ fn run() -> NodeResult<()> {
         config.node.log_path
     ));
 
-    info!(target: "node", "TON Node Startup Edition {}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
+    log::info!(target: "node", "TON Node Startup Edition {}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
         env!("CARGO_PKG_VERSION"),
         env!("BUILD_GIT_COMMIT"),
         env!("BUILD_TIME") ,
@@ -179,11 +154,11 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
 
     let ton = TonNodeEngine::with_params(
         config.node.shard_id_config().shard_ident(),
-        false,
+        true,
         config.node.port,
         config.node.node_index,
-        config.node.poa_validators,
-        config.node.poa_interval,
+        0,
+        0,
         private_key,
         config.public_keys,
         config.node.boot,
@@ -194,7 +169,6 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
         PathBuf::from("./"),
     )?;
 
-    init_ton_node_handlers(&ton);
     let ton = Arc::new(ton);
     TonNodeEngine::start(ton.clone())?;
     let addr = format!("{}:{}", config.node.api.address, config.node.api.port);

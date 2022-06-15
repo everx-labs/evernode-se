@@ -77,8 +77,6 @@ impl NodeApiConfig {
 #[derive(Deserialize)]
 pub struct NodeConfig {
     pub node_index: u8,
-    pub poa_validators: u16,
-    pub poa_interval: u16,
     pub port: u16,
     pub private_key: String,
     pub keys: Vec<String>,
