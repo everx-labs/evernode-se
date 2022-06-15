@@ -1,5 +1,5 @@
 /*
-* Copyright 2018-2019 TON DEV SOLUTIONS LTD.
+* Copyright 2018-2022 TON DEV SOLUTIONS LTD.
 *
 * Licensed under the SOFTWARE EVALUATION License (the "License"); you may not use
 * this file except in compliance with the License.  You may obtain a copy of the
@@ -13,43 +13,24 @@
 * See the License for the specific TON DEV software governing permissions and limitations
 * under the License.
 */
+
 use std::process::Command;
+
+fn get_value(cmd: &str, args: &[&str]) -> String {
+    if let Ok(result) = Command::new(cmd).args(args).output() {
+        if let Ok(result) = String::from_utf8(result.stdout) {
+            return result
+        }
+    }
+    "Unknown".to_string()
+}
+
 fn main() {
-    let mut git_branch = String::from("Unknown");
-    let mut git_commit = String::from("Unknown");
-    let mut commit_date = String::from("Unknown");
-    let mut build_time = String::from("Unknown");
-    let mut rust_version = String::from("Unknown");
-
-    let branch = Command::new("git")
-        .args(&["rev-parse", "--abbrev-ref", "HEAD"])
-        .output();
-
-    if branch.is_ok() {
-        git_branch = String::from_utf8(branch.unwrap().stdout).unwrap_or("Unknown".to_string());
-    }
-
-    let last = Command::new("git").args(&["rev-parse", "HEAD"]).output();
-    if last.is_ok() {
-        git_commit = String::from_utf8(last.unwrap().stdout).unwrap_or("Unknown".to_string());
-    }
-
-    let time = Command::new("git")
-        .args(&["log", "-1", "--date=iso", "--pretty=format:%cd"])
-        .output();
-    if time.is_ok() {
-        commit_date = String::from_utf8(time.unwrap().stdout).unwrap_or("Unknown".to_string());
-    }
-
-    let b_time = Command::new("date").args(&["+%Y-%m-%d %T %z"]).output();
-    if b_time.is_ok() {
-        build_time = String::from_utf8(b_time.unwrap().stdout).unwrap_or("Unknown".to_string());
-    }
-
-    let rust_v = Command::new("rustc").args(&["--version"]).output();
-    if rust_v.is_ok() {
-        rust_version = String::from_utf8(rust_v.unwrap().stdout).unwrap_or("Unknown".to_string());
-    }
+    let git_branch = get_value("git", &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let git_commit = get_value("git", &["rev-parse", "HEAD"]);
+    let commit_date = get_value("git", &["log", "-1", "--date=iso", "--pretty=format:%cd"]);
+    let build_time = get_value("date", &["+%Y-%m-%d %T %z"]);
+    let rust_version = get_value("rustc", &["--version"]);
 
     println!("cargo:rustc-env=BUILD_GIT_BRANCH={}", git_branch);
     println!("cargo:rustc-env=BUILD_GIT_COMMIT={}", git_commit);

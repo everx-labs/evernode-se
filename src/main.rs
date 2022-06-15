@@ -32,7 +32,7 @@ fn read_str(path: &str) -> NodeResult<String> {
         .map_err(|err| NodeError::PathError(format!("Failed to read {}: {}", path, err)))?)
 }
 
-pub struct StartNodeConfig {
+struct StartNodeConfig {
     node: NodeConfig,
     public_keys: Vec<PublicKey>,
     blockchain: BlockchainConfig,
@@ -62,8 +62,15 @@ impl StartNodeConfig {
 }
 
 fn run() -> NodeResult<()> {
-    println!("TON Startup Edition Prototype {}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
+    println!(
+        "TON Startup Edition Prototype {}\n\
+            RUST_VERSION: {}\n\
+            COMMIT_ID: {}\n\
+            BUILD_DATE: {}\n\
+            COMMIT_DATE: {}\n\
+            GIT_BRANCH: {}\n",
         env!("CARGO_PKG_VERSION"),
+        env!("BUILD_RUST_VERSION"),
         env!("BUILD_GIT_COMMIT"),
         env!("BUILD_TIME"),
         env!("BUILD_GIT_DATE"),
@@ -179,7 +186,7 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
     }
 }
 
-pub fn parse_config(json: &str) -> (NodeConfig, Vec<PublicKey>) {
+fn parse_config(json: &str) -> (NodeConfig, Vec<PublicKey>) {
     match NodeConfig::parse(json) {
         Ok(config) => match config.import_keys() {
             Ok(keys) => (config, keys),
@@ -195,7 +202,7 @@ pub fn parse_config(json: &str) -> (NodeConfig, Vec<PublicKey>) {
     }
 }
 
-pub fn blockchain_config_from_json(json: &str) -> ton_types::Result<BlockchainConfig> {
+fn blockchain_config_from_json(json: &str) -> ton_types::Result<BlockchainConfig> {
     let map = serde_json::from_str::<serde_json::Map<String, Value>>(&json)?;
     let config_params = ton_block_json::parse_config(&map)?;
     BlockchainConfig::with_config(config_params)
