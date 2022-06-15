@@ -8,8 +8,6 @@ use std::path::PathBuf;
 use ton_block::{AccountStatus, ExtOutMessageHeader, InMsg, MsgEnvelope, OutMsg};
 use ton_block::{BlkPrevInfo, Deserializable, HashmapAugType, ShardIdent};
 use ton_types::{deserialize_tree_of_cells, UInt256};
-#[cfg(test)]
-use self::test_storage::TestStorage;
 
 #[cfg(test)]
 #[path = "../../../tonos-se-tests/unit/test_block_finality.rs"]
