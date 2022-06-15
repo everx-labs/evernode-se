@@ -9,8 +9,8 @@ use parking_lot::Mutex;
 use std::time::Duration;
 use std::cmp::min;
 use serde_derive::Deserialize;
-use ton_node::error::{NodeError, NodeResult};
-use ton_node::node_engine::DocumentsDb;
+use crate::error::{NodeError, NodeResult};
+use crate::node_engine::DocumentsDb;
 
 const FIRST_TIMEOUT: u64 = 1000;
 const MAX_TIMEOUT: u64 = 20000;

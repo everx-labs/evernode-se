@@ -22,6 +22,9 @@ use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
 
 mod arango;
 mod control_api;
+pub mod error;
+pub mod node_engine;
+
 #[cfg(test)]
 #[path = "../../tonos-se-tests/unit/test_node_se.rs"]
 mod tests;
