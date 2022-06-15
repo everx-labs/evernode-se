@@ -1,17 +1,17 @@
 {
-    "node_index": 4,
-    "port": 40305,
+    "node_index": 2,
+    "port": 40303,
     "poa_validators": 7,
     "poa_interval": 2,
-    "private_key": "../config/key05",
+    "private_key": "config/key03",
     "keys": [
-        "../config/pub01",
-        "../config/pub02",
-        "../config/pub03",
-        "../config/pub04",
-        "../config/pub05",
-        "../config/pub06",
-        "../config/pub07"
+        "config/pub01",
+        "config/pub02",
+        "config/pub03",
+        "config/pub04",
+        "config/pub05",
+        "config/pub06",
+        "config/pub07"
     ],
     "boot": [
         "enode://9ab24e4903a069e8f047263fe2dae76c4d903638c7c7fe3706a7f0e765f4e9e1d1600336958def545120528c0ff8717d4aba4a322646a732bfa9d9335223ab81@127.0.0.1:40301",
@@ -28,7 +28,7 @@
         "shardchain_pfx_len": 0
     }, 
     "adnl": {
-        "address": "127.0.0.1:4928", 
+        "address": "127.0.0.1:4926", 
         "keys": [
             {
                 "type_id": -1977122418,

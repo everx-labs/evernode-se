@@ -20,7 +20,7 @@ use ton_types::cells_serialization::{deserialize_tree_of_cells, serialize_tree_o
 use ton_types::{Cell, types::UInt256, AccountId};
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_file_based_storage.rs"]
+#[path = "../../tonos-se-tests/unit/test_file_based_storage.rs"]
 mod tests;
 
 ///

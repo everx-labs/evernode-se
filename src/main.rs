@@ -1,32 +1,26 @@
-mod message_api;
-
 use arango::ArangoHelper;
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 use control_api::ControlApi;
 use ed25519_dalek::{Keypair, PublicKey};
 use iron::Iron;
 use message_api::MessageReceiverApi;
 use router::Router;
 use serde_json::Value;
-use std::env;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+use std::{env, fs, path::{Path, PathBuf}, sync::{Arc, Mutex}, thread, time::Duration};
 use ton_executor::BlockchainConfig;
-use ton_node::error::{NodeError, NodeResult};
-use ton_node::node_engine::config::NodeConfig;
-use ton_node::node_engine::ton_node_engine::TonNodeEngine;
-use ton_node::node_engine::{DocumentsDb, MessagesReceiver};
+use crate::error::{NodeError, NodeResult};
+use crate::node_engine::config::NodeConfig;
+use crate::node_engine::ton_node_engine::TonNodeEngine;
+use crate::node_engine::{DocumentsDb, MessagesReceiver};
 
 mod arango;
 mod control_api;
+mod message_api;
 pub mod error;
 pub mod node_engine;
 
 #[cfg(test)]
-#[path = "../../tonos-se-tests/unit/test_node_se.rs"]
+#[path = "../tonos-se-tests/unit/test_node_se.rs"]
 mod tests;
 
 fn main() {
@@ -75,17 +69,17 @@ fn run() -> NodeResult<()> {
         env!("BUILD_GIT_DATE"),
         env!("BUILD_GIT_BRANCH"));
 
-    let app = App::new(env!("CARGO_PKG_NAME"))
+    let app = Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
-            Arg::with_name("workdir")
+            Arg::new("workdir")
                 .help("Path to working directory")
                 .long("workdir")
                 .takes_value(true)
                 .max_values(1),
         )
         .arg(
-            Arg::with_name("config")
+            Arg::new("config")
                 .help("configuration file name")
                 .long("config")
                 .required(true)
@@ -93,7 +87,7 @@ fn run() -> NodeResult<()> {
                 .max_values(1),
         )
         .arg(
-            Arg::with_name("blockchain-config")
+            Arg::new("blockchain-config")
                 .help("blockchain configuration file name")
                 .long("blockchain-config")
                 .required(true)
@@ -101,7 +95,7 @@ fn run() -> NodeResult<()> {
                 .max_values(1),
         )
         .arg(
-            Arg::with_name("automsg")
+            Arg::new("automsg")
                 .help("Auto generate message timeout")
                 .long("automsg")
                 .takes_value(true)

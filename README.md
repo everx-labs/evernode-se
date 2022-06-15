@@ -240,4 +240,7 @@ components:
         ```
 
 - Evernode SE in debug mode
+    ```commandline
+    cargo run --release --bin ton_node_startup -- --workdir ./docker/ton-node --config ton-node.conf.json --blockchain-config blockchain.conf.json
+    ```
 

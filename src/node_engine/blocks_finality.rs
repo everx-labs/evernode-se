@@ -12,7 +12,7 @@ use ton_types::{deserialize_tree_of_cells, UInt256};
 use self::test_storage::TestStorage;
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_block_finality.rs"]
+#[path = "../../tonos-se-tests/unit/test_block_finality.rs"]
 mod tests;
 
 ///
