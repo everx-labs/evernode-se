@@ -22,8 +22,8 @@ mod tests;
 type Storage = FileBasedStorage;
 type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 type ArcMsgProcessor = Arc<Mutex<MessagesProcessor<Storage>>>;
-type ArcBlockApplier =
-    Arc<Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>>;
+type BlockApplier =
+    Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 
 // TODO do interval and validator field of TonNodeEngine
 // and read from config
@@ -82,7 +82,7 @@ pub struct TonNodeEngine {
     shard_ident: ShardIdent,
 
     live_properties: Arc<EngineLiveProperties>,
-    receivers: Vec<Arc<Mutex<Box<dyn MessagesReceiver>>>>,
+    receivers: Vec<Mutex<Box<dyn MessagesReceiver>>>,
     live_control_receiver: Box<dyn LiveControlReceiver>,
 
     interval: usize,
@@ -92,7 +92,7 @@ pub struct TonNodeEngine {
 
     pub msg_processor: ArcMsgProcessor,
     pub finalizer: ArcBlockFinality,
-    pub block_applier: ArcBlockApplier,
+    pub block_applier: BlockApplier,
     pub message_queue: Arc<InMessagesQueue>,
     pub incoming_blocks: IncomingBlocksCache,
 
@@ -203,17 +203,17 @@ impl TonNodeEngine {
 
         message_queue.set_ready(true);
 
-        let mut receivers: Vec<Arc<Mutex<Box<dyn MessagesReceiver>>>> = receivers
+        let mut receivers = receivers
             .into_iter()
-            .map(|r| Arc::new(Mutex::new(r)))
-            .collect();
+            .map(|r| Mutex::new(r))
+            .collect::<Vec<_>>();
 
         //TODO: remove on production or use only for tests
-        receivers.push(Arc::new(Mutex::new(Box::new(StubReceiver::with_params(
+        receivers.push(Mutex::new(Box::new(StubReceiver::with_params(
             shard.workchain_id() as i8,
             block_finality.lock().get_last_seq_no(),
             0,
-        )))));
+        ))));
 
         Ok(TonNodeEngine {
             shard_ident: shard.clone(),
@@ -234,10 +234,10 @@ impl TonNodeEngine {
                 blockchain_config,
             ))),
             finalizer: block_finality.clone(),
-            block_applier: Arc::new(Mutex::new(NewBlockApplier::with_params(
-                block_finality.clone(),
-                documents_db.clone(),
-            ))),
+            block_applier: Mutex::new(NewBlockApplier::with_params(
+                block_finality,
+                documents_db,
+            )),
             message_queue,
             incoming_blocks: IncomingBlocksCache::new(),
             #[cfg(test)]

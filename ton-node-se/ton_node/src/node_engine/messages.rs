@@ -201,7 +201,7 @@ where
             .read_accounts()?
             .account(acc_id)?
             .unwrap_or_default();
-        let mut acc_root = shard_acc.account_cell().clone();
+        let mut acc_root = shard_acc.account_cell();
         // TODO it is possible to make account immutable,
         // because in executor it is cloned for MerkleUpdate creation
         if !executors.lock().contains_key(acc_id) {
@@ -230,8 +230,8 @@ where
         // log::info!(target: "profiler", "Compute time: {} micros", executor.lock().timing(1));
         // log::info!(target: "profiler", "Finalization time: {} micros", executor.lock().timing(2));
 
-        log::debug!("Transaction ID {}", transaction.hash()?.to_hex_string());
-        log::debug!(target: "executor", "Transaction aborted: {}", transaction.read_description()?.is_aborted());
+        log::debug!("Transaction ID {:x}", transaction.hash()?);
+        log::debug!("Transaction aborted: {}", transaction.read_description()?.is_aborted());
 
         let now = Instant::now();
         // update or remove shard account in new shard state

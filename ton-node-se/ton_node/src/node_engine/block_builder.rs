@@ -298,10 +298,7 @@ impl BlockBuilder {
         block_data: Arc<Mutex<BlockData>>,
         mut value: AppendSerializedContext,
     ) -> Result<()> {
-        log::debug!(
-            "Inserting transaction {}",
-            value.transaction_cell.repr_hash().to_hex_string()
-        );
+        log::debug!("Inserting transaction {:x}", value.transaction_cell.repr_hash());
 
         let now = Instant::now();
         let mut block_data = block_data.lock();
@@ -347,10 +344,7 @@ impl BlockBuilder {
         }
         let d = now.elapsed();
         block_data.p1 += d;
-        log::debug!(
-            "Transaction inserted {}",
-            value.transaction_cell.repr_hash().to_hex_string()
-        );
+        log::debug!("Transaction inserted {:x}", value.transaction_cell.repr_hash());
         Ok(())
     }
 

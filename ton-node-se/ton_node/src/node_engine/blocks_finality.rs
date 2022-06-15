@@ -222,7 +222,7 @@ where
                     self.last_finalized_block.serialized_block.len()
                 );
             } else {
-                if hash != &UInt256::from([0; 32]) && hash != &self.last_finalized_block.block_hash
+                if hash != &UInt256::ZERO && hash != &self.last_finalized_block.block_hash
                 {
                     log::warn!(target: "node", "Can`t finality unknown hash!!!");
                     return Err(NodeError::FinalityError);
@@ -437,7 +437,7 @@ where
 
                 extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
                     let msg = in_msg.read_message()?;
-                    log::debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {}", msg.hash()?.to_hex_string());
+                    log::debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {:x}", msg.hash().unwrap());
                     // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
                     // msg.prepare_boc_for_json()?;
                     let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
@@ -479,7 +479,7 @@ where
                     account_block.transaction_iterate(|transaction| {
                         // transaction.prepare_proof_for_json(&block_info_cells, &block_root)?;
                         // transaction.prepare_boc_for_json()?;
-log::debug!(target: "node", "PUT-TRANSACTION-BLOCK {}", transaction.hash()?.to_hex_string());
+log::debug!(target: "node", "PUT-TRANSACTION-BLOCK {:x}", transaction.hash()?);
                         if orig_status.is_none() {
                             orig_status = Some(transaction.orig_status.clone());
                         }
@@ -731,8 +731,8 @@ impl Default for ShardBlock {
         Self {
             seq_no: 0,
             serialized_block: Vec::new(),
-            block_hash: UInt256::from([0; 32]),
-            file_hash: UInt256::from([0; 32]),
+            block_hash: UInt256::ZERO,
+            file_hash: UInt256::ZERO,
             block: SignedBlock::with_block_and_key(
                 Block::default(),
                 &Keypair::from_bytes(&[0; 64]).unwrap(),
