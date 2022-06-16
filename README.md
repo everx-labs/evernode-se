@@ -21,7 +21,7 @@ Ever OS Local Node for Everscale DApp development and testing.
     - [How to build docker image locally](#how-to-build-docker-image-locally)
         - [Linux/Mac:](#linuxmac)
         - [Windows:](#windows)
-
+****
 ## What is Evernode Startup Edition?
 
 Evernode Startup Edition (SE) is a local instance of Ever OS that developer can run on their machine

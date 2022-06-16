@@ -92,6 +92,13 @@ impl EngineLiveControl {
 impl LiveControl for EngineLiveControl {
     fn increase_time(&self, delta: u32) -> NodeResult<()> {
         self.properties.increment_time(delta);
+        log::info!(target: "node", "SE time delta set to {}", self.properties.get_time_delta());
+        Ok(())
+    }
+
+    fn reset_time(&self) -> NodeResult<()> {
+        self.properties.set_time_delta(0);
+        log::info!(target: "node", "SE time delta set to 0");
         Ok(())
     }
 }
