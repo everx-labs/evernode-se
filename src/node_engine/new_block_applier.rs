@@ -21,12 +21,8 @@ use ton_block::ShardStateUnsplit;
 pub trait BlockFinality {
     fn put_block_with_info(
         &mut self,
-        signed_block: &SignedBlock,
-        signed_block_data: Option<Vec<u8>>,
-        block_hash: Option<UInt256>,
+        block: &Block,
         shard_state: Arc<ShardStateUnsplit>,
-        finality_hashes: Vec<UInt256>,
-        is_sync: bool,
     ) -> NodeResult<()>;
 
     fn get_last_seq_no(&self) -> u32;
@@ -70,27 +66,20 @@ impl<F> NewBlockApplier<F> where
     }
 
     /// Applies changes provided by given block, returns new shard state
-    pub fn apply(&mut self,
-        block: &SignedBlock,
-        block_data: Option<Vec<u8>>,
-        finality_hash: Vec<UInt256>,
+    pub fn apply(
+        &mut self,
+        block: &Block,
         applied_shard: ShardStateUnsplit,
-        is_sync: bool,
-        ) -> NodeResult<Arc<ShardStateUnsplit>> {
+    ) -> NodeResult<Arc<ShardStateUnsplit>> {
 
         let mut finality = self.finality.lock();
         let new_shard_state = Arc::new(applied_shard);
-        let root_hash = block.block().hash().unwrap();
 
-        log::info!(target: "node", "Apply block. finality hashes = {:?}", finality_hash);
+        log::info!(target: "node", "Apply block seq_no = {}", block.read_info()?.seq_no());
 
         finality.put_block_with_info(
             block,
-            block_data,
-            Some(root_hash),
             new_shard_state.clone(),
-            finality_hash,
-            is_sync
         )?;
 
         Ok(new_shard_state)

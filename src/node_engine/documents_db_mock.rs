@@ -30,7 +30,7 @@ impl DocumentsDb for DocumentsDbMock {
         Ok(())
     }
 
-    fn put_block(&self, _: Block) -> NodeResult<()> {
+    fn put_block(&self, _: &Block) -> NodeResult<()> {
         Ok(())
     }
 

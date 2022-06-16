@@ -198,11 +198,11 @@ impl ArangoHelper {
 }
 
 impl DocumentsDb for ArangoHelper {
-    fn put_block(&self, block: Block) -> NodeResult<()> {
+    fn put_block(&self, block: &Block) -> NodeResult<()> {
         let cell = block.serialize()?;
         let boc = serialize_toc(&cell)?;
         let set = BlockSerializationSet {
-            block,
+            block: block.clone(),
             id: cell.repr_hash(),
             status: BlockProcessingStatus::Finalized,
             boc,
