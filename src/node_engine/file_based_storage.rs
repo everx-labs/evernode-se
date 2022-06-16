@@ -14,7 +14,6 @@
 * under the License.
 */
 
-use ed25519_dalek::Keypair;
 use crate::error::NodeResult;
 use super::{
     BlocksStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage
@@ -30,7 +29,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use ton_block::{
     Block, ShardStateUnsplit, Transaction, ShardIdent,
-    Serializable, Deserializable, OutMsgQueueKey, SignedBlock,
+    Serializable, Deserializable, OutMsgQueueKey,
 };
 use ton_types::cells_serialization::{deserialize_tree_of_cells, serialize_tree_of_cells};
 use ton_types::{Cell, types::UInt256, AccountId};
@@ -94,8 +93,8 @@ pub struct FileBasedStorage{
     root_path: PathBuf,
     shards_path: PathBuf,
     shard_ident: ShardIdent,
-    last_block: Arc<Mutex<SignedBlock>>,
-    cache_to_write: Arc<Mutex<Vec<SignedBlock>>>,
+    last_block: Arc<Mutex<Block>>,
+    cache_to_write: Arc<Mutex<Vec<Block>>>,
 }
 
 
@@ -109,10 +108,7 @@ impl FileBasedStorage {
             root_path,
             shards_path,
             shard_ident,
-            last_block: Arc::new(Mutex::new(SignedBlock::with_block_and_key(
-                Block::default(),
-                &Keypair::from_bytes(&[0;64]).unwrap()
-            ).unwrap())),
+            last_block: Arc::new(Mutex::new(Block::default())),
             cache_to_write: Arc::new(Mutex::new(vec![])),
         })
     }
@@ -160,26 +156,24 @@ impl FileBasedStorage {
         ((vert_seq_no as u64) << 32) & (seq_no as u64)
     }
 
-    fn int_save_block(shard_dir: PathBuf, block: &SignedBlock) -> NodeResult<()> {
+    fn int_save_block(shard_dir: PathBuf, block: &Block, root_hash: UInt256) -> NodeResult<()> {
 
         let ssi = ShardStateInfo::with_params(
-            Self::key_by_seqno(block.block().read_info()?.seq_no(), block.block().read_info()?.vert_seq_no()),
-            block.block().read_info()?.end_lt(),
-            block.block_hash().clone()
+            Self::key_by_seqno(block.read_info()?.seq_no(), block.read_info()?.vert_seq_no()),
+            block.read_info()?.end_lt(),
+            root_hash
         );
 
-        let (mut shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &block.block().read_info()?.shard())?;
+        let (mut shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &block.read_info()?.shard())?;
         shard_path.push("shard.info");
 
         let mut file_info = File::create(shard_path)?;
         file_info.write_all(ssi.serialize().as_slice())?;
         file_info.flush()?;
 
-        blocks_path.push(format!("block_{:08X}_{:08X}.block", block.block().read_info()?.seq_no(), block.block().read_info()?.vert_seq_no()));
+        blocks_path.push(format!("block_{:08X}_{:08X}.block", block.read_info()?.seq_no(), block.read_info()?.vert_seq_no()));
 
-        let mut file = File::create(blocks_path.as_path())?;
-        block.write_to(&mut file)?;
-        file.flush()?;
+        block.write_to_file(blocks_path.as_path())?;
 
         Ok(())
     }
@@ -396,15 +390,12 @@ impl BlocksStorage for FileBasedStorage {
     ///
     /// Get selected block from shard storage
     ///
-    fn block(&self, seq_no: u32, vert_seq_no: u32 ) -> NodeResult<SignedBlock> {
+    fn block(&self, seq_no: u32, vert_seq_no: u32 ) -> NodeResult<Block> {
         let shard_dir = self.shards_path.clone();
         let (_shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
         blocks_path.push(format!("block_{:08X}_{:08X}.block", seq_no, vert_seq_no));
 
-        let mut file = File::open(blocks_path.as_path())?;
-        let block = SignedBlock::read_from(&mut file)?;
-
-        Ok(block)
+        Ok(Block::construct_from_file(blocks_path.as_path())?)
     }
 
     fn raw_block(&self, seq_no: u32, vert_seq_no: u32 ) -> NodeResult<Vec<u8>> {
@@ -421,12 +412,12 @@ impl BlocksStorage for FileBasedStorage {
     ///
     /// Save block to file based shard storage
     ///
-    fn save_block(&self, block: &SignedBlock) -> NodeResult<()> {
+    fn save_block(&self, block: &Block, root_hash: UInt256) -> NodeResult<()> {
         let mut last_block = self.last_block.lock();
         *last_block = block.clone();
         let shard_dir = self.shards_path.clone();
 
-        Self::int_save_block(shard_dir, block)?;
+        Self::int_save_block(shard_dir, block, root_hash)?;
 
         Ok(())
     }
@@ -435,22 +426,22 @@ impl BlocksStorage for FileBasedStorage {
     /// Save Shard State and block
     /// and shard.info and last_shard_hashes.info
     ///
-    fn save_raw_block(&self, block: &SignedBlock, block_data: Option<&Vec<u8>>) -> NodeResult<()> {
+    fn save_raw_block(&self, block: &Block, block_data: Option<&Vec<u8>>) -> NodeResult<()> {
 
         let shard_dir = self.shards_path.clone();
         let (_shard_path, mut blocks_path, _tr_dir) = Self::create_default_shard_catalog(shard_dir, &self.shard_ident)?;
 
         let block = block.clone(); // temp
         // save block
-        blocks_path.push(format!("block_{:08X}_{:08X}.block", block.block().read_info()?.seq_no(), block.block().read_info()?.vert_seq_no()));
+        blocks_path.push(format!("block_{:08X}_{:08X}.block", block.read_info()?.seq_no(), block.read_info()?.vert_seq_no()));
 
-        let mut file = File::create(blocks_path.as_path()).unwrap();
         if let Some(block_data) = block_data {
+            let mut file = File::create(blocks_path.as_path()).unwrap();
             file.write_all(block_data).expect("Error write signed block data to file.");
+            file.flush().unwrap();
         } else {
-            block.write_to(&mut file).expect("Error write signed block to file.");
+            block.write_to_file(blocks_path.as_path()).expect("Error write signed block to file.");
         }
-        file.flush().unwrap();
 
         Ok(())
     }

@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use ton_block::{
     Account, BlkPrevInfo, Block, CurrencyCollection, GetRepresentationHash, Message,
-    Serializable, ShardIdent, ShardStateUnsplit, SignedBlock, Transaction,
+    Serializable, ShardIdent, ShardStateUnsplit, Transaction,
 };
 use ton_types::{AccountId, ByteOrderRead, Cell, UInt256};
 

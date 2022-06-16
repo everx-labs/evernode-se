@@ -27,7 +27,10 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use ton_block::{ExternalInboundMessageHeader, Grams, MsgAddressExt, StateInit, UnixTime32, CommonMsgInfo, MsgAddressInt, Deserializable, InternalMessageHeader};
+use ton_block::{
+    CommonMsgInfo, Deserializable, ExternalInboundMessageHeader, Grams, InternalMessageHeader,
+    MsgAddressExt, MsgAddressInt, StateInit, UnixTime32,
+};
 use ton_executor::BlockchainConfig;
 use ton_labs_assembler::compile_code_to_cell;
 use ton_types::{HashmapType, SliceData};
@@ -111,14 +114,13 @@ pub struct TonNodeEngine {
     pub finalizer: ArcBlockFinality,
     pub block_applier: BlockApplier,
     pub message_queue: Arc<InMessagesQueue>,
-    pub incoming_blocks: IncomingBlocksCache,
 
     #[cfg(test)]
     pub test_counter_in: Arc<Mutex<u32>>,
     #[cfg(test)]
     pub test_counter_out: Arc<Mutex<u32>>,
 
-    pub(crate) private_key: Keypair,
+    _private_key: Keypair,
 }
 
 impl TonNodeEngine {
@@ -133,8 +135,9 @@ impl TonNodeEngine {
         }
 
         let node = self.clone();
-        if dbg!(node.finalizer.lock().get_last_seq_no()) == 1 {
-            Self::deploy_contracts(node.current_shard_id().workchain_id() as i8, &node.message_queue)?;
+        if node.finalizer.lock().get_last_seq_no() == 1 {
+            let workchain_id = node.current_shard_id().workchain_id() as i8;
+            Self::deploy_contracts(workchain_id, &node.message_queue)?;
         }
         thread::spawn(move || loop {
             let timestamp = UnixTime32::now().as_u32() + self.live_properties.get_time_delta();
@@ -167,7 +170,7 @@ impl TonNodeEngine {
         _local: bool,
         _port: u16,
         _node_index: u8,
-        private_key: Keypair,
+        _private_key: Keypair,
         _public_keys: Vec<ed25519_dalek::PublicKey>,
         _boot_list: Vec<String>,
         receivers: Vec<Box<dyn MessagesReceiver>>,
@@ -240,13 +243,12 @@ impl TonNodeEngine {
             finalizer: block_finality.clone(),
             block_applier: Mutex::new(NewBlockApplier::with_params(block_finality, documents_db)),
             message_queue,
-            incoming_blocks: IncomingBlocksCache::new(),
             #[cfg(test)]
             test_counter_out: Arc::new(Mutex::new(0)),
             #[cfg(test)]
             test_counter_in: Arc::new(Mutex::new(0)),
 
-            private_key,
+            _private_key,
         })
     }
 
@@ -292,7 +294,7 @@ impl TonNodeEngine {
     ///
     /// Generate new block if possible
     ///
-    pub fn prepare_block(&self, timestamp: u32) -> NodeResult<Option<SignedBlock>> {
+    pub fn prepare_block(&self, timestamp: u32) -> NodeResult<Option<Block>> {
         let mut time = [0u128; 10];
         let mut now = Instant::now();
 
@@ -343,13 +345,9 @@ impl TonNodeEngine {
         time[5] = now.elapsed().as_micros();
         now = Instant::now();
 
-        let s_block = SignedBlock::with_block_and_key(block, &self.private_key)?;
-        let mut s_block_data = Vec::new();
-        s_block.write_to(&mut s_block_data)?;
         time[6] = now.elapsed().as_micros();
         now = Instant::now();
-        let (_, details) =
-            self.finality_and_apply_block(&s_block, &s_block_data, new_shard_state, false)?;
+        let (_, details) = self.finality_and_apply_block(&block, new_shard_state)?;
 
         time[7] = now.elapsed().as_micros();
         log::info!(target: "profiler",
@@ -370,28 +368,18 @@ impl TonNodeEngine {
 
         log::debug!(target: "node", "PREP_BLK_SELF_STOP");
 
-        Ok(Some(s_block))
+        Ok(Some(block))
     }
 
     /// finality and apply block
     fn finality_and_apply_block(
         &self,
-        block: &SignedBlock,
-        block_data: &[u8],
+        block: &Block,
         applied_shard: ShardStateUnsplit,
-        is_sync: bool,
     ) -> NodeResult<(Arc<ShardStateUnsplit>, Vec<u128>)> {
         let mut time = Vec::new();
         let now = Instant::now();
-        let hash = block.block().hash().unwrap();
-        let finality_hash = vec![hash];
-        let new_state = self.block_applier.lock().apply(
-            block,
-            Some(block_data.to_vec()),
-            finality_hash,
-            applied_shard,
-            is_sync,
-        )?;
+        let new_state = self.block_applier.lock().apply(block, applied_shard)?;
         time.push(now.elapsed().as_micros());
         Ok((new_state, time))
     }
@@ -503,10 +491,7 @@ impl TonNodeEngine {
         let hdr = Self::create_transfer_int_header(workchain_id, src, dst, value);
         let mut msg = Message::with_int_header(hdr);
 
-        msg.set_at_and_lt(
-            UnixTime32::now().as_u32(),
-            lt,
-        );
+        msg.set_at_and_lt(UnixTime32::now().as_u32(), lt);
         msg
     }
 
@@ -563,73 +548,5 @@ pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKe
             log::warn!(target: "node", "Error parsing configuration file. {}", err);
             panic!("Error parsing configuration file. {}", err)
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FinalityBlockInfo {
-    pub block: SignedBlock,
-    pub block_data: Option<Vec<u8>>,
-    pub hashes: Vec<UInt256>,
-}
-
-impl FinalityBlockInfo {
-    pub fn with_block(
-        block: SignedBlock,
-        block_data: Option<Vec<u8>>,
-        hashes: Vec<UInt256>,
-    ) -> Self {
-        FinalityBlockInfo {
-            block,
-            block_data,
-            hashes,
-        }
-    }
-}
-
-pub struct IncomingBlocksCache {
-    blocks: Arc<Mutex<Vec<FinalityBlockInfo>>>,
-}
-
-impl IncomingBlocksCache {
-    /// create new instance of TemporaryBlocks
-    fn new() -> Self {
-        Self {
-            blocks: Arc::new(Mutex::new(vec![])),
-        }
-    }
-
-    /// push block to end of vector
-    pub fn push(&self, block_info: FinalityBlockInfo) {
-        self.blocks.lock().push(block_info);
-    }
-
-    /// pop block from end of vector
-    pub fn pop(&self) -> Option<FinalityBlockInfo> {
-        self.blocks.lock().pop()
-    }
-
-    /// remove block from arbitrary place of vector and return it
-    pub fn remove(&self, i: usize) -> FinalityBlockInfo {
-        self.blocks.lock().remove(i)
-    }
-
-    /// Get count of temporary blocks
-    pub fn len(&self) -> usize {
-        self.blocks.lock().len()
-    }
-
-    /// get pointer to vector of temporary blocks
-    pub fn get_vec(&self) -> Arc<Mutex<Vec<FinalityBlockInfo>>> {
-        self.blocks.clone()
-    }
-
-    /// check if block with sequence number exists in temporary blocks
-    pub fn exists(&self, seq_no: u32) -> bool {
-        self.blocks
-            .lock()
-            .iter()
-            .find(|x| x.block.block().read_info().unwrap().seq_no() == seq_no)
-            .is_some()
     }
 }
