@@ -403,10 +403,10 @@ where
             self.queue.locks_clear();
 
             let new_shard_state = std::mem::take(&mut *new_shard_state.lock());
-            let (block, count) = builder.finalize_block(shard_state, &new_shard_state)?;
+            let block = builder.finalize_block(shard_state, &new_shard_state)?;
             log::info!(target: "profiler",
-                "Block time: non-final/final {} / {} micros, transaction count: {}",
-                time0, now.elapsed().as_micros(), count
+                "Block time: non-final/final {} / {} micros",
+                time0, now.elapsed().as_micros()
             );
             Ok(Some((block, new_shard_state)))
         } else {

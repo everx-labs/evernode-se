@@ -977,6 +977,5 @@ pub(crate) fn generate_block_with_seq_no(
 
     let ss = ShardStateUnsplit::default();
 
-    let (block, _count) = block_builder.finalize_block(&ss, &ss).unwrap();
-    block
+    block_builder.finalize_block(&ss, &ss).unwrap()
 }

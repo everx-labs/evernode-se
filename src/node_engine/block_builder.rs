@@ -433,7 +433,7 @@ impl BlockBuilder {
         &self,
         shard_state: &ShardStateUnsplit,
         new_shard_state: &ShardStateUnsplit,
-    ) -> Result<(Block, usize)> {
+    ) -> Result<Block> {
         let mut time = [0u128; 3];
         let now = Instant::now();
 
@@ -445,45 +445,8 @@ impl BlockBuilder {
         time[0] = now.elapsed().as_micros();
         let now = Instant::now();
 
-        // merkle updates for account_blocks calculating
-        let mut account_blocks = vec![];
-        let mut account_blocks_tree = block_data.block_extra.read_account_blocks()?;
-        account_blocks_tree.iterate_objects(|mut account_block| {
-            match account_block.calculate_and_write_state(shard_state, new_shard_state) {
-                Ok(_) => account_blocks.push(account_block),
-                Err(err) => log::warn!(target: "node", "Error update account state {}", err),
-            }
-            Ok(true)
-        })?;
-
-        let mut tr_count = 0;
-        for account_block in account_blocks.drain(..) {
-            tr_count += account_block.transaction_count().unwrap();
-            account_blocks_tree.insert(&account_block)?;
-        }
-        block_data
-            .block_extra
-            .write_account_blocks(&account_blocks_tree)?;
         let new_ss_root = new_shard_state.serialize()?;
         let old_ss_root = shard_state.serialize()?;
-        /*
-                let mut filename = std::path::PathBuf::new();
-                let str1 = format!("./shard_state_{}", block_data.block_info.seq_no);
-        log::info!(target: "ton_block", "want to save shard state {}", str1);
-                filename.push(str1);
-                let mut file_info = std::fs::File::create(filename)?;
-                new_bag.write_to(&mut file_info, false)?;
-                file_info.flush()?;
-                for i in 500..510 {
-                    if block_data.block_info.seq_no < i {
-                        break;
-                    }
-                    let str2 = format!("./shard_state_{}", block_data.block_info.seq_no - i);
-        log::info!(target: "ton_block", "want to remove shard state {}", str2);
-                    let _ = std::fs::remove_file(str2);
-                }
-        */
-
         let state_update = MerkleUpdate::create(&old_ss_root, &new_ss_root)?;
 
         time[1] = now.elapsed().as_micros();
@@ -510,6 +473,6 @@ impl BlockBuilder {
             block_data.p3.as_micros(),
         );
 
-        Ok((block, tr_count))
+        Ok(block)
     }
 }
