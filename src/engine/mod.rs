@@ -19,37 +19,16 @@ use parking_lot::Mutex;
 use std::clone::Clone;
 use std::collections::{HashMap, VecDeque};
 use std::convert::From;
-use std::path::PathBuf;
 use std::sync::Arc;
 use ton_block::{
-    Account, BlkPrevInfo, Block, CurrencyCollection, GetRepresentationHash, Message,
-    Serializable, ShardIdent, ShardStateUnsplit, Transaction,
+    Account, Block, CurrencyCollection, GetRepresentationHash, Serializable, ShardIdent,
+    Transaction,
 };
-use ton_types::{AccountId, ByteOrderRead, Cell, UInt256};
-
-pub mod block_builder;
-pub use self::block_builder::*;
-
-pub mod file_based_storage;
-use self::file_based_storage::*;
+use ton_types::{AccountId, Cell, UInt256};
 
 pub mod messages;
 pub use self::messages::*;
-
-pub mod new_block_applier;
-use self::new_block_applier::*;
-
-pub mod blocks_finality;
-pub use self::blocks_finality::*;
-
-pub mod ton_node_engine;
-
-pub mod config;
-use self::config::*;
-
-mod documents_db_mock;
-
-use std::thread;
+pub mod engine;
 
 lazy_static::lazy_static! {
     static ref ACCOUNTS: Mutex<Vec<AccountId>> = Mutex::new(vec![]);

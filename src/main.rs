@@ -14,13 +14,13 @@
 * under the License.
 */
 
+use crate::config::NodeConfig;
+use crate::data::ArangoHelper;
+use crate::engine::engine::TonNodeEngine;
+use crate::engine::MessagesReceiver;
 use crate::error::{NodeError, NodeResult};
-use crate::node_engine::{config::NodeConfig, ton_node_engine::TonNodeEngine, MessagesReceiver};
-use arango::ArangoHelper;
 use clap::{Arg, ArgMatches, Command};
-use control_api::ControlApi;
 use iron::Iron;
-use message_api::MessageReceiverApi;
 use router::Router;
 use serde_json::Value;
 use std::{
@@ -31,12 +31,15 @@ use std::{
     time::Duration,
 };
 use ton_executor::BlockchainConfig;
+use crate::api::{ControlApi, MessageReceiverApi};
 
-mod arango;
-mod control_api;
 pub mod error;
-mod message_api;
-pub mod node_engine;
+
+mod api;
+mod block;
+mod config;
+mod data;
+mod engine;
 
 #[cfg(test)]
 #[path = "../tonos-se-tests/unit/test_node_se.rs"]

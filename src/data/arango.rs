@@ -25,8 +25,8 @@ use parking_lot::Mutex;
 use std::time::Duration;
 use std::cmp::min;
 use serde_derive::Deserialize;
+use crate::data::DocumentsDb;
 use crate::error::{NodeError, NodeResult};
-use crate::node_engine::DocumentsDb;
 
 const FIRST_TIMEOUT: u64 = 1000;
 const MAX_TIMEOUT: u64 = 20000;

@@ -14,9 +14,12 @@
 * under the License.
 */
 
-use super::*;
-use std::sync::Arc;
-use ton_block::ShardStateUnsplit;
+use crate::data::DocumentsDb;
+use crate::NodeResult;
+use std::sync::{Arc, Mutex};
+use ton_block::{BlkPrevInfo, Block, ShardStateUnsplit};
+use ton_types::UInt256;
+
 /// Trait for save finality states blockchain
 pub trait BlockFinality {
     fn put_block_with_info(
@@ -42,27 +45,24 @@ pub trait BlockFinality {
     fn reset(&mut self) -> NodeResult<()>;
 }
 
-
 /// Applies changes provided by new block to shard state (in memory instance)
 /// and saves all changes into all kinds of storages
 #[allow(dead_code)]
-pub struct NewBlockApplier<F> where
-    F: BlockFinality
+pub struct NewBlockApplier<F>
+where
+    F: BlockFinality,
 {
     db: Arc<dyn DocumentsDb>,
     finality: Arc<Mutex<F>>,
 }
 
-impl<F> NewBlockApplier<F> where
-    F: BlockFinality
+impl<F> NewBlockApplier<F>
+where
+    F: BlockFinality,
 {
     /// Create new NewBlockApplier with given storages and shard state
     pub fn with_params(finality: Arc<Mutex<F>>, db: Arc<dyn DocumentsDb>) -> Self {
-
-        NewBlockApplier {
-            finality,
-            db,
-        }
+        NewBlockApplier { finality, db }
     }
 
     /// Applies changes provided by given block, returns new shard state
@@ -71,18 +71,13 @@ impl<F> NewBlockApplier<F> where
         block: &Block,
         applied_shard: ShardStateUnsplit,
     ) -> NodeResult<Arc<ShardStateUnsplit>> {
-
         let mut finality = self.finality.lock();
         let new_shard_state = Arc::new(applied_shard);
 
         log::info!(target: "node", "Apply block seq_no = {}", block.read_info()?.seq_no());
 
-        finality.put_block_with_info(
-            block,
-            new_shard_state.clone(),
-        )?;
+        finality.put_block_with_info(block, new_shard_state.clone())?;
 
         Ok(new_shard_state)
     }
-
 }

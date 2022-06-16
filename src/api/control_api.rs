@@ -14,12 +14,12 @@
 * under the License.
 */
 
-use super::*;
-use crate::node_engine::{LiveControl, LiveControlReceiver};
+use crate::engine::{LiveControl, LiveControlReceiver};
 use iron::prelude::*;
 use iron::status;
 use router::Router;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use crate::{NodeError, NodeResult};
 
 pub struct ControlApi {
     path: String,

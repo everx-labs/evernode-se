@@ -43,6 +43,8 @@ use ton_executor::{
 use ton_types::{
     serialize_toc, AccountId, BuilderData, HashmapE, HashmapRemover, IBitstring, Result, SliceData,
 };
+use crate::block::{AppendSerializedContext, BlockBuilder};
+use crate::data::{DocumentsDb, TransactionsStorage};
 
 #[cfg(test)]
 #[path = "../../tonos-se-tests/unit/test_messages.rs"]

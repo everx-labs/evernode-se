@@ -14,116 +14,34 @@
 * under the License.
 */
 
-use super::*;
+use crate::data::{BlocksStorage, DocumentsDb, FinalityStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage};
 use crate::error::NodeError;
 use rand::Rng;
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::{
     collections::HashSet,
     fs::{create_dir_all, File},
     io::{ErrorKind, Read, Seek, Write},
     path::PathBuf,
+    thread,
     time::Duration,
 };
 use ton_block::{
-    Account, AccountStatus, BlkPrevInfo, Block, CurrencyCollection, Deserializable, ExtBlkRef,
+    AccountStatus, BlkPrevInfo, Block, CurrencyCollection, Deserializable, ExtBlkRef,
     ExtOutMessageHeader, ExternalInboundMessageHeader, GetRepresentationHash, HashmapAugType,
     InMsg, InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, MsgEnvelope, OutMsg,
     Serializable, ShardIdent, ShardStateUnsplit, Transaction, UnixTime32,
 };
-use ton_types::{deserialize_tree_of_cells, serialize_toc, SliceData, UInt256};
+use ton_types::{deserialize_tree_of_cells, serialize_toc, AccountId, SliceData, UInt256, ByteOrderRead};
+use crate::block::applier::BlockFinality;
+use crate::block::builder::BlockBuilder;
+use crate::data::FileBasedStorage;
+use crate::NodeResult;
 
 #[cfg(test)]
 #[path = "../../tonos-se-tests/unit/test_block_finality.rs"]
 mod tests;
-
-///
-/// Information about last block in shard
-///
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ShardStateInfo {
-    /// Last block sequence number
-    pub seq_no: u64,
-    /// Last block end logical time
-    pub lt: u64,
-    /// Last block hash
-    pub hash: UInt256,
-}
-
-impl ShardStateInfo {
-    pub fn with_params(seq_no: u64, lt: u64, hash: UInt256) -> Self {
-        Self { seq_no, lt, hash }
-    }
-
-    pub fn serialize(&self) -> Vec<u8> {
-        let mut data = vec![];
-        data.extend_from_slice(&(self.seq_no).to_be_bytes());
-        data.extend_from_slice(&(self.lt).to_be_bytes());
-        data.append(&mut self.hash.as_slice().to_vec());
-        data
-    }
-
-    pub fn deserialize<R: Read>(rdr: &mut R) -> NodeResult<Self> {
-        let seq_no = rdr.read_be_u64()?;
-        let lt = rdr.read_be_u64()?;
-        let hash = UInt256::from(rdr.read_u256()?);
-        Ok(ShardStateInfo { seq_no, lt, hash })
-    }
-}
-
-/// Trait for shard state storage
-pub trait ShardStateStorage {
-    fn shard_state(&self) -> NodeResult<ShardStateUnsplit>;
-    fn shard_bag(&self) -> NodeResult<Cell>;
-    fn save_shard_state(&self, shard_state: &ShardStateUnsplit) -> NodeResult<()>;
-    fn serialized_shardstate(&self) -> NodeResult<Vec<u8>>;
-    fn save_serialized_shardstate(&self, data: Vec<u8>) -> NodeResult<()>;
-    fn save_serialized_shardstate_ex(
-        &self,
-        shard_state: &ShardStateUnsplit,
-        shard_data: Option<Vec<u8>>,
-        shard_hash: &UInt256,
-        shard_state_info: ShardStateInfo,
-    ) -> NodeResult<()>;
-}
-
-// Trait for blocks storage (key-value)
-pub trait BlocksStorage {
-    fn block(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<Block>;
-    fn raw_block(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<Vec<u8>>;
-    fn save_block(&self, block: &Block, root_hash: UInt256) -> NodeResult<()>;
-    fn save_raw_block(&self, block: &Block, block_data: Option<&Vec<u8>>) -> NodeResult<()>;
-}
-
-/// Trait for transactions storage (this storage have to support difficult queries)
-pub trait TransactionsStorage {
-    fn save_transaction(&self, tr: Arc<Transaction>) -> NodeResult<()>;
-    fn find_by_lt(&self, _lt: u64, _acc_id: &AccountId) -> NodeResult<Option<Transaction>> {
-        unimplemented!()
-    }
-}
-
-pub trait DocumentsDb: Send + Sync {
-    fn put_account(&self, acc: Account) -> NodeResult<()>;
-    fn put_deleted_account(&self, workchain_id: i32, account_id: AccountId) -> NodeResult<()>;
-    fn put_block(&self, block: &Block) -> NodeResult<()>;
-
-    fn put_message(
-        &self,
-        msg: Message,
-        transaction_id: Option<UInt256>,
-        transaction_now: Option<u32>,
-        block_id: Option<UInt256>,
-    ) -> NodeResult<()>;
-
-    fn put_transaction(
-        &self,
-        tr: Transaction,
-        block_id: Option<UInt256>,
-        workchain_id: i32,
-    ) -> NodeResult<()>;
-
-    fn has_delivery_problems(&self) -> bool;
-}
 
 /// Structure for Block finality layer
 /// This realize next functionality:
@@ -151,7 +69,7 @@ where
 
     current_block: Box<ShardBlock>,
     blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>, // need to remove
-    blocks_by_no: HashMap<u64, Box<FinalityBlock>>, // need to remove
+    blocks_by_no: HashMap<u64, Box<FinalityBlock>>,       // need to remove
     last_finalized_block: Box<ShardBlock>,
 }
 
