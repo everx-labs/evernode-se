@@ -60,7 +60,6 @@ struct BlockData {
     block_info: BlockInfo,
     block_extra: BlockExtra,
     value_flow: ValueFlow,
-    //log_time_gen: LogicalTimeGenerator,
     end_lt: u64, // biggest logical time of all messages
     p1: Duration,
     p2: Duration,
@@ -152,7 +151,7 @@ impl BlockBuilder {
         block_info
             .set_vertical_stuff(0, vert_sec_no, prev_vert_ref)
             .unwrap();
-        block_info.set_gen_utime(UnixTime32(block_at));
+        block_info.set_gen_utime(UnixTime32::new(block_at));
         block_info.set_start_lt(end_lt + 1);
 
         Self::init_with_block_info(block_info)

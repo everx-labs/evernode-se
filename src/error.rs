@@ -40,30 +40,14 @@ pub enum NodeError {
     LoadFinalityError,
     #[error("Finality error. Block not found into cache")]
     FinalityError,
-    #[error("Rollback block error. Block not found into cache")]
-    RoolbackBlockError,
-    #[error("Devp2p network error")]
-    NetworkError,
     #[error("TL data serialize error")]
     TlSerializeError,
     #[error("TL data deserialize error")]
     TlDeserializeError,
     #[error("TL packet has unknown type")]
     TlIncompatiblePacketType,
-    #[error("Validation empty step error")]
-    ValidationEmptyStepError,
-    #[error("Validation block error")]
-    ValidationBlockError,
-    #[error("Signature key invalid")]
-    SignatureError,
     #[error("ShardState is invalid")]
     InvalidShardState,
-    #[error("Synchronize node ended")]
-    SynchronizeEnded,
-    #[error("Synchronize node error")]
-    SynchronizeError,
-    #[error("Synchronize node in process")]
-    SynchronizeInProcess,
     #[error("Internal message queue is full")]
     QueueFull,
     #[error("Transaction executor internal error: '{}'", 0)]

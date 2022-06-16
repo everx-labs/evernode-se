@@ -15,21 +15,22 @@
 */
 
 use super::*;
-use crate::error::NodeResult;
-use crate::node_engine::stub_receiver::StubReceiver;
-use crate::node_engine::DocumentsDb;
+use crate::error::{NodeError, NodeResult};
 use crate::node_engine::documents_db_mock::DocumentsDbMock;
+use crate::node_engine::DocumentsDb;
 use parking_lot::Mutex;
 use std::{
     io::ErrorKind,
     sync::{
-        atomic::{Ordering, AtomicU32},
+        atomic::{AtomicU32, Ordering},
         Arc,
     },
     time::{Duration, Instant},
 };
+use ton_block::{ExternalInboundMessageHeader, Grams, MsgAddressExt, StateInit, UnixTime32, CommonMsgInfo, MsgAddressInt, Deserializable, InternalMessageHeader};
 use ton_executor::BlockchainConfig;
-use ton_types::HashmapType;
+use ton_labs_assembler::compile_code_to_cell;
+use ton_types::{HashmapType, SliceData};
 
 #[cfg(test)]
 #[path = "../../tonos-se-tests/unit/test_ton_node_engine.rs"]
@@ -112,8 +113,6 @@ pub struct TonNodeEngine {
     pub message_queue: Arc<InMessagesQueue>,
     pub incoming_blocks: IncomingBlocksCache,
 
-    pub last_step: AtomicU32,
-
     #[cfg(test)]
     pub test_counter_in: Arc<Mutex<u32>>,
     #[cfg(test)]
@@ -133,28 +132,24 @@ impl TonNodeEngine {
             control_receiver.run(Box::new(live_control))?;
         }
 
-
         let node = self.clone();
-        thread::spawn(move || {
-            let timestamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs() as u32
-                + self.live_properties.get_time_delta();
-            loop {
-                thread::sleep(Duration::from_secs(1));
-                match node.prepare_block(timestamp) {
-                    Ok(Some(_block)) => {
-                        log::trace!(target: "node", "block generated successfully");
-                    }
-                    Ok(None) => {
-                        log::trace!(target: "node", "block was not generated successfully");
-                    }
-                    Err(err) => {
-                        log::warn!(target: "node", "failed block generation: {}", err);
-                    }
+        if dbg!(node.finalizer.lock().get_last_seq_no()) == 1 {
+            Self::deploy_contracts(node.current_shard_id().workchain_id() as i8, &node.message_queue)?;
+        }
+        thread::spawn(move || loop {
+            let timestamp = UnixTime32::now().as_u32() + self.live_properties.get_time_delta();
+            match node.prepare_block(timestamp) {
+                Ok(Some(_block)) => {
+                    log::trace!(target: "node", "block generated successfully");
+                }
+                Ok(None) => {
+                    log::trace!(target: "node", "block was not generated successfully");
+                }
+                Err(err) => {
+                    log::warn!(target: "node", "failed block generation: {}", err);
                 }
             }
+            thread::sleep(Duration::from_secs(1));
         });
 
         Ok(())
@@ -183,7 +178,7 @@ impl TonNodeEngine {
     ) -> NodeResult<Self> {
         let documents_db: Arc<dyn DocumentsDb> = match documents_db {
             Some(documents_db) => Arc::from(documents_db),
-            None => Arc::new(DocumentsDbMock)
+            None => Arc::new(DocumentsDbMock),
         };
         let message_queue = Arc::new(InMessagesQueue::with_db(
             shard.clone(),
@@ -207,10 +202,10 @@ impl TonNodeEngine {
                 log::info!(target: "node", "load block finality successfully");
             }
             Err(NodeError::Io(err)) => {
-                    if err.kind() != ErrorKind::NotFound {
-                        return Err(NodeError::Io(err));
-                    }
+                if err.kind() != ErrorKind::NotFound {
+                    return Err(NodeError::Io(err));
                 }
+            }
             Err(err) => {
                 return Err(err);
             }
@@ -220,24 +215,16 @@ impl TonNodeEngine {
 
         message_queue.set_ready(true);
 
-        let mut receivers = receivers
+        let receivers = receivers
             .into_iter()
             .map(|r| Mutex::new(r))
             .collect::<Vec<_>>();
-
-        //TODO: remove on production or use only for tests
-        receivers.push(Mutex::new(Box::new(StubReceiver::with_params(
-            shard.workchain_id() as i8,
-            block_finality.lock().get_last_seq_no(),
-            0,
-        ))));
 
         Ok(TonNodeEngine {
             shard_ident: shard.clone(),
             receivers,
             live_properties,
             live_control_receiver,
-            last_step: AtomicU32::new(100500),
 
             interval: 1,
             get_block_timout: GEN_BLOCK_TIMEOUT,
@@ -251,10 +238,7 @@ impl TonNodeEngine {
                 blockchain_config,
             ))),
             finalizer: block_finality.clone(),
-            block_applier: Mutex::new(NewBlockApplier::with_params(
-                block_finality,
-                documents_db,
-            )),
+            block_applier: Mutex::new(NewBlockApplier::with_params(block_finality, documents_db)),
             message_queue,
             incoming_blocks: IncomingBlocksCache::new(),
             #[cfg(test)]
@@ -309,14 +293,13 @@ impl TonNodeEngine {
     /// Generate new block if possible
     ///
     pub fn prepare_block(&self, timestamp: u32) -> NodeResult<Option<SignedBlock>> {
-
         let mut time = [0u128; 10];
         let mut now = Instant::now();
 
-        log::debug!("PREP_BLK_START");
+        log::debug!(target: "node", "PREP_BLK_START");
         let shard_state = self.finalizer.lock().get_last_shard_state();
         let blk_prev_info = self.finalizer.lock().get_last_block_info()?;
-        log::info!(target: "node", "PARENT block: {:?}", blk_prev_info);
+        log::debug!(target: "node", "PARENT block: {:?}", blk_prev_info);
         let seq_no = self.finalizer.lock().get_last_seq_no() + 1;
         let gen_block_time = Duration::from_millis(self.gen_block_timeout());
         time[0] = now.elapsed().as_micros();
@@ -332,7 +315,7 @@ impl TonNodeEngine {
         );
         let (block, new_shard_state) = match result? {
             Some(result) => result,
-            None => return Ok(None)
+            None => return Ok(None),
         };
         time[1] = now.elapsed().as_micros();
         now = Instant::now();
@@ -341,8 +324,7 @@ impl TonNodeEngine {
         time[3] = now.elapsed().as_micros();
         now = Instant::now();
 
-        log::debug!("PREP_BLK_AFTER_GEN");
-        log::debug!("PREP_BLK2");
+        log::debug!(target: "node", "PREP_BLK2");
 
         //        self.message_queue.set_ready(false);
 
@@ -366,12 +348,8 @@ impl TonNodeEngine {
         s_block.write_to(&mut s_block_data)?;
         time[6] = now.elapsed().as_micros();
         now = Instant::now();
-        let (_, details) = self.finality_and_apply_block(
-            &s_block,
-            &s_block_data,
-            new_shard_state,
-            false,
-        )?;
+        let (_, details) =
+            self.finality_and_apply_block(&s_block, &s_block_data, new_shard_state, false)?;
 
         time[7] = now.elapsed().as_micros();
         log::info!(target: "profiler",
@@ -390,7 +368,7 @@ impl TonNodeEngine {
         }
         log::info!(target: "profiler", "Block finality details: {} / {} micros",  time[6], str_details);
 
-        log::debug!("PREP_BLK_SELF_STOP");
+        log::debug!(target: "node", "PREP_BLK_SELF_STOP");
 
         Ok(Some(s_block))
     }
@@ -403,11 +381,10 @@ impl TonNodeEngine {
         applied_shard: ShardStateUnsplit,
         is_sync: bool,
     ) -> NodeResult<(Arc<ShardStateUnsplit>, Vec<u128>)> {
-
         let mut time = Vec::new();
         let now = Instant::now();
         let hash = block.block().hash().unwrap();
-        let finality_hash = vec!(hash);
+        let finality_hash = vec![hash];
         let new_state = self.block_applier.lock().apply(
             block,
             Some(block_data.to_vec()),
@@ -417,6 +394,159 @@ impl TonNodeEngine {
         )?;
         time.push(now.elapsed().as_micros());
         Ok((new_state, time))
+    }
+}
+
+impl TonNodeEngine {
+    fn deploy_contracts(workchain_id: i8, queue: &InMessagesQueue) -> NodeResult<()> {
+        Self::deploy_contract(workchain_id, GIVER_ABI1_DEPLOY_MSG, GIVER_BALANCE, 1, queue)?;
+        Self::deploy_contract(workchain_id, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE, 3, queue)?;
+        Self::deploy_contract(
+            workchain_id,
+            MULTISIG_DEPLOY_MSG,
+            MULTISIG_BALANCE,
+            5,
+            queue,
+        )?;
+        Self::deploy_contract(
+            workchain_id,
+            DEPRECATED_GIVER_ABI2_DEPLOY_MSG,
+            GIVER_BALANCE,
+            7,
+            queue,
+        )?;
+
+        Ok(())
+    }
+
+    fn deploy_contract(
+        workchain_id: i8,
+        deploy_msg_boc: &[u8],
+        initial_balance: u128,
+        transfer_lt: u64,
+        queue: &InMessagesQueue,
+    ) -> NodeResult<AccountId> {
+        let (deploy_msg, deploy_addr) =
+            Self::create_contract_deploy_message(workchain_id, deploy_msg_boc);
+        let transfer_msg = Self::create_transfer_message(
+            workchain_id,
+            deploy_addr.clone(),
+            deploy_addr.clone(),
+            initial_balance,
+            transfer_lt,
+        );
+        Self::queue_with_retry(queue, transfer_msg)?;
+        Self::queue_with_retry(queue, deploy_msg)?;
+
+        Ok(deploy_addr)
+    }
+
+    fn queue_with_retry(queue: &InMessagesQueue, message: Message) -> NodeResult<()> {
+        let mut message = QueuedMessage::with_message(message)?;
+        while let Err(msg) = queue.queue(message) {
+            message = msg;
+            thread::sleep(Duration::from_micros(100));
+        }
+
+        Ok(())
+    }
+
+    fn create_contract_deploy_message(workchain_id: i8, msg_boc: &[u8]) -> (Message, AccountId) {
+        let mut msg = Message::construct_from_bytes(msg_boc).unwrap();
+        if let CommonMsgInfo::ExtInMsgInfo(ref mut header) = msg.header_mut() {
+            match header.dst {
+                MsgAddressInt::AddrStd(ref mut addr) => addr.workchain_id = workchain_id,
+                _ => panic!("Contract deploy message has invalid destination address"),
+            }
+        }
+
+        let address = msg.int_dst_account_id().unwrap();
+
+        (msg, address)
+    }
+
+    // create external message with init field, so-called "constructor message"
+    pub fn create_account_message(
+        workchain_id: i8,
+        account_id: AccountId,
+        code: &str,
+        data: Cell,
+        body: Option<SliceData>,
+    ) -> Message {
+        let code_cell = compile_code_to_cell(code).unwrap();
+
+        let mut msg = Message::with_ext_in_header(ExternalInboundMessageHeader {
+            src: MsgAddressExt::default(),
+            dst: MsgAddressInt::with_standart(None, workchain_id, account_id).unwrap(),
+            import_fee: Grams::zero(),
+        });
+
+        let mut state_init = StateInit::default();
+        state_init.set_code(code_cell);
+        state_init.set_data(data);
+        msg.set_state_init(state_init);
+
+        if let Some(body) = body {
+            msg.set_body(body);
+        }
+        msg
+    }
+
+    // create transfer funds message for initialize balance
+    pub fn create_transfer_message(
+        workchain_id: i8,
+        src: AccountId,
+        dst: AccountId,
+        value: u128,
+        lt: u64,
+    ) -> Message {
+        let hdr = Self::create_transfer_int_header(workchain_id, src, dst, value);
+        let mut msg = Message::with_int_header(hdr);
+
+        msg.set_at_and_lt(
+            UnixTime32::now().as_u32(),
+            lt,
+        );
+        msg
+    }
+
+    // Create message "from wallet" to transfer some funds
+    // from one account to another
+    pub fn create_external_transfer_funds_message(
+        workchain_id: i8,
+        src: AccountId,
+        dst: AccountId,
+        value: u128,
+        _lt: u64,
+    ) -> Message {
+        let mut msg = Message::with_ext_in_header(ExternalInboundMessageHeader {
+            src: MsgAddressExt::default(),
+            dst: MsgAddressInt::with_standart(None, workchain_id, src.clone()).unwrap(),
+            import_fee: Grams::zero(),
+        });
+
+        msg.set_body(
+            Self::create_transfer_int_header(workchain_id, src, dst, value)
+                .serialize()
+                .unwrap()
+                .into(),
+        );
+
+        msg
+    }
+
+    pub fn create_transfer_int_header(
+        workchain_id: i8,
+        src: AccountId,
+        dst: AccountId,
+        value: u128,
+    ) -> InternalMessageHeader {
+        InternalMessageHeader::with_addresses_and_bounce(
+            MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
+            MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
+            CurrencyCollection::from_grams(Grams::new(value).unwrap()),
+            false,
+        )
     }
 }
 
@@ -496,7 +626,8 @@ impl IncomingBlocksCache {
 
     /// check if block with sequence number exists in temporary blocks
     pub fn exists(&self, seq_no: u32) -> bool {
-        self.blocks.lock()
+        self.blocks
+            .lock()
             .iter()
             .find(|x| x.block.block().read_info().unwrap().seq_no() == seq_no)
             .is_some()

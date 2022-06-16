@@ -16,12 +16,11 @@
 
 use super::*;
 use crate::error::NodeError;
-use rand::Rng;
 use std::collections::HashSet;
 use std::fs::{create_dir_all, File};
 use std::io::{ErrorKind, Read, Seek, Write};
 use std::path::PathBuf;
-use ton_block::{AccountStatus, ExtOutMessageHeader, InMsg, MsgEnvelope, OutMsg};
+use ton_block::AccountStatus;
 use ton_block::{BlkPrevInfo, Deserializable, HashmapAugType, ShardIdent};
 use ton_types::{deserialize_tree_of_cells, UInt256};
 #[cfg(test)]
@@ -624,64 +623,6 @@ where
         //log::warn!("LAST SHARD BAG {}", self.current_block.shard_bag.get_repr_hash_by_index(0).unwrap().to_hex_string()));
         Arc::clone(&self.current_block.shard_state)
     }
-    /// find block by hash and return his sequence number (for sync)
-    fn find_block_by_hash(&self, hash: &UInt256) -> u64 {
-        if self.blocks_by_hash.contains_key(hash) {
-            self.blocks_by_hash.get(hash).unwrap().seq_no()
-        } else {
-            0xFFFFFFFF // if not found
-        }
-    }
-
-    /// Rollback shard state to one of block candidates
-    fn rollback_to(&mut self, hash: &UInt256) -> NodeResult<()> {
-        if self.blocks_by_hash.contains_key(hash) {
-            let sb = self.blocks_by_hash.remove(hash).unwrap();
-            let mut seq_no = sb.seq_no();
-            self.current_block = self.stored_to_loaded(sb)?;
-
-            // remove from hashmaps all blocks with greater seq_no
-            loop {
-                let tmp = self.blocks_by_no.remove(&seq_no);
-                if tmp.is_some() {
-                    self.blocks_by_hash.remove(tmp.unwrap().block_hash());
-                } else {
-                    break;
-                }
-                seq_no += 1;
-            }
-
-            Ok(())
-        } else {
-            Err(NodeError::RoolbackBlockError)
-        }
-    }
-
-    /// get raw signed block data - for synchronize
-    fn get_raw_block_by_seqno(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<Vec<u8>> {
-        let key = key_by_seqno(seq_no, vert_seq_no);
-        if self.blocks_by_no.contains_key(&key) {
-            /* TODO: which case to use?
-            return Ok(self.blocks_by_no.get(&key).unwrap().serialized_block.clone())
-            TODO rewrite to
-            return Ok(
-                self.fn_storage.load_non_finalized_block_by_seq_no(key)?.serialized_block.clone()
-            )*/
-            return Ok(self
-                .stored_to_loaded(self.blocks_by_no.get(&key).unwrap().clone())?
-                .serialized_block
-                .clone());
-        }
-        self.blocks_storage.raw_block(seq_no, vert_seq_no)
-    }
-
-    /// get number of last finalized shard
-    fn get_last_finality_shard_hash(&self) -> NodeResult<(u64, UInt256)> {
-        // TODO avoid serialization there
-        let cell = self.last_finalized_block.shard_state.serialize()?;
-
-        Ok((self.last_finalized_block.seq_no, cell.repr_hash()))
-    }
 
     /// reset block finality
     /// clean all maps, load last finalized data
@@ -851,141 +792,4 @@ impl ShardBlock {
 
         Ok(sb)
     }
-}
-
-// runs 10 thread to generate 5000 accounts with 1 input and two output messages per every block
-// finalizes block and return
-#[allow(dead_code)]
-pub(crate) fn generate_block_with_seq_no(
-    shard_ident: ShardIdent,
-    seq_no: u32,
-    prev_info: BlkPrevInfo,
-) -> Block {
-    let block_builder = Arc::new(BlockBuilder::with_shard_ident(
-        shard_ident,
-        seq_no,
-        prev_info,
-        0,
-        None,
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as u32,
-    ));
-
-    // start 10 thread for generate transaction
-    for _ in 0..10 {
-        let builder_clone = block_builder.clone();
-        thread::spawn(move || {
-            //println!("Thread write start.");
-            let mut rng = rand::thread_rng();
-            for _ in 0..5000 {
-                let acc = AccountId::from_raw(
-                    (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
-                    256,
-                );
-                let mut transaction = Transaction::with_address_and_status(
-                    acc.clone(),
-                    AccountStatus::AccStateActive,
-                );
-
-                let mut value = CurrencyCollection::default();
-                value.grams = 10202u64.into();
-                let mut imh = InternalMessageHeader::with_addresses (
-                    MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressInt::with_standart(
-                        None,
-                        0,
-                        AccountId::from_raw(
-                            (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
-                            256,
-                        ),
-                    )
-                    .unwrap(),
-                    value,
-                );
-
-                imh.ihr_fee = 10u64.into();
-                imh.fwd_fee = 5u64.into();
-                let mut inmsg1 = Arc::new(Message::with_int_header(imh));
-                if let Some(m) = Arc::get_mut(&mut inmsg1) {
-                    m.set_body(SliceData::new(vec![0x21;120]));
-                }
-
-                let env = MsgEnvelope::with_message_and_fee(&inmsg1, 9u64.into()).unwrap();
-                let in_msg_int = InMsg::immediatelly_msg(
-                    env.serialize().unwrap(),
-                    transaction.serialize().unwrap(),
-                    11u64.into(),
-                );
-
-                let ext_in_header = ExternalInboundMessageHeader {
-                    src: MsgAddressExt::with_extern(SliceData::new(vec![
-                        0x23, 0x52, 0x73, 0x00, 0x80,
-                    ]))
-                    .unwrap(),
-                    dst: MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    import_fee: 10u64.into(),
-                };
-
-                let mut inmsg = Message::with_ext_in_header(ext_in_header);
-                inmsg.set_body(SliceData::new(vec![0x01;120]));
-
-                transaction.write_in_msg(Some(&inmsg1)).unwrap();
-                // inmsg
-                let in_msg_ex = InMsg::external_msg(
-                    inmsg.serialize().unwrap(),
-                    transaction.serialize().unwrap()
-                );
-
-                // outmsgs
-                let mut value = CurrencyCollection::default();
-                value.grams = 10202u64.into();
-                let mut imh = InternalMessageHeader::with_addresses (
-                    MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressInt::with_standart(None, 0, AccountId::from_raw(vec![255; 32], 256))
-                        .unwrap(),
-                    value,
-                );
-
-                imh.ihr_fee = 10u64.into();
-                imh.fwd_fee = 5u64.into();
-                let outmsg1 = Message::with_int_header(imh);
-
-                let ext_out_header = ExtOutMessageHeader::with_addresses(
-                    MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80]))
-                        .unwrap(),
-                );
-
-                let mut outmsg2 = Message::with_ext_out_header(ext_out_header);
-                outmsg2.set_body(SliceData::new(vec![0x02;120]));
-
-                let tr_cell = transaction.serialize().unwrap();
-
-                let env = MsgEnvelope::with_message_and_fee(&outmsg1, 9u64.into()).unwrap();
-                let out_msg1 = OutMsg::new_msg(
-                    env.serialize().unwrap(),
-                    tr_cell.clone()
-                );
-
-                let out_msg2 = OutMsg::external_msg(outmsg2.serialize().unwrap(), tr_cell);
-
-                let in_msg = Arc::new(if rng.gen() { in_msg_int } else { in_msg_ex });
-                // builder can stop earlier than writing threads it is not a problem here
-                if !builder_clone.add_transaction(in_msg, vec![out_msg1, out_msg2]) {
-                    break;
-                }
-
-                thread::sleep(Duration::from_millis(1)); // emulate timeout working TVM
-            }
-        });
-    }
-
-    thread::sleep(Duration::from_millis(10));
-
-    let ss = ShardStateUnsplit::default();
-
-    let (block, _count) = block_builder.finalize_block(&ss, &ss).unwrap();
-    block
 }

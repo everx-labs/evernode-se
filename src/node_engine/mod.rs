@@ -14,24 +14,19 @@
 * under the License.
 */
 
-use super::error::*;
+use super::error::NodeResult;
 use ed25519_dalek::Keypair;
 use parking_lot::Mutex;
-use std;
 use std::clone::Clone;
 use std::collections::{HashMap, VecDeque};
 use std::convert::From;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ton_block::{
-    Account, BlkPrevInfo, Block, CurrencyCollection, ExtBlkRef,
-    ExternalInboundMessageHeader, GetRepresentationHash, InternalMessageHeader, Message,
-    MsgAddressExt, MsgAddressInt, Serializable, ShardIdent, ShardStateUnsplit, SignedBlock,
-    Transaction,
+    Account, BlkPrevInfo, Block, CurrencyCollection, ExtBlkRef, GetRepresentationHash, Message,
+    Serializable, ShardIdent, ShardStateUnsplit, SignedBlock, Transaction,
 };
-use ton_types::types::{AccountId, ByteOrderRead, UInt256};
-use ton_types::{Cell, SliceData};
+use ton_types::{AccountId, ByteOrderRead, Cell, UInt256};
 
 pub mod block_builder;
 pub use self::block_builder::*;
@@ -53,11 +48,10 @@ pub mod ton_node_engine;
 pub mod config;
 use self::config::*;
 
-mod logical_time_generator;
+mod documents_db_mock;
+
 #[cfg(test)]
 mod test_storage;
-mod documents_db_mock;
-pub mod stub_receiver;
 
 use std::thread;
 
@@ -65,8 +59,6 @@ lazy_static::lazy_static! {
     static ref ACCOUNTS: Mutex<Vec<AccountId>> = Mutex::new(vec![]);
     static ref SUPER_ACCOUNT_ID: AccountId = AccountId::from([0; 32]);
 }
-
-static ACCOUNTS_COUNT: u8 = 255;
 
 const GIVER_BALANCE: u128 = 5_000_000_000_000_000_000;
 const MULTISIG_BALANCE: u128 = 1_000_000_000_000_000;

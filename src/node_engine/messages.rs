@@ -16,6 +16,7 @@
 
 use super::*;
 
+use crate::error::NodeError;
 use jsonrpc_http_server::jsonrpc_core::types::params::Params;
 use jsonrpc_http_server::jsonrpc_core::types::Value;
 use jsonrpc_http_server::jsonrpc_core::{Error, IoHandler};
@@ -393,14 +394,14 @@ where
             }
         }
 
-        pool.join();
-        let time0 = now.elapsed().as_micros();
-
-        log::info!(target: "node", "in messages queue len={}", self.queue.len());
-        self.executors.lock().clear();
-        self.queue.locks_clear();
-
         if !is_empty {
+            pool.join();
+            let time0 = now.elapsed().as_micros();
+
+            log::info!(target: "node", "in messages queue len={}", self.queue.len());
+            self.executors.lock().clear();
+            self.queue.locks_clear();
+
             let new_shard_state = std::mem::take(&mut *new_shard_state.lock());
             let (block, count) = builder.finalize_block(shard_state, &new_shard_state)?;
             log::info!(target: "profiler",
