@@ -27,7 +27,10 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use ton_block::{ExternalInboundMessageHeader, Grams, MsgAddressExt, StateInit, UnixTime32, CommonMsgInfo, MsgAddressInt, Deserializable, InternalMessageHeader};
+use ton_block::{
+    CommonMsgInfo, Deserializable, ExternalInboundMessageHeader, Grams, InternalMessageHeader,
+    MsgAddressExt, MsgAddressInt, StateInit, UnixTime32,
+};
 use ton_executor::BlockchainConfig;
 use ton_labs_assembler::compile_code_to_cell;
 use ton_types::{HashmapType, SliceData};
@@ -89,6 +92,13 @@ impl EngineLiveControl {
 impl LiveControl for EngineLiveControl {
     fn increase_time(&self, delta: u32) -> NodeResult<()> {
         self.properties.increment_time(delta);
+        log::info!(target: "node", "SE time delta set to {}", self.properties.get_time_delta());
+        Ok(())
+    }
+
+    fn reset_time(&self) -> NodeResult<()> {
+        self.properties.set_time_delta(0);
+        log::info!(target: "node", "SE time delta set to 0");
         Ok(())
     }
 }
@@ -134,7 +144,10 @@ impl TonNodeEngine {
 
         let node = self.clone();
         if dbg!(node.finalizer.lock().get_last_seq_no()) == 1 {
-            Self::deploy_contracts(node.current_shard_id().workchain_id() as i8, &node.message_queue)?;
+            Self::deploy_contracts(
+                node.current_shard_id().workchain_id() as i8,
+                &node.message_queue,
+            )?;
         }
         thread::spawn(move || loop {
             let timestamp = UnixTime32::now().as_u32() + self.live_properties.get_time_delta();
@@ -503,10 +516,7 @@ impl TonNodeEngine {
         let hdr = Self::create_transfer_int_header(workchain_id, src, dst, value);
         let mut msg = Message::with_int_header(hdr);
 
-        msg.set_at_and_lt(
-            UnixTime32::now().as_u32(),
-            lt,
-        );
+        msg.set_at_and_lt(UnixTime32::now().as_u32(), lt);
         msg
     }
 

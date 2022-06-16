@@ -15,11 +15,11 @@
 */
 
 use super::*;
+use crate::node_engine::{LiveControl, LiveControlReceiver};
 use iron::prelude::*;
 use iron::status;
 use router::Router;
 use std::sync::Mutex;
-use crate::node_engine::{LiveControl, LiveControlReceiver};
 
 pub struct ControlApi {
     path: String,
@@ -35,14 +35,18 @@ impl ControlApi {
         req: &mut Request,
         control: &Box<dyn LiveControl>,
     ) -> Result<Response, IronError> {
-        log::info!(target: "node", "Control API: request got!");
-        log::info!(target: "node", "{:?}", req.url.path());
+        log::info!(target: "node", "Control API request: {}", req.url.path().last().unwrap_or(&""));
         let command = ControlCommand::from_req(req)?;
         match command {
             ControlCommand::IncreaseTime(delta) => {
                 control.increase_time(delta).map_err(|err| {
                     internal_server_error(format!("Increase time failed: {}", err))
                 })?;
+            }
+            ControlCommand::ResetTime => {
+                control
+                    .reset_time()
+                    .map_err(|err| internal_server_error(format!("Reset time failed: {}", err)))?;
             }
         }
         return Ok(Response::with(status::Ok));
@@ -70,6 +74,7 @@ impl LiveControlReceiver for ControlApi {
 
 enum ControlCommand {
     IncreaseTime(u32),
+    ResetTime,
 }
 
 impl ControlCommand {
@@ -77,6 +82,7 @@ impl ControlCommand {
         if let Some(cmd) = req.extensions.get::<Router>().unwrap().find("command") {
             match cmd.to_lowercase().as_str() {
                 "increase-time" => Ok(Self::IncreaseTime(required_u32(req, "delta")?)),
+                "reset-time" => Ok(Self::ResetTime),
                 _ => Err(bad_request(format!(
                     "Unknown live control command \"{}\".",
                     cmd

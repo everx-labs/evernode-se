@@ -23,29 +23,35 @@ use std::convert::From;
 use std::path::PathBuf;
 use std::sync::Arc;
 use ton_block::{
-    Account, BlkPrevInfo, Block, CurrencyCollection, GetRepresentationHash, Message,
-    Serializable, ShardIdent, ShardStateUnsplit, SignedBlock, Transaction,
+    Account, BlkPrevInfo, Block, CurrencyCollection, GetRepresentationHash, Message, Serializable,
+    ShardIdent, ShardStateUnsplit, SignedBlock, Transaction,
 };
 use ton_types::{AccountId, ByteOrderRead, Cell, UInt256};
 
 pub mod block_builder;
+
 pub use self::block_builder::*;
 
 pub mod file_based_storage;
+
 use self::file_based_storage::*;
 
 pub mod messages;
+
 pub use self::messages::*;
 
 pub mod new_block_applier;
+
 use self::new_block_applier::*;
 
 pub mod blocks_finality;
+
 pub use self::blocks_finality::*;
 
 pub mod ton_node_engine;
 
 pub mod config;
+
 use self::config::*;
 
 mod documents_db_mock;
@@ -71,6 +77,7 @@ pub trait MessagesReceiver: Send {
 
 pub trait LiveControl: Send + Sync {
     fn increase_time(&self, delta: u32) -> NodeResult<()>;
+    fn reset_time(&self) -> NodeResult<()>;
 }
 
 pub trait LiveControlReceiver: Send + Sync {
