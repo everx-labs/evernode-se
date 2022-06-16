@@ -20,8 +20,6 @@ use rand::Rng;
 use std::{collections::HashSet, fs::{create_dir_all, File}, io::{ErrorKind, Read, Seek, Write}, path::PathBuf, time::Duration};
 use ton_block::{ShardIdent, HashmapAugType, Message, Transaction, Block, ExtOutMessageHeader, SignedBlock, OutMsg, ShardStateUnsplit, MsgAddressExt, MsgAddressInt, Serializable, ExternalInboundMessageHeader, AccountStatus, Account, BlkPrevInfo, UnixTime32, InternalMessageHeader, GetRepresentationHash, CurrencyCollection, InMsg, ExtBlkRef, Deserializable, MsgEnvelope};
 use ton_types::{deserialize_tree_of_cells, SliceData, UInt256};
-#[cfg(test)]
-use self::test_storage::TestStorage;
 
 #[cfg(test)]
 #[path = "../../tonos-se-tests/unit/test_block_finality.rs"]

@@ -50,9 +50,6 @@ use self::config::*;
 
 mod documents_db_mock;
 
-#[cfg(test)]
-mod test_storage;
-
 use std::thread;
 
 lazy_static::lazy_static! {
