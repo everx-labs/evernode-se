@@ -14,25 +14,28 @@
 * under the License.
 */
 
+use crate::error::{NodeError, NodeResult};
+use crate::node_engine::{config::NodeConfig, ton_node_engine::TonNodeEngine, MessagesReceiver};
 use arango::ArangoHelper;
 use clap::{Arg, ArgMatches, Command};
 use control_api::ControlApi;
-use ed25519_dalek::{Keypair, PublicKey};
 use iron::Iron;
 use message_api::MessageReceiverApi;
 use router::Router;
 use serde_json::Value;
-use std::{env, fs, path::{Path, PathBuf}, sync::{Arc, Mutex}, thread, time::Duration};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 use ton_executor::BlockchainConfig;
-use crate::error::{NodeError, NodeResult};
-use crate::node_engine::config::NodeConfig;
-use crate::node_engine::ton_node_engine::TonNodeEngine;
-use crate::node_engine::{DocumentsDb, MessagesReceiver};
 
 mod arango;
 mod control_api;
-mod message_api;
 pub mod error;
+mod message_api;
 pub mod node_engine;
 
 #[cfg(test)]
@@ -50,7 +53,6 @@ fn read_str(path: &str) -> NodeResult<String> {
 
 struct StartNodeConfig {
     node: NodeConfig,
-    public_keys: Vec<PublicKey>,
     blockchain: BlockchainConfig,
 }
 
@@ -63,17 +65,13 @@ impl StartNodeConfig {
         }
 
         let config_json = read_str(args.value_of("config").unwrap_or_default())?;
-        let (node, public_keys) = parse_config(&config_json);
+        let node = parse_config(&config_json);
 
         let blockchain_config_json =
             read_str(args.value_of("blockchain-config").unwrap_or_default())?;
         let blockchain = blockchain_config_from_json(&blockchain_config_json)?;
 
-        Ok(Self {
-            node,
-            public_keys,
-            blockchain,
-        })
+        Ok(Self { node, blockchain })
     }
 }
 
@@ -90,7 +88,8 @@ fn run() -> NodeResult<()> {
         env!("BUILD_GIT_COMMIT"),
         env!("BUILD_TIME"),
         env!("BUILD_GIT_DATE"),
-        env!("BUILD_GIT_BRANCH"));
+        env!("BUILD_GIT_BRANCH")
+    );
 
     let app = Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
@@ -150,13 +149,7 @@ fn run() -> NodeResult<()> {
 }
 
 fn start_node(config: StartNodeConfig) -> NodeResult<()> {
-    let keypair = fs::read(Path::new(&config.node.private_key)).expect(&format!(
-        "Error reading key file {}",
-        config.node.private_key
-    ));
-    let private_key = Keypair::from_bytes(&keypair).unwrap();
-
-    let db: Box<dyn DocumentsDb> = Box::new(ArangoHelper::from_config(
+    let db = Arc::new(ArangoHelper::from_config(
         &config.node.document_db_config(),
     )?);
 
@@ -174,12 +167,6 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
 
     let ton = TonNodeEngine::with_params(
         config.node.shard_id_config().shard_ident(),
-        true,
-        config.node.port,
-        config.node.node_index,
-        private_key,
-        config.public_keys,
-        config.node.boot,
         receivers,
         Some(control_api),
         config.blockchain,
@@ -202,15 +189,9 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
     }
 }
 
-fn parse_config(json: &str) -> (NodeConfig, Vec<PublicKey>) {
+fn parse_config(json: &str) -> NodeConfig {
     match NodeConfig::parse(json) {
-        Ok(config) => match config.import_keys() {
-            Ok(keys) => (config, keys),
-            Err(err) => {
-                log::error!(target: "node", "{}", err);
-                panic!("{}", err)
-            }
-        },
+        Ok(config) => config,
         Err(err) => {
             log::error!(target: "node", "Error parsing configuration file. {}", err);
             panic!("Error parsing configuration file. {}", err)

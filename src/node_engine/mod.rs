@@ -15,7 +15,6 @@
 */
 
 use super::error::NodeResult;
-use ed25519_dalek::Keypair;
 use parking_lot::Mutex;
 use std::clone::Clone;
 use std::collections::{HashMap, VecDeque};

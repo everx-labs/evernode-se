@@ -114,13 +114,6 @@ pub struct TonNodeEngine {
     pub finalizer: ArcBlockFinality,
     pub block_applier: BlockApplier,
     pub message_queue: Arc<InMessagesQueue>,
-
-    #[cfg(test)]
-    pub test_counter_in: Arc<Mutex<u32>>,
-    #[cfg(test)]
-    pub test_counter_out: Arc<Mutex<u32>>,
-
-    _private_key: Keypair,
 }
 
 impl TonNodeEngine {
@@ -167,22 +160,13 @@ impl TonNodeEngine {
     /// with given time to generate block candidate
     pub fn with_params(
         shard: ShardIdent,
-        _local: bool,
-        _port: u16,
-        _node_index: u8,
-        _private_key: Keypair,
-        _public_keys: Vec<ed25519_dalek::PublicKey>,
-        _boot_list: Vec<String>,
         receivers: Vec<Box<dyn MessagesReceiver>>,
         live_control_receiver: Option<Box<dyn LiveControlReceiver>>,
         blockchain_config: BlockchainConfig,
-        documents_db: Option<Box<dyn DocumentsDb>>,
+        documents_db: Option<Arc<dyn DocumentsDb>>,
         storage_path: PathBuf,
     ) -> NodeResult<Self> {
-        let documents_db: Arc<dyn DocumentsDb> = match documents_db {
-            Some(documents_db) => Arc::from(documents_db),
-            None => Arc::new(DocumentsDbMock),
-        };
+        let documents_db = documents_db.unwrap_or_else(|| Arc::new(DocumentsDbMock));
         let message_queue = Arc::new(InMessagesQueue::with_db(
             shard.clone(),
             10000,
@@ -243,12 +227,6 @@ impl TonNodeEngine {
             finalizer: block_finality.clone(),
             block_applier: Mutex::new(NewBlockApplier::with_params(block_finality, documents_db)),
             message_queue,
-            #[cfg(test)]
-            test_counter_out: Arc::new(Mutex::new(0)),
-            #[cfg(test)]
-            test_counter_in: Arc::new(Mutex::new(0)),
-
-            _private_key,
         })
     }
 
