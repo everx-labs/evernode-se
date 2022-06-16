@@ -23,7 +23,7 @@ use std::convert::From;
 use std::path::PathBuf;
 use std::sync::Arc;
 use ton_block::{
-    Account, BlkPrevInfo, Block, CurrencyCollection, ExtBlkRef, GetRepresentationHash, Message,
+    Account, BlkPrevInfo, Block, CurrencyCollection, GetRepresentationHash, Message,
     Serializable, ShardIdent, ShardStateUnsplit, SignedBlock, Transaction,
 };
 use ton_types::{AccountId, ByteOrderRead, Cell, UInt256};

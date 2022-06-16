@@ -35,6 +35,14 @@ pub trait BlockFinality {
 
     fn get_last_shard_state(&self) -> Arc<ShardStateUnsplit>;
 
+    fn find_block_by_hash(&self, hash: &UInt256) -> u64;
+
+    fn rollback_to(&mut self, hash: &UInt256) -> NodeResult<()>;
+
+    fn get_raw_block_by_seqno(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<Vec<u8>>;
+
+    fn get_last_finality_shard_hash(&self) -> NodeResult<(u64, UInt256)>;
+
     fn reset(&mut self) -> NodeResult<()>;
 }
 

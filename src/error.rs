@@ -40,6 +40,8 @@ pub enum NodeError {
     LoadFinalityError,
     #[error("Finality error. Block not found into cache")]
     FinalityError,
+    #[error("Rollback block error. Block not found into cache")]
+    RoolbackBlockError,
     #[error("TL data serialize error")]
     TlSerializeError,
     #[error("TL data deserialize error")]
