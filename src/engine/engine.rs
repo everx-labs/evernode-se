@@ -15,6 +15,7 @@
 */
 
 use crate::block::{BlockFinality, NewBlockApplier, OrdinaryBlockFinality};
+#[cfg(test)]
 use crate::config::NodeConfig;
 use crate::data::{DocumentsDb, DocumentsDbMock, FileBasedStorage};
 use crate::engine::{
@@ -24,8 +25,8 @@ use crate::engine::{
 };
 use crate::error::{NodeError, NodeResult};
 use crate::MessagesReceiver;
+use parking_lot::Mutex;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::{
     io::ErrorKind,
     sync::{
@@ -36,16 +37,14 @@ use std::{
     time::{Duration, Instant},
 };
 use ton_block::{
-    Block, CommonMsgInfo, CurrencyCollection, Deserializable, ExternalInboundMessageHeader, Grams,
-    InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, ShardIdent, ShardStateUnsplit,
-    StateInit, UnixTime32,
+    Block, CommonMsgInfo, CurrencyCollection, Deserializable, Grams, InternalMessageHeader,
+    Message, MsgAddressInt, ShardIdent, ShardStateUnsplit, UnixTime32,
 };
 use ton_executor::BlockchainConfig;
-use ton_labs_assembler::compile_code_to_cell;
-use ton_types::{AccountId, Cell, HashmapType, SliceData};
+use ton_types::{AccountId, HashmapType};
 
 #[cfg(test)]
-#[path = "../../tonos-se-tests/unit/test_ton_node_engine.rs"]
+#[path = "../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
 mod tests;
 
 type Storage = FileBasedStorage;
@@ -56,13 +55,9 @@ type BlockApplier =
 
 // TODO do interval and validator field of TonNodeEngine
 // and read from config
-pub const INTERVAL: usize = 2;
-pub const VALIDATORS: usize = 7;
 
 pub const GEN_BLOCK_TIMEOUT: u64 = 400;
 //800;
-pub const GEN_BLOCK_TIMER: u64 = 20;
-pub const RESET_SYNC_LIMIT: usize = 5;
 
 pub struct EngineLiveProperties {
     pub time_delta: Arc<AtomicU32>,
@@ -121,10 +116,7 @@ pub struct TonNodeEngine {
     receivers: Vec<Mutex<Box<dyn MessagesReceiver>>>,
     live_control_receiver: Option<Box<dyn LiveControlReceiver>>,
 
-    interval: usize,
     get_block_timout: u64,
-    gen_block_timer: u64,
-    reset_sync_limit: usize,
 
     pub msg_processor: ArcMsgProcessor,
     pub finalizer: ArcBlockFinality,
@@ -167,6 +159,7 @@ impl TonNodeEngine {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn stop(self: Arc<Self>) -> NodeResult<()> {
         log::info!(target: "node","TONNodeEngine stopped.");
         Ok(())
@@ -229,10 +222,7 @@ impl TonNodeEngine {
             live_properties,
             live_control_receiver,
 
-            interval: 1,
             get_block_timout: GEN_BLOCK_TIMEOUT,
-            gen_block_timer: GEN_BLOCK_TIMER,
-            reset_sync_limit: RESET_SYNC_LIMIT,
 
             msg_processor: Arc::new(Mutex::new(MessagesProcessor::with_params(
                 message_queue.clone(),
@@ -246,28 +236,8 @@ impl TonNodeEngine {
         })
     }
 
-    pub fn interval(&self) -> usize {
-        self.interval
-    }
-
-    pub fn push_message(&self, mut message: QueuedMessage, warning: &str, micros: u64) {
-        while let Err(msg) = self.message_queue.queue(message) {
-            message = msg;
-            log::warn!(target: "node", "{}", warning);
-            thread::sleep(Duration::from_micros(micros));
-        }
-    }
-
     pub fn gen_block_timeout(&self) -> u64 {
         self.get_block_timout
-    }
-
-    pub fn gen_block_timer(&self) -> u64 {
-        self.gen_block_timer
-    }
-
-    pub fn reset_sync_limit(&self) -> usize {
-        self.reset_sync_limit.clone()
     }
 
     /// Getter for current shard identifier
@@ -447,33 +417,6 @@ impl TonNodeEngine {
         (msg, address)
     }
 
-    // create external message with init field, so-called "constructor message"
-    pub fn create_account_message(
-        workchain_id: i8,
-        account_id: AccountId,
-        code: &str,
-        data: Cell,
-        body: Option<SliceData>,
-    ) -> Message {
-        let code_cell = compile_code_to_cell(code).unwrap();
-
-        let mut msg = Message::with_ext_in_header(ExternalInboundMessageHeader {
-            src: MsgAddressExt::default(),
-            dst: MsgAddressInt::with_standart(None, workchain_id, account_id).unwrap(),
-            import_fee: Grams::zero(),
-        });
-
-        let mut state_init = StateInit::default();
-        state_init.set_code(code_cell);
-        state_init.set_data(data);
-        msg.set_state_init(state_init);
-
-        if let Some(body) = body {
-            msg.set_body(body);
-        }
-        msg
-    }
-
     // create transfer funds message for initialize balance
     pub fn create_transfer_message(
         workchain_id: i8,
@@ -486,31 +429,6 @@ impl TonNodeEngine {
         let mut msg = Message::with_int_header(hdr);
 
         msg.set_at_and_lt(UnixTime32::now().as_u32(), lt);
-        msg
-    }
-
-    // Create message "from wallet" to transfer some funds
-    // from one account to another
-    pub fn create_external_transfer_funds_message(
-        workchain_id: i8,
-        src: AccountId,
-        dst: AccountId,
-        value: u128,
-        _lt: u64,
-    ) -> Message {
-        let mut msg = Message::with_ext_in_header(ExternalInboundMessageHeader {
-            src: MsgAddressExt::default(),
-            dst: MsgAddressInt::with_standart(None, workchain_id, src.clone()).unwrap(),
-            import_fee: Grams::zero(),
-        });
-
-        msg.set_body(
-            Self::create_transfer_int_header(workchain_id, src, dst, value)
-                .serialize()
-                .unwrap()
-                .into(),
-        );
-
         msg
     }
 
@@ -529,6 +447,7 @@ impl TonNodeEngine {
     }
 }
 
+#[cfg(test)]
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<ed25519_dalek::PublicKey>) {
     match NodeConfig::parse(json) {
         Ok(config) => match config.import_keys() {

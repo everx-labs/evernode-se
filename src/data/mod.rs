@@ -1,12 +1,19 @@
-use std::io::Read;
 use crate::NodeResult;
+#[cfg(test)]
+use std::io::Read;
 use std::sync::Arc;
 use ton_block::{Account, Block, Message, ShardStateUnsplit, Transaction};
-use ton_types::{AccountId, ByteOrderRead, Cell, UInt256};
+#[cfg(test)]
+use ton_types::ByteOrderRead;
+use ton_types::{AccountId, Cell, UInt256};
 
 mod arango;
 mod documents_db_mock;
 mod file_based_storage;
+#[cfg(test)]
+mod test_storage;
+#[cfg(test)]
+pub use test_storage::TestStorage;
 
 pub use arango::ArangoHelper;
 pub use documents_db_mock::DocumentsDbMock;
@@ -37,6 +44,7 @@ impl ShardStateInfo {
         data
     }
 
+    #[cfg(test)]
     pub fn deserialize<R: Read>(rdr: &mut R) -> NodeResult<Self> {
         let seq_no = rdr.read_be_u64()?;
         let lt = rdr.read_be_u64()?;

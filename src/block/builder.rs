@@ -22,11 +22,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 use ton_block::*;
 use ton_types::Cell;
+#[cfg(test)]
 use ton_types::HashmapType;
 use ton_types::Result;
 
 #[cfg(test)]
-#[path = "../../tonos-se-tests/unit/test_block_builder.rs"]
+#[path = "../../../tonos-se-tests/unit/test_block_builder.rs"]
 mod tests;
 
 #[derive(Debug)]
@@ -230,6 +231,7 @@ impl BlockBuilder {
         stop_event.notify_one();
     }
 
+    #[cfg(test)]
     pub fn append_to_block(&self, in_msg: InMsg, out_msgs: Vec<OutMsg>) -> Result<()> {
         let mut block_data = self.current_block_data.lock();
         Self::append_messages(&mut block_data, &in_msg, out_msgs)
@@ -396,6 +398,7 @@ impl BlockBuilder {
     ///
     /// Check if BlockBuilder is Empty
     ///
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         let block_data = self.current_block_data.lock();
         block_data
@@ -420,9 +423,6 @@ impl BlockBuilder {
     ///
     pub fn at_and_lt(&self) -> (u32, u64) {
         (self.block_gen_utime.as_u32(), self.start_lt)
-    }
-    pub fn end_lt(&self) -> u64 {
-        self.current_block_data.lock().end_lt
     }
 
     ///

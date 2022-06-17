@@ -47,7 +47,7 @@ use crate::block::{AppendSerializedContext, BlockBuilder};
 use crate::data::{DocumentsDb, TransactionsStorage};
 
 #[cfg(test)]
-#[path = "../../tonos-se-tests/unit/test_messages.rs"]
+#[path = "../../../tonos-se-tests/unit/test_messages.rs"]
 mod tests;
 
 // TODO: I think that 'static - is a bad practice. If you know how to do it without static - please help
@@ -579,12 +579,6 @@ impl QueuedMessageInternal {
         }
     }
 
-    pub fn message_mut(&mut self) -> &mut Message {
-        match self {
-            QueuedMessageInternal::Message(ref mut msg) => msg,
-            QueuedMessageInternal::RouteMessage(ref mut r_msg) => &mut r_msg.msg,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -642,9 +636,6 @@ impl QueuedMessage {
         &self.hash
     }
 
-    pub fn message_mut(&mut self) -> &mut Message {
-        self.internal.message_mut()
-    }
 }
 
 impl Serializable for QueuedMessage {
@@ -879,10 +870,3 @@ impl InMessagesQueue {
     }
 }
 
-/// is account_id has prefix identically prefix of shard
-pub fn is_in_current_shard(shard_id: &ShardIdent, account_wc: i32, account_id: &AccountId) -> bool {
-    if shard_id.workchain_id() != account_wc {
-        log::debug!(target: "node", "WORKCHAIN mismatch: Node {}, Msg {}", shard_id.workchain_id(), account_wc);
-    }
-    shard_id.contains_account(account_id.clone()).unwrap()
-}

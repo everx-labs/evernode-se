@@ -40,7 +40,7 @@ use crate::data::FileBasedStorage;
 use crate::NodeResult;
 
 #[cfg(test)]
-#[path = "../../tonos-se-tests/unit/test_block_finality.rs"]
+#[path = "../../../tonos-se-tests/unit/test_block_finality.rs"]
 mod tests;
 
 /// Structure for Block finality layer
@@ -645,11 +645,6 @@ impl ShardBlock {
         self.seq_no
     }
 
-    /// get current block hash
-    pub fn root_hash(&self) -> &UInt256 {
-        &self.root_hash
-    }
-
     /// Create new instance of shard block with Block and new shard state
     pub fn with_block_and_state(block: Block, shard_state: Arc<ShardStateUnsplit>) -> Self {
         let cell = block.serialize().unwrap();
@@ -713,7 +708,7 @@ impl ShardBlock {
 // runs 10 thread to generate 5000 accounts with 1 input and two output messages per every block
 // finalizes block and return
 #[allow(dead_code)]
-pub(crate) fn generate_block_with_seq_no(
+pub fn generate_block_with_seq_no(
     shard_ident: ShardIdent,
     seq_no: u32,
     prev_info: BlkPrevInfo,

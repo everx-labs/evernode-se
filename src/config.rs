@@ -14,9 +14,12 @@
 * under the License.
 */
 
+#[cfg(test)]
 use ed25519_dalek::PublicKey;
 use serde::Deserialize;
+#[cfg(test)]
 use std::fs;
+#[cfg(test)]
 use std::path::Path;
 
 #[derive(Deserialize, Default)]
@@ -114,6 +117,7 @@ impl NodeConfig {
     }
 
     /// Import key values from list of files
+    #[cfg(test)]
     pub fn import_keys(&self) -> Result<Vec<PublicKey>, String> {
         let mut ret = Vec::new();
         for path in self.keys.iter() {

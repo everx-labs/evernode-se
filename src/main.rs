@@ -14,6 +14,7 @@
 * under the License.
 */
 
+use crate::api::{ControlApi, MessageReceiverApi};
 use crate::config::NodeConfig;
 use crate::data::ArangoHelper;
 use crate::engine::engine::TonNodeEngine;
@@ -26,12 +27,12 @@ use serde_json::Value;
 use std::{
     env, fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread,
     time::Duration,
 };
+use parking_lot::Mutex;
 use ton_executor::BlockchainConfig;
-use crate::api::{ControlApi, MessageReceiverApi};
 
 pub mod error;
 
@@ -42,7 +43,7 @@ mod data;
 mod engine;
 
 #[cfg(test)]
-#[path = "../tonos-se-tests/unit/test_node_se.rs"]
+#[path = "../../tonos-se-tests/unit/test_node_se.rs"]
 mod tests;
 
 fn main() {
@@ -181,7 +182,7 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
     TonNodeEngine::start(ton.clone())?;
     let addr = format!("{}:{}", config.node.api.address, config.node.api.port);
 
-    if let Some(router) = router.lock().unwrap().take() {
+    if let Some(router) = router.lock().take() {
         thread::spawn(move || {
             Iron::new(router).http(addr).expect("error starting api");
         });

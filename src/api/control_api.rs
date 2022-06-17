@@ -15,11 +15,12 @@
 */
 
 use crate::engine::{LiveControl, LiveControlReceiver};
+use crate::{NodeError, NodeResult};
 use iron::prelude::*;
 use iron::status;
 use router::Router;
-use std::sync::{Arc, Mutex};
-use crate::{NodeError, NodeResult};
+use std::sync::Arc;
+use parking_lot::Mutex;
 
 pub struct ControlApi {
     path: String,
@@ -61,7 +62,7 @@ impl ControlApi {
 
 impl LiveControlReceiver for ControlApi {
     fn run(&self, control: Box<dyn LiveControl>) -> NodeResult<()> {
-        if let Some(ref mut router) = *self.router.lock().unwrap() {
+        if let Some(ref mut router) = *self.router.lock() {
             router.post(
                 format!("/{}/:command", self.path),
                 move |req: &mut Request| Self::process_request(req, &control),

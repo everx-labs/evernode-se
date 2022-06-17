@@ -56,6 +56,7 @@ pub trait LiveControlReceiver: Send + Sync {
     fn run(&self, control: Box<dyn LiveControl>) -> NodeResult<()>;
 }
 
+#[cfg(test)]
 pub fn hexdump(d: &[u8]) {
     let mut str = String::new();
     for i in 0..d.len() {

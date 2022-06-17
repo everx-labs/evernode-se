@@ -33,7 +33,7 @@ use ton_types::{types::UInt256, AccountId, Cell};
 use crate::data::{FinalityStorage, ShardStateInfo};
 
 #[cfg(test)]
-#[path = "../../tonos-se-tests/unit/test_file_based_storage.rs"]
+#[path = "../../../tonos-se-tests/unit/test_file_based_storage.rs"]
 mod tests;
 
 ///
@@ -55,13 +55,6 @@ impl ShardHash {
         }
     }
 
-    /// New ShardHash
-    pub fn with_params(seq_no: u64, hash: UInt256) -> Self {
-        Self {
-            block_seq_no: seq_no,
-            shard_hash: hash,
-        }
-    }
 }
 
 impl Ord for ShardHash {

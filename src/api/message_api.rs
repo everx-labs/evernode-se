@@ -24,9 +24,10 @@ use serde_json::Value;
 use std::time::Duration;
 use std::{
     io::{Cursor, Read},
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread,
 };
+use parking_lot::Mutex;
 use ton_block::{Deserializable, Message};
 use ton_types::{SliceData, UInt256};
 
@@ -38,7 +39,7 @@ pub struct MessageReceiverApi {
 impl MessagesReceiver for MessageReceiverApi {
     fn run(&mut self, queue: Arc<InMessagesQueue>) -> NodeResult<()> {
         let path = format!("/{}", self.path);
-        if let Some(ref mut router) = *self.router.lock().unwrap() {
+        if let Some(ref mut router) = *self.router.lock() {
             router.post(
                 path,
                 move |req: &mut Request| Self::process_request(req, Arc::clone(&queue)),
