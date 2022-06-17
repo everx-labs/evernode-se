@@ -33,7 +33,7 @@ COPY . .
 
 ARG FEATURES="disable-tests"
 
-RUN dos2unix /ton-node/ton_node/build.sh && chmod +x /ton-node/ton_node/build.sh && /ton-node/ton_node/build.sh $FEATURES
+RUN dos2unix /ton-node/build.sh && chmod +x /ton-node/build.sh && /ton-node/build.sh $FEATURES
 
 ###   STAGE final-image
 FROM alpine:3.10 as final-image
@@ -45,14 +45,14 @@ RUN apk update; \
 
 # ton-node
 COPY --from=build-kit \
-    /ton-node/target/release/${BIN_TARGET} \
+    /target/release/${BIN_TARGET} \
     /node/ton-node
 COPY --from=build-kit \
-    /ton-node/config/log_cfg.yml \
-    /ton-node/config/cfg_startup \
-    /ton-node/config/key01 \
-    /ton-node/config/pub01 \
-    /ton-node/ton_node/entrypoint \
+    /config/log_cfg.yml \
+    /config/cfg_startup \
+    /config/key01 \
+    /config/pub01 \
+    /entrypoint \
     /node/
 
 WORKDIR /node

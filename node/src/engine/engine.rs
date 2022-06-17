@@ -44,7 +44,7 @@ use ton_executor::BlockchainConfig;
 use ton_types::{AccountId, HashmapType};
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
+#[path = "../../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
 mod tests;
 
 type Storage = FileBasedStorage;

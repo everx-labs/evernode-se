@@ -47,7 +47,7 @@ use crate::block::{AppendSerializedContext, BlockBuilder};
 use crate::data::{DocumentsDb, TransactionsStorage};
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_messages.rs"]
+#[path = "../../../../tonos-se-tests/unit/test_messages.rs"]
 mod tests;
 
 // TODO: I think that 'static - is a bad practice. If you know how to do it without static - please help

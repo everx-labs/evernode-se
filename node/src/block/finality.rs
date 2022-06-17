@@ -40,7 +40,7 @@ use crate::data::FileBasedStorage;
 use crate::NodeResult;
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_block_finality.rs"]
+#[path = "../../../../tonos-se-tests/unit/test_block_finality.rs"]
 mod tests;
 
 /// Structure for Block finality layer

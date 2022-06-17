@@ -27,7 +27,7 @@ use ton_types::HashmapType;
 use ton_types::Result;
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_block_builder.rs"]
+#[path = "../../../../tonos-se-tests/unit/test_block_builder.rs"]
 mod tests;
 
 #[derive(Debug)]

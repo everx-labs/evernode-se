@@ -33,7 +33,7 @@ use ton_types::{types::UInt256, AccountId, Cell};
 use crate::data::{FinalityStorage, ShardStateInfo};
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_file_based_storage.rs"]
+#[path = "../../../../tonos-se-tests/unit/test_file_based_storage.rs"]
 mod tests;
 
 ///

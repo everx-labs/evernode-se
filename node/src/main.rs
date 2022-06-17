@@ -43,7 +43,7 @@ mod data;
 mod engine;
 
 #[cfg(test)]
-#[path = "../../tonos-se-tests/unit/test_node_se.rs"]
+#[path = "../../../tonos-se-tests/unit/test_node_se.rs"]
 mod tests;
 
 fn main() {

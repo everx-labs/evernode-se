@@ -32,4 +32,4 @@ docker/.DS_Store
 readme.html
 /dev/node_modules/
 /dev/package-lock.json
-/target/
+/node/target/
