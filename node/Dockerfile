@@ -45,14 +45,14 @@ RUN apk update; \
 
 # ton-node
 COPY --from=build-kit \
-    /target/release/${BIN_TARGET} \
+    /ton-node/target/release/${BIN_TARGET} \
     /node/ton-node
 COPY --from=build-kit \
-    /config/log_cfg.yml \
-    /config/cfg_startup \
-    /config/key01 \
-    /config/pub01 \
-    /entrypoint \
+    /ton-node/config/log_cfg.yml \
+    /ton-node/config/cfg_startup \
+    /ton-node/config/key01 \
+    /ton-node/config/pub01 \
+    /ton-node/entrypoint \
     /node/
 
 WORKDIR /node

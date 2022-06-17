@@ -10,9 +10,16 @@ const path = require("path");
 const fetch = require("node-fetch");
 
 TonClient.useBinaryLibrary(libNode);
+
+const graphQlEndpoint = "http://localhost:3001";
+const seEndpoint = "http://localhost:3000/se";
+
+// const graphQlEndpoint = "http://localhost";
+// const seEndpoint = "http://localhost/se";
+
 const evr = new TonClient({
     network: {
-        endpoints: ["http://localhost:3001"],
+        endpoints: [graphQlEndpoint],
     },
 });
 
@@ -47,7 +54,7 @@ async function queryLastBlock() {
 let timeDeltaSeconds = 0;
 
 async function seControl(command) {
-    await fetch(`http://localhost:3000/se/${command}`, {
+    await fetch(`${seEndpoint}/${command}`, {
         method: "POST",
     });
 }
