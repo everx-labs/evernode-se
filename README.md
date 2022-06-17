@@ -7,21 +7,23 @@ Ever OS Local Node for Everscale DApp development and testing.
 [![Channel on Telegram](https://img.shields.io/badge/chat-on%20telegram-9cf.svg)](https://t.me/ever_sdk)
 
 - [Evernode Startup Edition (SE)](#evernode-startup-edition-se)
-    - [What is Evernode Startup Edition?](#what-is-evernode-startup-edition)
-    - [Use-cases](#use-cases)
-    - [How to install](#how-to-install)
-        - [Pre-requisites](#pre-requisites)
-        - [Instal via EVERDEV Development Environment](#instal-via-everdev-development-environment)
-        - [Install via docker command](#install-via-docker-command)
-    - [How to change the blockchain configuration](#how-to-change-the-blockchain-configuration)
-    - [How to work with logs](#how-to-work-with-logs)
-    - [How to connect to Evernode SE Graphql API from SDK](#how-to-connect-to-evernode-se-graphql-api-from-sdk)
-    - [Evernode SE components](#evernode-se-components)
-    - [TON Live explorer](#ton-live-explorer)
-    - [How to build docker image locally](#how-to-build-docker-image-locally)
-        - [Linux/Mac:](#linuxmac)
-        - [Windows:](#windows)
-****
+  - [What is Evernode Startup Edition?](#what-is-evernode-startup-edition)
+  - [Use-cases](#use-cases)
+  - [How to install](#how-to-install)
+    - [Pre-requisites](#pre-requisites)
+    - [Install via EVERDEV Development Environment](#install-via-everdev-development-environment)
+    - [Install via docker command](#install-via-docker-command)
+  - [How to change the blockchain configuration](#how-to-change-the-blockchain-configuration)
+  - [How to work with logs](#how-to-work-with-logs)
+  - [How to connect to Evernode SE Graphql API from SDK](#how-to-connect-to-evernode-se-graphql-api-from-sdk)
+  - [Evernode SE components](#evernode-se-components)
+  - [TON Live explorer](#ton-live-explorer)
+  - [How to build docker image locally](#how-to-build-docker-image-locally)
+    - [Linux/Mac:](#linuxmac)
+    - [Windows:](#windows)
+- [SE live control (REST API)](#se-live-control-rest-api)
+- [Note for SE Developers](#note-for-se-developers)
+
 ## What is Evernode Startup Edition?
 
 Evernode Startup Edition (SE) is a local instance of Ever OS that developer can run on their machine
@@ -196,7 +198,7 @@ To build docker image, run from the repository root:
 build.cmd
 ```
 
-# SE live control
+# SE live control (REST API)
 
 Evernode SE has special REST endpoint `/se` that allows to perform *live* control over
 running Evernode SE instance.
