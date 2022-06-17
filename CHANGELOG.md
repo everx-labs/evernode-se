@@ -6,8 +6,8 @@ All notable changes to this project will be documented in this file.
 ### New
 
 - `log_path` config field. 
-- `/se` REST endpoint for SE realtime control. See (README.md)[README.md] for details.  
-- `/se/increase-time?delta=<seconds>` feature to move time forward. See (README.md)[README.md]
+- `/se` REST endpoint for SE realtime control. See [README.md](README.md#se-live-control-rest-api).
+- `/se/increase-time?delta=<seconds>` feature to move time forward. See [README.md](README.md#se-live-control-rest-api)
 - PoA consensus was removed from source code.
 - Source code drastically simplified and reorganised.
 
