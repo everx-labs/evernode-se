@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 
 - `log_path` config field. 
 - `/se` REST endpoint for se realtime control. See `README.md` for details.  
+- PoA consensus was removed from source code.
+- Source code drastically simplified and reorganised.
 
 ## 0.30.2 May 3, 2022
 ### New
