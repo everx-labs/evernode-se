@@ -25,7 +25,7 @@ root:
     - logfile
 
 loggers:
-  # TON Node messages
+  # Node messages
   node:
     level: debug
     appenders:

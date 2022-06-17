@@ -1,4 +1,4 @@
-# Evernode Startup Edition (SE)
+# Evernode Simple Emulator (SE)
 
 Ever OS Local Node for Everscale DApp development and testing.
 
@@ -6,8 +6,8 @@ Ever OS Local Node for Everscale DApp development and testing.
 
 [![Channel on Telegram](https://img.shields.io/badge/chat-on%20telegram-9cf.svg)](https://t.me/ever_sdk)
 
-- [Evernode Startup Edition (SE)](#evernode-startup-edition-se)
-  - [What is Evernode Startup Edition?](#what-is-evernode-startup-edition)
+- [Evernode Simple Emulator (SE)](#evernode-simple-emulator-se)
+  - [What is Evernode Simple Emulator?](#what-is-evernode-simple-emulator)
   - [Use-cases](#use-cases)
   - [How to install](#how-to-install)
     - [Pre-requisites](#pre-requisites)
@@ -17,17 +17,16 @@ Ever OS Local Node for Everscale DApp development and testing.
   - [How to work with logs](#how-to-work-with-logs)
   - [How to connect to Evernode SE Graphql API from SDK](#how-to-connect-to-evernode-se-graphql-api-from-sdk)
   - [Evernode SE components](#evernode-se-components)
-  - [TON Live explorer](#ton-live-explorer)
+  - [Ever Live explorer](#ever-live-explorer)
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
 - [SE live control (REST API)](#se-live-control-rest-api)
 - [Note for SE Developers](#note-for-se-developers)
 
-## What is Evernode Startup Edition?
+## What is Evernode Simple Emulator?
 
-Evernode Startup Edition (SE) is a local instance of Ever OS that developer can run on their machine
-in one click.
+Evernode Simple Emulator (SE) is a local instance of Evernode Platform that developer can run on their machine in one click to test applications locally. 
 
 At the moment we publish Evernode SE only as
 a [docker image](https://hub.docker.com/r/tonlabs/local-node).
@@ -37,8 +36,7 @@ But you can access non-docker builds of SE in community repos:
 
 - Test your applications locally
 - Test your contracts
-- Run SE remotely on a server and test your application on a light local network from different
-  devices.
+- Run SE remotely on a server and test your application on a light local network from different devices.
 
 ## How to install
 
@@ -170,20 +168,20 @@ application [specify localhost in SDK Client network config](https://docs.ton.de
 
 ## Evernode SE components
 
-* [TON Labs implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
+* [EverX implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
 * [ArangoDB database](https://www.arangodb.com/)
 * [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
-* [TON-live explorer](https://ton.live)
+* [Ever-live explorer](https://ton.live)
 * [Pre-deployed high-performance Giver, ABI v2](contracts)
 
-## TON Live explorer
+## Ever Live explorer
 
-TON Live explorer runs on the same IP and port as Evernode SE, just open http://ip_address:port (
+Ever Live explorer runs on the same IP and port as Evernode SE, just open http://ip_address:port (
 e.g. http://127.0.0.1)
 
 ## How to build docker image locally
 
-In order to build and use Evernode Startup Edition you need Docker.
+In order to build and use Evernode Simple Emulator you need Docker.
 To build docker image, run from the repository root:
 
 ### Linux/Mac:
