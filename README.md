@@ -118,9 +118,10 @@ By default, there are two files: `ton-node.log` for all logging and `tvm.log` fo
 execution:
 code, stack, control registers, gas, etc.
 
-Logging configuration is stored in `/ton-node/log_cfg.yml` file. In order to change the default
-logging verbosity of
-other parameters, you can configure logging in several ways:
+Logging configuration is stored in `/ton-node/log_cfg.yml` file by default,
+but you can change this path with ton-node-config file in `log_path` field.
+In order to change the default logging verbosity of other parameters, 
+you can configure logging in several ways:
 
 1. In the running container by changing `/ton-node/log_cfg.yml` file:
 
