@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - `/se/increase-time?delta=<seconds>` feature to move time forward. See [README.md](README.md#se-live-control-rest-api)
 - PoA consensus was removed from source code.
 - Source code drastically simplified and reorganised.
+- Randomization added for block generation
 
 ## 0.30.2 May 3, 2022
 ### New
