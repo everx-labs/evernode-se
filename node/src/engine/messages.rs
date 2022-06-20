@@ -153,8 +153,9 @@ where
                 block_unixtime: block_at,
                 block_lt,
                 last_tr_lt: Arc::clone(&lt),
+                seed_block: UInt256::rand(), // we don't need strict randomization like real node
                 debug,
-                ..ExecuteParams::default()
+                ..Default::default()
             },
         );
         match result {
