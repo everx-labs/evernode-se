@@ -15,25 +15,19 @@
 */
 
 use super::error::NodeResult;
-use parking_lot::Mutex;
 use std::clone::Clone;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::convert::From;
 use std::sync::Arc;
 use ton_block::{
     Account, Block, CurrencyCollection, GetRepresentationHash, Serializable, ShardIdent,
     Transaction,
 };
-use ton_types::{AccountId, Cell, UInt256};
+use ton_types::{Cell, UInt256};
 
 pub mod messages;
 pub use self::messages::*;
 pub mod engine;
-
-lazy_static::lazy_static! {
-    static ref ACCOUNTS: Mutex<Vec<AccountId>> = Mutex::new(vec![]);
-    static ref SUPER_ACCOUNT_ID: AccountId = AccountId::from([0; 32]);
-}
 
 const GIVER_BALANCE: u128 = 5_000_000_000_000_000_000;
 const MULTISIG_BALANCE: u128 = 1_000_000_000_000_000;

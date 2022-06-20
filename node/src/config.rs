@@ -23,17 +23,6 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Deserialize, Default)]
-pub struct KafkaConfig {
-    pub brokers: String,
-    pub group_id: String,
-    pub input_topic: String,
-    pub output_blocks_topic: String,
-    pub output_msgs_topic: String,
-    pub output_trans_topic: String,
-    pub output_accounts_topic: String,
-}
-
-#[derive(Deserialize, Default)]
 pub struct ShardIdConfig {
     pub workchain: i32,
     pub shardchain_pfx: u64,

@@ -8,17 +8,13 @@ version = '0.30.3'
 # External
 anyhow = '1.0'
 base64 = '0.13'
-bytes = '1.1'
 clap = '3.1'
-curve25519-dalek = '3.2'
 ed25519-dalek = '1.0'
 failure = '0.1'
-futures = '0.3'
 hex = '0.4'
 http = '0.1'
 iron = '0.6'
 jsonrpc-http-server = '10.0.1'
-lazy_static = '1.4'
 log = '0.4'
 log4rs = '1.1'
 num = '0.4'
@@ -30,32 +26,12 @@ router = '0.6.0'
 serde = '1.0'
 serde_derive = '1.0'
 serde_json = { features = [ 'preserve_order' ], version = '1.0' }
-stream-cancel = '0.8'
 thiserror = '1.0'
-threadpool = '1.7.1'
-tokio = '1.18'
-tokio-io-timeout = '1.2'
-x25519-dalek = '1.2'
 
 # Domestic
 ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.51' }
 ton_block_json = { git = 'https://github.com/tonlabs/ton-labs-block-json.git', tag = '0.7.18' }
 ton_executor = { git = 'https://github.com/tonlabs/ton-labs-executor', tag = '1.15.72' }
-ton_labs_assembler = { git = 'https://github.com/tonlabs/ton-labs-assembler.git', tag = '1.2.42' }
 ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.11.2' }
 ton_vm = { git = 'https://github.com/tonlabs/ton-labs-vm', tag = '1.8.38' }
 
-[target.'cfg(windows)'.dependencies.rdkafka]
-version = '0.26.0'
-features = [ 'cmake_build' ]
-
-[target.'cfg(unix)'.dependencies.rdkafka]
-version = '0.26.0'
-
-[dev-dependencies]
-pretty_assertions = '1.2'
-
-[features]
-ci_run = [  ]
-log_file = [  ]
-verbose = [  ]

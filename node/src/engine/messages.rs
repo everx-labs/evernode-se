@@ -30,7 +30,6 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant};
 use std::{cmp::Ordering, collections::HashSet};
-use threadpool::ThreadPool;
 use ton_block::{
     AddSub, BlkPrevInfo, ComputeSkipReason, Deserializable, Grams, HashUpdate, InMsg, Message,
     MsgEnvelope, OutMsg, OutMsgQueueKey, ShardAccount, ShardStateUnsplit, TrComputePhase,
@@ -59,7 +58,6 @@ where
     queue: Arc<InMessagesQueue>,
     shard_id: ShardIdent,
     blockchain_config: BlockchainConfig,
-    executors: Arc<Mutex<HashMap<AccountId, Arc<Mutex<OrdinaryTransactionExecutor>>>>>,
 }
 
 impl<T> MessagesProcessor<T>
@@ -80,7 +78,6 @@ where
             queue,
             shard_id,
             blockchain_config,
-            executors: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -89,7 +86,7 @@ where
         shard: &ShardIdent,
         queue: Arc<InMessagesQueue>,
         transaction: Arc<Transaction>,
-        shard_state_new: Arc<Mutex<ShardStateUnsplit>>,
+        shard_state_new: &mut ShardStateUnsplit,
     ) -> NodeResult<()> {
         let queue = &mut queue.clone();
         transaction.iterate_out_msgs(|msg| {
@@ -118,7 +115,6 @@ where
                         10u64.into(), // TODO need understand where take fee value
                     )?;
                     let address = OutMsgQueueKey::first_u64(transaction.account_id());
-                    let mut shard_state_new = shard_state_new.lock();
                     let mut out_msg_queue_info = shard_state_new.read_out_msg_queue_info()?;
                     out_msg_queue_info.out_queue_mut().insert(
                         shard.workchain_id(),
@@ -204,39 +200,31 @@ where
         }
     }
 
-    fn execute_thread(
+    fn execute(
         blockchain_config: BlockchainConfig,
         shard_id: &ShardIdent,
         queue: Arc<InMessagesQueue>,
         tr_storage: Arc<T>,
-        executors: Arc<Mutex<HashMap<AccountId, Arc<Mutex<OrdinaryTransactionExecutor>>>>>,
         msg: QueuedMessage,
         builder: Arc<BlockBuilder>,
         acc_id: &AccountId,
-        new_shard_state: Arc<Mutex<ShardStateUnsplit>>,
+        new_shard_state: &mut ShardStateUnsplit,
         debug: bool,
     ) -> NodeResult<()> {
         let shard_acc = new_shard_state
-            .lock()
             .read_accounts()?
             .account(acc_id)?
             .unwrap_or_default();
         let mut acc_root = shard_acc.account_cell();
         // TODO it is possible to make account immutable,
         // because in executor it is cloned for MerkleUpdate creation
-        if !executors.lock().contains_key(acc_id) {
-            let e = OrdinaryTransactionExecutor::new(blockchain_config);
-            executors
-                .lock()
-                .insert(acc_id.clone(), Arc::new(Mutex::new(e)));
-        }
+        let executor = OrdinaryTransactionExecutor::new(blockchain_config);
 
         log::debug!("Executing message {:x}", msg.message_hash());
         let now = Instant::now();
-        let executor = executors.lock().get(acc_id).unwrap().clone();
         let (mut transaction, max_lt) = Self::try_prepare_transaction(
             &builder,
-            &executor.lock(),
+            &executor,
             &mut acc_root,
             msg.message(),
             shard_acc.last_trans_lt(),
@@ -260,13 +248,11 @@ where
             let shard_acc =
                 ShardAccount::with_params(&acc, transaction.hash()?, transaction.logical_time())?;
             new_shard_state
-                .lock()
                 .insert_account(&UInt256::from_slice(&acc_id.get_bytestring(0)), &shard_acc)?;
         } else {
-            let mut shard_state = new_shard_state.lock();
-            let mut accounts = shard_state.read_accounts()?;
+            let mut accounts = new_shard_state.read_accounts()?;
             accounts.remove(acc_id.clone())?;
-            shard_state.write_accounts(&accounts)?;
+            new_shard_state.write_accounts(&accounts)?;
         }
 
         // loop-back for messages to current-shardchain
@@ -274,7 +260,7 @@ where
             shard_id,
             queue.clone(),
             transaction.clone(),
-            new_shard_state.clone(),
+            new_shard_state,
         )?;
 
         if let Ok(Some(tr)) = tr_storage.find_by_lt(transaction.logical_time(), &acc_id) {
@@ -342,9 +328,8 @@ where
         log::debug!("GENBLKMUL");
         let now = Instant::now();
         let start_time = Instant::now();
-        let pool = ThreadPool::new(16);
 
-        let new_shard_state = Arc::new(Mutex::new(shard_state.clone()));
+        let mut new_shard_state = shard_state.clone();
 
         let builder = Arc::new(BlockBuilder::with_shard_ident(
             self.shard_id.clone(),
@@ -363,49 +348,36 @@ where
 
                 // lock account in queue
                 self.queue.lock_account(acc_id.clone());
-                let shard_id = self.shard_id.clone();
                 let queue = self.queue.clone();
                 let storage = self.tr_storage.clone();
-                let executors = self.executors.clone();
-                let builder = builder.clone();
-                let shard_state = new_shard_state.clone();
                 let blockchain_config = self.blockchain_config.clone();
-                let th = move || {
-                    let res = Self::execute_thread(
-                        blockchain_config,
-                        &shard_id,
-                        queue.clone(),
-                        storage,
-                        executors,
-                        msg,
-                        builder,
-                        &acc_id,
-                        shard_state,
-                        debug,
-                    );
-                    queue.unlock_account(&acc_id);
-                    if !res.is_ok() {
-                        log::warn!(target: "node", "Executor execute failed. {}", res.unwrap_err());
-                    }
-                };
-
-                pool.execute(th);
-
+                let res = Self::execute(
+                    blockchain_config,
+                    &self.shard_id,
+                    queue.clone(),
+                    storage,
+                    msg,
+                    builder.clone(),
+                    &acc_id,
+                    &mut new_shard_state,
+                    debug,
+                );
+                queue.unlock_account(&acc_id);
+                if let Err(err) = res {
+                    log::warn!(target: "node", "Executor execute failed. {}", err);
+                }
                 is_empty = false;
             } else {
-                thread::sleep(Duration::from_nanos(100));
+                thread::sleep(Duration::from_millis(100));
             }
         }
 
         if !is_empty {
-            pool.join();
             let time0 = now.elapsed().as_micros();
 
             log::info!(target: "node", "in messages queue len={}", self.queue.len());
-            self.executors.lock().clear();
             self.queue.locks_clear();
 
-            let new_shard_state = std::mem::take(&mut *new_shard_state.lock());
             let block = builder.finalize_block(shard_state, &new_shard_state)?;
             log::info!(target: "profiler",
                 "Block time: non-final/final {} / {} micros",

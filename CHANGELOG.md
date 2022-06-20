@@ -11,6 +11,9 @@ All notable changes to this project will be documented in this file.
 - PoA consensus was removed from source code.
 - Source code drastically simplified and reorganised.
 - Randomization added for block generation
+- Extra thread creation was removed
+- Tokio crate dependencies were removed
+- Extra crate dependencies were removed
 
 ## 0.30.2 May 3, 2022
 ### New
