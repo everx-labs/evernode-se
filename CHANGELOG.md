@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
 - Tokio crate dependencies were removed
 - Extra crate dependencies were removed
 
+### Fixed
+
+- tvm.random() now generates random values 
+
 ## 0.30.2 May 3, 2022
 ### New
 - Build with new version q-server 0.51.0
