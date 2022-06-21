@@ -1,6 +1,24 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.31.0 Jun 20, 2022
+
+### New
+
+- `log_path` config field for configuring node log file location. 
+- `/se` REST endpoint for SE realtime control. See [README.md](README.md#se-live-control-rest-api).
+- `/se/increase-time?delta=<seconds>` feature to move time forward. See [README.md](README.md#se-live-control-rest-api)
+- PoA consensus was removed from source code.
+- Source code drastically simplified and reorganised.
+- Randomization added for block generation
+- Extra thread creation was removed
+- Tokio crate dependencies were removed
+- Extra crate dependencies were removed
+
+### Fixed
+
+- tvm.random() now generates random values 
+
 ## 0.30.2 May 3, 2022
 ### New
 - Build with new version q-server 0.51.0

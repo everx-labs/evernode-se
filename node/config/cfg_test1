@@ -1,0 +1,52 @@
+{
+    "node_index": 1,
+    "port": 40302,
+    "poa_validators": 7,
+    "poa_interval": 2,
+    "private_key": "config/key02",
+    "keys": [
+        "config/pub01",
+        "config/pub02",
+        "config/pub03",
+        "config/pub04",
+        "config/pub05",
+        "config/pub06",
+        "config/pub07"
+    ],
+    "boot": [
+        "enode://9ab24e4903a069e8f047263fe2dae76c4d903638c7c7fe3706a7f0e765f4e9e1d1600336958def545120528c0ff8717d4aba4a322646a732bfa9d9335223ab81@127.0.0.1:40301",
+        "enode://f846c4a940ba9163939e9102f3d1ef2fa83cf3816a717cae504ffcba86eeefd69ce2153d5f66caee243408ebfa1c36e39a25c9298287332178928d010271d8e9@127.0.0.1:40302",
+        "enode://aeb959ea5e311deddfbc1318b7e56a02f973e16976dcd0ed483b1e8da945a843bae683f1c804159213593458e7fc2ac9d227c335feb9702a9b37ea775ee844b3@127.0.0.1:40303",
+        "enode://125696bf09de72b281364ff1c57dd9bce21af7e609fd93a2fd510465d85ee5ea7aaacc6c537d0aa21843aa1927d1cce474f636cad5f7046a68b27cc47e5674af@127.0.0.1:40304",
+        "enode://dd9c0ca2b545c471103948cb5894e7d57d28c9258d82d2e1dea542583e50454ae2d89241577e40a31ce562919474b5469932690f2d5da9f07b841057bb4a8c77@127.0.0.1:40305",
+        "enode://8475de8f2734e495e08462c02fbfcac043e2842cae83992ee1514e2d294b2e914d7a370d29be85359e31e52b4099ed00bce73ded9275b6fd872ecca3453e8fc1@127.0.0.1:40306",
+        "enode://a3202eb64cf28f07aea246006794ae87e6edfc902379854a44811e4f0fb1d9e6d634c61b58c0b3b2c4793fcdc27a7505f2685d29a972ef83d3109182790588f7@127.0.0.1:40307"
+    ],
+    "shard_id": {
+        "workchain": -1,
+        "shardchain_pfx": 0,
+        "shardchain_pfx_len": 0
+    }, 
+    "adnl": {
+        "address": "127.0.0.1:4925", 
+        "keys": [
+            {
+                "type_id": -1977122418,
+                "pub_key": "BBKmgGAxz4ZofRgMO2qhYt+K1bGlGeowukPONVAkOcU=",
+                "pvt_key": "3CFeiTSlGkJf3D8w3ZXS4QS+6/0p+MFZGuv0XYMvMRo="
+            }
+        ]
+    },
+    "kafka_msg_recv": {
+        "brokers": "builder.tonlabs.io:9092",
+        "group_id": "101",
+        "input_topic": "requests-ilya"
+    },
+    "document_db": {
+        "brokers": "builder.tonlabs.io:9092",
+        "blocks_topic": "blocks-test",
+        "messages_topic": "messages-test",
+        "transactions_topic": "transaction-test",
+        "accounts_topic": "accounts-test"
+    }
+}

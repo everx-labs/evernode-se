@@ -16,7 +16,7 @@ docker build \
     --build-arg BIN_TARGET="$BIN_TARGET" \
     --build-arg FEATURES="${1:-disable-tests}" \
     --tag $TON_NODE \
-    ./ton-node-se
+    ./node
 
 echo
 echo "*** Building TONOS SE image ***"

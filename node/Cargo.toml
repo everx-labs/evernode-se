@@ -1,0 +1,37 @@
+[package]
+edition = '2021'
+build = 'build.rs'
+name = 'ton_node_startup'
+version = '0.31.0'
+
+[dependencies]
+# External
+anyhow = '1.0'
+base64 = '0.13'
+clap = '3.1'
+ed25519-dalek = '1.0'
+failure = '0.1'
+hex = '0.4'
+http = '0.1'
+iron = '0.6'
+jsonrpc-http-server = '10.0.1'
+log = '0.4'
+log4rs = '1.1'
+num = '0.4'
+num-traits = '0.2'
+parking_lot = '0.12'
+rand = '0.8'
+reqwest = '0.9.7'
+router = '0.6.0'
+serde = '1.0'
+serde_derive = '1.0'
+serde_json = { features = [ 'preserve_order' ], version = '1.0' }
+thiserror = '1.0'
+
+# Domestic
+ton_block = { git = 'https://github.com/tonlabs/ton-labs-block', tag = '1.7.51' }
+ton_block_json = { git = 'https://github.com/tonlabs/ton-labs-block-json.git', tag = '0.7.18' }
+ton_executor = { git = 'https://github.com/tonlabs/ton-labs-executor', tag = '1.15.72' }
+ton_types = { git = 'https://github.com/tonlabs/ton-labs-types', tag = '1.11.2' }
+ton_vm = { git = 'https://github.com/tonlabs/ton-labs-vm', tag = '1.8.38' }
+

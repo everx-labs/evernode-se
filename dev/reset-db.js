@@ -1,3 +1,15 @@
+const { Database } = require("arangojs");
+
+const config = {
+    url: "http://localhost:8529",
+    auth: {
+        username: "root",
+        password: "",
+    },
+};
+
+const DB_NAME = "blockchain";
+
 const COLLECTIONS = {
     blocks: {
         indexes: [
@@ -93,42 +105,61 @@ const COLLECTIONS = {
     },
 };
 
-function checkBlockchainDb() {
-    db._useDatabase("_system");
-    if (db._databases().find(x => x.toLowerCase() === "blockchain")) {
-        console.log("Database blockchain already exist.");
+async function checkBlockchainDb() {
+    const db = new Database({
+        ...config,
+        databaseName: "_system",
+    });
+    if ((await db.databases()).find(x => x.name.toLowerCase() === DB_NAME)) {
+        console.log(`Database ${DB_NAME} already exist.`);
         return;
     }
-    console.log("Database blockchain does not exist. Created.");
-    db._createDatabase("blockchain", {}, []);
+    console.log(`Database ${DB_NAME} does not exist. Created.`);
+    await db.createDatabase(DB_NAME, {}, []);
+    db.close();
 }
 
 
-function checkCollection(name, props) {
-    db._useDatabase("blockchain");
-    let collection = db._collection(name);
-    if (!collection) {
-        console.log(`Collection ${name} does not exist. Created.`);
-        collection = db._create(name);
-    } else {
-        console.log(`Collection ${name} already exist.`);
-    }
-    props.indexes.forEach((index) => {
-        console.log(`Ensure index ${index}`);
-        collection.ensureIndex({
-            type: "persistent",
-            fields: index.split(",").map(x => x.trim()),
+async function checkCollection(name, props) {
+    try {
+        const db = new Database({
+            ...config,
+            databaseName: DB_NAME,
         });
-    });
 
+        let collection = db.collection(name);
+        if (!(await collection.exists())) {
+            console.log(`Collection ${name} does not exist. Created.`);
+            collection = await db.createCollection(name);
+        } else {
+            console.log(`Collection ${name} already exist.`);
+        }
+        for (const index of props.indexes) {
+            console.log(`Ensure index ${index}`);
+            await collection.ensureIndex({
+                type: "persistent",
+                fields: index.split(",").map(x => x.trim()),
+            });
+        }
+        await collection.truncate();
+        db.close();
+    } catch (err) {
+        throw Error(`Collection ${name} failed: ${err}`);
+    }
 }
 
-function checkCollections(collections) {
-    Object.entries(collections).forEach(([name, collection]) => checkCollection(name, collection));
+async function checkCollections(collections) {
+    for (const [name, collection] of Object.entries(collections)) {
+        await checkCollection(name, collection);
+    }
 }
 
-checkBlockchainDb();
-
-checkCollections(COLLECTIONS);
-
-
+(async () => {
+    try {
+        await checkBlockchainDb();
+        await checkCollections(COLLECTIONS);
+    } catch (err) {
+        console.error(err);
+        process.exit(1);
+    }
+})();

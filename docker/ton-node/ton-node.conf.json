@@ -21,11 +21,12 @@
             }
         ]
     },
-    "kafka_msg_recv": {
-        "input_topic": "requests",
+	"api": {
+		"messages": "topics/requests",
+		"live_control": "se",
         "address": "127.0.0.1",
         "port": 3000
-    },
+	},
     "document_db": {
         "server": "127.0.0.1:8529",
         "database": "blockchain",
