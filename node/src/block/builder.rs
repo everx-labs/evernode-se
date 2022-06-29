@@ -14,385 +14,376 @@
 * under the License.
 */
 
-use parking_lot::{Condvar, Mutex};
-use std::mem;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
 use std::thread;
+use std::ops::Deref;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use ton_block::*;
-use ton_types::Cell;
-#[cfg(test)]
-use ton_types::HashmapType;
-use ton_types::Result;
+use ton_executor::*;
+use ton_types::*;
+
+use crate::engine::{QueuedMessage, InMessagesQueue};
+use crate::error::NodeResult;
 
 #[cfg(test)]
 #[path = "../../../../tonos-se-tests/unit/test_block_builder.rs"]
 mod tests;
 
-#[derive(Debug)]
-pub struct AppendSerializedContext {
-    pub in_msg: Cell,
-    pub out_msgs: Vec<(Cell, CurrencyCollection)>,
-    pub transaction: Arc<Transaction>,
-    pub transaction_cell: Cell,
-    pub max_lt: u64,
-    pub imported_value: Option<CurrencyCollection>,
-    pub exported_value: CurrencyCollection,
-    pub imported_fees: ImportFees,
-    pub exported_fees: Grams,
-}
-
-#[derive(Debug)]
-enum BuilderIn {
-    Append {
-        in_msg: Arc<InMsg>,
-        out_msgs: Vec<OutMsg>,
-    },
-    AppendSerialized {
-        value: AppendSerializedContext,
-    },
-}
-
-///
-/// Data for constructing block
-///
-struct BlockData {
-    block_info: BlockInfo,
-    block_extra: BlockExtra,
-    value_flow: ValueFlow,
-    end_lt: u64, // biggest logical time of all messages
-    p1: Duration,
-    p2: Duration,
-    p3: Duration,
-}
-
-impl BlockData {
-    fn insert_serialized_in_msg(&mut self, msg_cell: &Cell, fees: &ImportFees) -> Result<()> {
-        let mut in_msg_descr = self.block_extra.read_in_msg_descr()?;
-        in_msg_descr.insert_serialized(
-            &msg_cell.repr_hash().serialize()?.into(),
-            &msg_cell.into(),
-            fees,
-        )?;
-        self.block_extra.write_in_msg_descr(&in_msg_descr)
-    }
-
-    fn insert_serialized_out_msg(
-        &mut self,
-        msg_cell: &Cell,
-        exported: &CurrencyCollection,
-    ) -> Result<()> {
-        let mut out_msg_descr = self.block_extra.read_out_msg_descr()?;
-        out_msg_descr.insert_serialized(
-            &msg_cell.repr_hash().serialize()?.into(),
-            &msg_cell.into(),
-            exported,
-        )?;
-        self.block_extra.write_out_msg_descr(&out_msg_descr)
-    }
-}
-
 ///
 /// BlockBuilder structure
 ///
+#[derive(Default)]
 pub struct BlockBuilder {
-    sender: Mutex<Option<Sender<BuilderIn>>>,
-    current_block_data: Arc<Mutex<BlockData>>,
-    stop_event: Arc<Condvar>,
-    block_gen_utime: UnixTime32,
-    start_lt: u64,
-}
+    shard_state: Arc<ShardStateUnsplit>,
+    accounts: ShardAccounts,
+    block_info: BlockInfo,
+    rand_seed: UInt256,
+    new_messages: Vec<(Message, Cell)>, // TODO: BinaryHeap, Cell
+    from_prev_blk: CurrencyCollection,
+    in_msg_descr: InMsgDescr,
+    out_msg_descr: OutMsgDescr,
+    out_queue_info: OutMsgQueueInfo,
 
-impl Default for BlockBuilder {
-    fn default() -> Self {
-        BlockBuilder::with_params(1, BlkPrevInfo::default(), 0, None)
-    }
+    account_blocks: ShardAccountBlocks,
+    total_gas_used: u64,
+    start_lt: u64,
+    end_lt: u64, // biggest logical time of all messages
 }
 
 impl BlockBuilder {
     ///
-    /// Initialize BlockBuilder
-    ///
-    pub fn with_params(
-        seq_no: u32,
-        prev_ref: BlkPrevInfo,
-        vert_sec_no: u32,
-        prev_vert_ref: Option<BlkPrevInfo>,
-    ) -> Self {
-        let end_lt = prev_ref.prev1().unwrap().end_lt;
-        let mut block_info = BlockInfo::default();
-        block_info.set_seq_no(seq_no).unwrap();
-        block_info.set_prev_stuff(false, &prev_ref).unwrap();
-        block_info
-            .set_vertical_stuff(0, vert_sec_no, prev_vert_ref)
-            .unwrap();
-        block_info.set_gen_utime(UnixTime32::now());
-        block_info.set_start_lt(end_lt + 1);
-
-        Self::init_with_block_info(block_info)
-    }
-
-    ///
     /// Initialize BlockBuilder with shard identifier
     ///
-    pub fn with_shard_ident(
-        shard_ident: ShardIdent,
+    pub fn with_params(
+        shard_state: Arc<ShardStateUnsplit>,
         seq_no: u32,
         prev_ref: BlkPrevInfo,
-        vert_sec_no: u32,
-        prev_vert_ref: Option<BlkPrevInfo>,
         block_at: u32,
-    ) -> Self {
-        let end_lt = prev_ref.prev1().unwrap().end_lt;
+    ) -> Result<Self> {
+        let accounts = shard_state.read_accounts()?;
+        let out_queue_info = shard_state.read_out_msg_queue_info()?;
+
+        let start_lt = prev_ref.prev1().map_or(0, |p| p.end_lt) + 1;
+        let rand_seed = UInt256::rand(); // we don't need strict randomization like real node
+
         let mut block_info = BlockInfo::default();
-        block_info.set_shard(shard_ident);
+        block_info.set_shard(shard_state.shard().clone());
         block_info.set_seq_no(seq_no).unwrap();
         block_info.set_prev_stuff(false, &prev_ref).unwrap();
-        block_info
-            .set_vertical_stuff(0, vert_sec_no, prev_vert_ref)
-            .unwrap();
         block_info.set_gen_utime(UnixTime32::new(block_at));
-        block_info.set_start_lt(end_lt + 1);
+        block_info.set_start_lt(start_lt);
 
-        Self::init_with_block_info(block_info)
-    }
-
-    fn init_with_block_info(block_info: BlockInfo) -> Self {
-        // channel for inbound messages
-        let (sender, receiver) = channel::<BuilderIn>();
-
-        let block_gen_utime = block_info.gen_utime().clone();
-        let start_lt = block_info.start_lt();
-
-        let stop_event = Arc::new(Condvar::new());
-        let current_block_data = Arc::new(Mutex::new(BlockData {
+        Ok(BlockBuilder {
+            shard_state,
+            out_queue_info,
+            from_prev_blk: accounts.full_balance().clone(),
+            accounts,
             block_info,
-            block_extra: BlockExtra::default(),
-            value_flow: ValueFlow::default(),
-            end_lt: 0,
-            p1: Duration::new(0, 0),
-            p2: Duration::new(0, 0),
-            p3: Duration::new(0, 0),
-        }));
-
-        let block = BlockBuilder {
-            sender: Mutex::new(Some(sender)),
-            stop_event: stop_event.clone(),
-            current_block_data: current_block_data.clone(),
-            block_gen_utime,
+            rand_seed,
             start_lt,
-        };
-
-        thread::spawn(move || {
-            Self::thread(receiver, current_block_data, stop_event);
-        });
-
-        block
+            ..Default::default()
+        })
     }
 
-    ///
-    /// Thread for processing transaction for a block
-    ///
-    fn thread(
-        receiver: Receiver<BuilderIn>,
-        current_block_data: Arc<Mutex<BlockData>>,
-        stop_event: Arc<Condvar>,
-    ) {
-        let n = Instant::now();
-        for msg in receiver {
-            let now = Instant::now();
-            match msg {
-                BuilderIn::Append { in_msg, out_msgs } => {
-                    let mut block_data = current_block_data.lock();
-                    if let Err(err) = Self::append_messages(&mut block_data, &in_msg, out_msgs) {
-                        log::error!("error append messages {}", err);
+    pub fn with_shard_ident(
+        shard_id: ShardIdent,
+        seq_no: u32,
+        prev_ref: BlkPrevInfo,
+        block_at: u32,
+    ) -> Self {
+        Self::with_params(
+            Arc::new(ShardStateUnsplit::with_ident(shard_id)),
+            seq_no,
+            prev_ref,
+            block_at
+        ).unwrap()
+    }
+
+    /// Shard ident
+    fn shard_ident(&self) -> &ShardIdent {
+        self.shard_state.shard()
+    }
+
+    fn out_msg_key(&self, prefix: u64, hash: UInt256) -> OutMsgQueueKey {
+        OutMsgQueueKey::with_workchain_id_and_prefix(
+            self.shard_ident().workchain_id(),
+            prefix,
+            hash
+        )
+    }
+
+    fn try_prepare_transaction(
+        &mut self,
+        executor: &OrdinaryTransactionExecutor,
+        acc_root: &mut Cell,
+        msg: &Message,
+        acc_last_lt: u64,
+        debug: bool,
+    ) -> NodeResult<(Transaction, u64)> {
+        let (block_unixtime, block_lt) = self.at_and_lt();
+        let last_lt = std::cmp::max(acc_last_lt, block_lt);
+        let lt = Arc::new(AtomicU64::new(last_lt + 1));
+        let result = executor.execute_with_libs_and_params(
+            Some(&msg),
+            acc_root,
+            ExecuteParams {
+                block_unixtime,
+                block_lt,
+                last_tr_lt: Arc::clone(&lt),
+                seed_block: self.rand_seed.clone(),
+                debug,
+                ..Default::default()
+            },
+        );
+        match result {
+            Ok(transaction) => {
+                if let Some(gas_used) = transaction.gas_used() {
+                    self.total_gas_used += gas_used;
+                }
+                Ok((transaction, lt.load(Ordering::Relaxed)))
+            }
+            Err(err) => {
+                let lt = last_lt + 1;
+                let account = Account::construct_from_cell(acc_root.clone())?;
+                let mut transaction = Transaction::with_account_and_message(&account, msg, lt)?;
+                transaction.set_now(block_unixtime);
+                let mut description = TransactionDescrOrdinary::default();
+                description.aborted = true;
+                match err.downcast_ref::<ExecutorError>() {
+                    Some(ExecutorError::NoAcceptError(error, arg)) => {
+                        let mut vm_phase = TrComputePhaseVm::default();
+                        vm_phase.success = false;
+                        vm_phase.exit_code = *error;
+                        if let Some(item) = arg {
+                            vm_phase.exit_arg = match item
+                                .as_integer()
+                                .and_then(|value| value.into(std::i32::MIN..=std::i32::MAX))
+                            {
+                                Err(_) | Ok(0) => None,
+                                Ok(exit_arg) => Some(exit_arg),
+                            };
+                        }
+                        description.compute_ph = TrComputePhase::Vm(vm_phase);
                     }
-                }
-                BuilderIn::AppendSerialized { value } => {
-                    if let Err(err) =
-                        Self::append_serialized_messages(current_block_data.clone(), value)
-                    {
-                        log::error!("error append transaction {}", err);
+                    Some(ExecutorError::NoFundsToImportMsg) => {
+                        description.compute_ph = if account.is_none() {
+                            TrComputePhase::skipped(ComputeSkipReason::NoState)
+                        } else {
+                            TrComputePhase::skipped(ComputeSkipReason::NoGas)
+                        };
                     }
+                    Some(ExecutorError::ExtMsgComputeSkipped(reason)) => {
+                        description.compute_ph = TrComputePhase::skipped(reason.clone());
+                    }
+                    _ => return Err(err)?,
                 }
+                transaction.write_description(&TransactionDescr::Ordinary(description))?;
+                let hash = acc_root.repr_hash();
+                let state_update = HashUpdate::with_hashes(hash.clone(), hash);
+                transaction.write_state_update(&state_update)?;
+                Ok((transaction, lt))
             }
-            let d = now.elapsed();
-            current_block_data.lock().p2 += d;
         }
-        let d = n.elapsed();
-        current_block_data.lock().p3 = d;
-
-        let mut block_data = current_block_data.lock();
-        // set end logical time - logical time of last message of last transaction
-        let end_lt = block_data.end_lt;
-        block_data.block_info.set_end_lt(end_lt);
-
-        stop_event.notify_one();
     }
 
-    #[cfg(test)]
-    pub fn append_to_block(&self, in_msg: InMsg, out_msgs: Vec<OutMsg>) -> Result<()> {
-        let mut block_data = self.current_block_data.lock();
-        Self::append_messages(&mut block_data, &in_msg, out_msgs)
-    }
+    pub fn execute(
+        &mut self,
+        msg: QueuedMessage,
+        blockchain_config: BlockchainConfig,
+        acc_id: &AccountId,
+        debug: bool,
+    ) -> NodeResult<()> {
+        let shard_acc = self.accounts.account(acc_id)?.unwrap_or_default();
+        let mut acc_root = shard_acc.account_cell();
+        let executor = OrdinaryTransactionExecutor::new(blockchain_config);
 
-    fn append_messages(
-        block_data: &mut BlockData,
-        in_msg: &InMsg,
-        mut out_msgs: Vec<OutMsg>,
-    ) -> Result<()> {
-        if let Some(ref transaction) = in_msg.read_transaction()? {
-            // save last lt
-            if block_data.end_lt < transaction.logical_time() {
-                block_data.end_lt = transaction.logical_time();
-            }
+        log::debug!("Executing message {:x}", msg.message_hash());
+        let (mut transaction, max_lt) = self.try_prepare_transaction(
+            &executor,
+            &mut acc_root,
+            msg.message(),
+            shard_acc.last_trans_lt(),
+            debug,
+        )?;
+        self.end_lt = std::cmp::max(self.end_lt, max_lt);
+        transaction.set_prev_trans_hash(shard_acc.last_trans_hash().clone());
+        transaction.set_prev_trans_lt(shard_acc.last_trans_lt());
+        // log::info!(target: "profiler", "Init time: {} micros", executor.lock().timing(0));
+        // log::info!(target: "profiler", "Compute time: {} micros", executor.lock().timing(1));
+        // log::info!(target: "profiler", "Finalization time: {} micros", executor.lock().timing(2));
 
-            let mut account_blocks = block_data.block_extra.read_account_blocks()?;
-            account_blocks.add_transaction(transaction)?;
-            block_data
-                .block_extra
-                .write_account_blocks(&account_blocks)?;
+        log::debug!("Transaction ID {:x}", transaction.hash()?);
+        log::debug!("Transaction aborted: {}", transaction.read_description()?.is_aborted());
+
+        // update or remove shard account in new shard state
+        let acc = Account::construct_from_cell(acc_root.clone())?;
+        if !acc.is_none() {
+            let shard_acc =
+                ShardAccount::with_account_root(acc_root, transaction.hash()?, transaction.logical_time());
+            let data = shard_acc.write_to_new_cell()?;
+            self.accounts.set_builder_serialized(acc_id.clone(), &data, &acc.aug()?)?;
+        } else {
+            self.accounts.remove(acc_id.clone())?;
         }
 
-        // calculate ValueFlow
-        // imported increase to in-value
-        let fee = in_msg.get_fee()?;
-        block_data.value_flow.imported.add(&fee.value_imported)?;
-
-        // exported increase to out values
-        let mut out_value = CurrencyCollection::new();
-        let mut fees_collected = Grams::zero();
-        //let mut first_msg = true;
-        let now = Instant::now();
-        for out_msg in out_msgs.iter() {
-            let out_msg_val = out_msg.exported_value()?;
-            out_value.add(&out_msg_val)?;
-            out_value.grams.add(&out_msg_val.grams)?;
-            fees_collected.add(&out_msg_val.grams)?;
-
-            // save last lt
-            if let Some((_msg_at, msg_lt)) = out_msg.at_and_lt()? {
-                if block_data.end_lt < msg_lt {
-                    block_data.end_lt = msg_lt;
-                }
-            }
+        if let Err(err) = self.add_raw_transaction(transaction) {
+            log::warn!(target: "node", "Error append serialized transaction info to BlockBuilder {}", err);
+            // TODO log error, write to transaction DB about error
         }
-        block_data.p1 += now.elapsed();
-        block_data.value_flow.exported.add(&out_value)?;
-
-        // TODO need to understand how to calculate fees...
-        block_data
-            .value_flow
-            .fees_collected
-            .grams
-            .add(&fees_collected)?;
-
-        // next only for masterchain
-        // block_data.value_flow.fees_imported =
-        // block_data.value_flow.created =
-        // block_data.value_flow.minted =
-
-        // append in_msg to in_msg_descr
-        let now = Instant::now();
-        let mut in_msg_descr = block_data.block_extra.read_in_msg_descr()?;
-        in_msg_descr.insert(&in_msg)?;
-        block_data.block_extra.write_in_msg_descr(&in_msg_descr)?;
-        block_data.p2 += now.elapsed();
-
-        // append out_msgs to out_msg_descr
-        let now = Instant::now();
-        let mut out_msg_descr = block_data.block_extra.read_out_msg_descr()?;
-        for msg in out_msgs.drain(..) {
-            out_msg_descr.insert(&msg)?;
-        }
-        block_data.block_extra.write_out_msg_descr(&out_msg_descr)?;
-        block_data.p3 += now.elapsed();
         Ok(())
     }
 
-    fn append_serialized_messages(
-        block_data: Arc<Mutex<BlockData>>,
-        mut value: AppendSerializedContext,
-    ) -> Result<()> {
-        log::debug!("Inserting transaction {:x}", value.transaction_cell.repr_hash());
+    pub fn build_block(
+        mut self,
+        queue: Arc<InMessagesQueue>,
+        blockchain_config: BlockchainConfig,
+        timeout: Duration,
+        debug: bool
+    ) -> NodeResult<Option<(Block, ShardStateUnsplit)>> {
+        let start_time = Instant::now();
 
-        let now = Instant::now();
-        let mut block_data = block_data.lock();
+        let mut is_empty = true;
 
-        let mut account_blocks = block_data.block_extra.read_account_blocks()?;
-        account_blocks.add_serialized_transaction(&value.transaction, &value.transaction_cell)?;
-        block_data
-            .block_extra
-            .write_account_blocks(&account_blocks)?;
+        // first import internal messages
+        let mut block_full = false;
+        let out_queue = self.out_queue_info.out_queue().clone();
+        log::info!(target: "node", "out queue len={}", out_queue.len()?);
+        for out in out_queue.iter() {
+            let (key, mut slice) = out?;
+            let key = key.into_cell()?;
+            // key is not matter for one shard
+            let (enq, _create_lt) = OutMsgQueue::value_aug(&mut slice)?;
+            let env = enq.read_out_msg()?;
+            let message = env.read_message()?;
+            if let Some(acc_id) = message.int_dst_account_id() {
+                let msg = QueuedMessage::with_message(message)?;
+                self.execute(
+                    msg,
+                    blockchain_config.clone(),
+                    &acc_id,
+                    debug
+                )?;
+            }
+            self.out_queue_info.out_queue_mut().remove(key.into())?;
+            // TODO: check block full
+            is_empty = false;
+            if self.total_gas_used > 1_000_000 {
+                block_full = true;
+                break;
+            }
+        }
+        // second import external messages
+        while start_time.elapsed() < timeout {
+            if queue.len() != 0 {
+                log::error!(target: "node", "external messages queue len={}", queue.len());
+            }
+            if let Some(msg) = queue.dequeue() {
+                let acc_id = msg.message().int_dst_account_id().unwrap();
 
-        // calculate ValueFlow
-        // imported increase to in-value
-        if let Some(in_value) = value.imported_value {
-            block_data.value_flow.imported.add(&in_value)?;
+                // lock account in queue
+                let res = self.execute(
+                    msg,
+                    blockchain_config.clone(),
+                    &acc_id,
+                    debug,
+                );
+                if let Err(err) = res {
+                    log::warn!(target: "node", "Executor execute failed. {}", err);
+                } else {
+                    log::info!(target: "node", "external msg transaction compleete");
+                }
+                is_empty = false;
+                if self.total_gas_used > 1_000_000 {
+                    block_full = true;
+                    break;
+                }
+            } else {
+                thread::sleep(Duration::from_millis(100));
+            }
         }
 
-        // exported increase to out values
-        block_data.value_flow.exported.add(&value.exported_value)?;
-
-        // TODO need to understand how to calculate fees...
-        block_data
-            .value_flow
-            .fees_collected
-            .grams
-            .add(&value.exported_fees)?;
-
-        // next only for masterchain
-        // TODO need to do in the future
-        // block_data.value_flow.fees_imported =
-        // block_data.value_flow.created =
-        // block_data.value_flow.minted =
-
-        // append in_msg to in_msg_descr
-        block_data.insert_serialized_in_msg(&value.in_msg, &value.imported_fees)?;
-
-        // append out_msgs to out_msg_descr
-        for (msg_cell, exported) in value.out_msgs.drain(..) {
-            block_data.insert_serialized_out_msg(&msg_cell, &exported)?;
+        // proceed new messages
+        while !self.new_messages.is_empty() {
+            log::info!(target: "node", "new messages len {}", self.new_messages.len());
+            for (message, tr_cell) in std::mem::take(&mut self.new_messages).drain(..) {
+                let info = message.int_header().ok_or_else(|| error!("message is not internal"))?;
+                let fwd_fee = info.fwd_fee().clone();
+                let msg_cell = message.serialize()?;
+                let env = MsgEnvelope::with_message_cell_and_fee(msg_cell.clone(), fwd_fee);
+                let acc_id = message.int_dst_account_id().unwrap_or_default();
+                if !self.shard_ident().contains_address(&info.dst)? || block_full {
+                    let enq = EnqueuedMsg::with_param(info.created_lt, &env)?;
+                    let key = self.out_msg_key(acc_id.clone().get_next_u64()?, msg_cell.repr_hash());
+                    self.out_queue_info.out_queue_mut().set(&key, &enq, &enq.aug()?)?;
+                    let out_msg = OutMsg::new_msg(enq.out_msg_cell(), tr_cell);
+                    self.out_msg_descr.set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
+                    // collator_data.add_out_msg_to_block(out_msg.read_message_hash()?, &out_msg)?;
+                } else {
+                    // let created_lt = info.created_lt;
+                    // let hash = msg_cell.repr_hash();
+                    // collator_data.update_last_proc_int_msg((created_lt, hash))?;
+                    self.execute(
+                        QueuedMessage::with_message(message)?,
+                        blockchain_config.clone(),
+                        &acc_id,
+                        debug
+                    )?;
+                    if self.total_gas_used > 1_000_000 {
+                        block_full = true;
+                    }
+                };
+                is_empty = false;
+            }
         }
-
-        if block_data.end_lt < value.max_lt {
-            block_data.end_lt = value.max_lt;
+        
+        if !is_empty {
+            log::info!(target: "node", "in messages queue len={}", queue.len());
+            let seq_no = self.block_info.seq_no();
+            let (block, new_shard_state) = self.finalize_block()?;
+            let block_text = ton_block_json::debug_block_full(&block)?;
+            std::fs::write(&format!("e:\\block_{}.json", seq_no), block_text)?;
+            thread::sleep(Duration::from_millis(2000));
+            Ok(Some((block, new_shard_state)))
+        } else {
+            log::info!(target: "node", "block is empty in messages queue len={}", queue.len());
+            Ok(None)
         }
-        let d = now.elapsed();
-        block_data.p1 += d;
-        log::debug!("Transaction inserted {:x}", value.transaction_cell.repr_hash());
-        Ok(())
     }
 
     ///
     /// Add transaction to block
     ///
-    pub fn add_transaction(&self, in_msg: Arc<InMsg>, out_msgs: Vec<OutMsg>) -> bool {
-        if let Some(sender) = self.sender.lock().as_ref() {
-            sender.send(BuilderIn::Append { in_msg, out_msgs }).is_ok()
-        } else {
-            false
-        }
-    }
+    pub fn add_raw_transaction(&mut self, transaction: Transaction) -> NodeResult<()> {
+        let tr_cell = transaction.serialize()?;
+        log::debug!("Inserting transaction {:x}", tr_cell.repr_hash());
 
-    ///
-    /// Add serialized transaction to block
-    ///
-    pub fn add_serialized_transaction(&self, value: AppendSerializedContext) -> bool {
-        if let Some(sender) = self.sender.lock().as_ref() {
-            sender.send(BuilderIn::AppendSerialized { value }).is_ok()
-        } else {
-            false
-        }
-    }
+        self.account_blocks.add_serialized_transaction(&transaction, &tr_cell)?;
 
-    ///
-    /// Stop processing messages thread.
-    ///
-    fn brake_block_builder_thread(&self) {
-        let mut sender = self.sender.lock();
-        *sender = None;
+        if let Some(msg_cell) = transaction.in_msg_cell() {
+            let msg = Message::construct_from_cell(msg_cell.clone())?;
+            let in_msg = if let Some(hdr) = msg.int_header() {
+                let fee = hdr.fwd_fee();
+                let env = MsgEnvelope::with_message_and_fee(&msg, *fee)?;
+                InMsg::immediatelly_msg(env.serialize()?, tr_cell.clone(), *fee)
+            } else {
+                InMsg::external_msg(msg_cell.clone(), tr_cell.clone())
+            };
+            self.in_msg_descr.set(&msg_cell.repr_hash(), &in_msg, &in_msg.aug()?)?;
+        }
+
+        let mut exported_value = CurrencyCollection::default();
+        let mut exported_fees = Grams::default();
+
+        transaction.iterate_out_msgs(|msg| {
+            if let Some(hdr) = msg.int_header() {
+                exported_value.add(&hdr.value)?;
+                exported_fees.add(&hdr.fwd_fee)?;
+            }
+            self.new_messages.push((msg, tr_cell.clone()));
+            Ok(true)
+        })?;
+        Ok(())
     }
 
     ///
@@ -400,79 +391,52 @@ impl BlockBuilder {
     ///
     #[cfg(test)]
     pub fn is_empty(&self) -> bool {
-        let block_data = self.current_block_data.lock();
-        block_data
-            .block_extra
-            .read_in_msg_descr()
-            .unwrap()
-            .is_empty()
-            && block_data
-                .block_extra
-                .read_out_msg_descr()
-                .unwrap()
-                .is_empty()
-            && block_data
-                .block_extra
-                .read_account_blocks()
-                .unwrap()
-                .is_empty()
+        self.in_msg_descr.is_empty() && self.out_msg_descr.is_empty() && self.account_blocks.is_empty()
     }
 
     ///
     /// Get UNIX time and Logical Time of current block
     ///
     pub fn at_and_lt(&self) -> (u32, u64) {
-        (self.block_gen_utime.as_u32(), self.start_lt)
+        (self.block_info.gen_utime().as_u32(), self.start_lt)
     }
 
     ///
     /// Complete the construction of the block and return it.
     /// returns generated block and new shard state bag (and transaction count)
     ///
-    pub fn finalize_block(
-        &self,
-        shard_state: &ShardStateUnsplit,
-        new_shard_state: &ShardStateUnsplit,
-    ) -> Result<Block> {
-        let mut time = [0u128; 3];
-        let now = Instant::now();
+    pub fn finalize_block(self) -> Result<(Block, ShardStateUnsplit)> {
+        let mut new_shard_state = self.shard_state.deref().clone();
+        new_shard_state.write_accounts(&self.accounts)?;
+        new_shard_state.write_out_msg_queue_info(&self.out_queue_info)?;
+        let mut block_extra = BlockExtra::default();
+        block_extra.write_in_msg_descr(&self.in_msg_descr)?;
+        block_extra.write_out_msg_descr(&self.out_msg_descr)?;
+        block_extra.write_account_blocks(&self.account_blocks)?;
+        block_extra.rand_seed = self.rand_seed;
 
-        let mut block_data = self.current_block_data.lock();
-
-        self.brake_block_builder_thread();
-        self.stop_event.wait(&mut block_data);
-
-        time[0] = now.elapsed().as_micros();
-        let now = Instant::now();
-
-        let new_ss_root = new_shard_state.serialize()?;
-        let old_ss_root = shard_state.serialize()?;
-        let state_update = MerkleUpdate::create(&old_ss_root, &new_ss_root)?;
-
-        time[1] = now.elapsed().as_micros();
-        let now = Instant::now();
+        let mut value_flow = ValueFlow::default();
+        value_flow.fees_collected = self.account_blocks.root_extra().clone();
+        value_flow.fees_collected.grams.add(&self.in_msg_descr.root_extra().fees_collected)?;
+        value_flow.imported = self.in_msg_descr.root_extra().value_imported.clone();
+        value_flow.exported = self.out_msg_descr.root_extra().clone();
+        value_flow.from_prev_blk = self.from_prev_blk;
+        value_flow.to_next_blk = self.accounts.full_balance().clone();
+        
+        // it can be long, even we don't need to build it
+        // let new_ss_root = new_shard_state.serialize()?;
+        // let old_ss_root = self.shard_state.serialize()?;
+        // let state_update = MerkleUpdate::create(&old_ss_root, &new_ss_root)?;
+        let state_update = MerkleUpdate::default();
 
         let block = Block::with_params(
             0,
-            mem::take(&mut block_data.block_info),
-            mem::take(&mut block_data.value_flow),
+            self.block_info,
+            value_flow,
             state_update,
-            mem::take(&mut block_data.block_extra),
+            block_extra,
         )?;
+        Ok((block, new_shard_state))
 
-        time[2] = now.elapsed().as_micros();
-
-        log::info!(target: "profiler",
-            "Block builder time: {} / {} / {}",
-            time[0], time[1], time[2]
-        );
-        log::info!(target: "profiler",
-            "Block builder thread time: {} / {} / {}",
-            block_data.p1.as_micros(),
-            block_data.p2.as_micros(),
-            block_data.p3.as_micros(),
-        );
-
-        Ok(block)
     }
 }
