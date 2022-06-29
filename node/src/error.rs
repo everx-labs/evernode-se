@@ -18,17 +18,17 @@ use std::io;
 
 #[derive(Debug, thiserror::Error)]
 pub enum NodeError {
-    #[error("Io error: {}", 0)]
+    #[error("Io error: {0}")]
     Io(io::Error),
-    #[error("Failure error: {}", 0)]
+    #[error("Failure error: {0}")]
     FailureError(failure::Error),
-    #[error("Block error: {}", 0)]
+    #[error("Block error: {0}")]
     BlockError(ton_block::BlockError),
     #[error("Requested item not found")]
     NotFound,
     #[error("Database problem")]
     PathError(String),
-    #[error("Path problem {}", 0)]
+    #[error("Path problem")]
     DataBaseProblem,
     #[error("Invalid external message")]
     InvalidExtMessage,
@@ -52,15 +52,15 @@ pub enum NodeError {
     InvalidShardState,
     #[error("Internal message queue is full")]
     QueueFull,
-    #[error("Transaction executor internal error: '{}'", 0)]
+    #[error("Transaction executor internal error: '{0}'")]
     TrExecutorError(String),
-    #[error("Invalid data: {}", 0)]
+    #[error("Invalid data: {0}")]
     InvalidData(String),
-    #[error("Document DB error: {}", 0)]
+    #[error("Document DB error: {0}")]
     DocumentDbError(String),
-    #[error("Config read error: {}", 0)]
+    #[error("Config read error: {0}")]
     ConfigError(String),
-    #[error("SE API failed: {}", 0)]
+    #[error("SE API failed: {0}")]
     ApiError(String),
 }
 

@@ -1,6 +1,13 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.32.0 Jul 06, 2022
+
+### New
+- Block producing stopped if million of gas is consumed
+- Waiting of new external messages added
+- Block builder processes internal messages in the same block
+
 ## 0.31.0 Jun 20, 2022
 
 ### New

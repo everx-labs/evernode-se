@@ -15,15 +15,7 @@
 */
 
 use super::error::NodeResult;
-use std::clone::Clone;
-use std::collections::VecDeque;
-use std::convert::From;
 use std::sync::Arc;
-use ton_block::{
-    Account, Block, CurrencyCollection, GetRepresentationHash, Serializable, ShardIdent,
-    Transaction,
-};
-use ton_types::{Cell, UInt256};
 
 pub mod messages;
 pub use self::messages::*;

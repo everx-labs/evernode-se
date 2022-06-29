@@ -14,30 +14,22 @@
 * under the License.
 */
 
-use crate::data::{BlocksStorage, DocumentsDb, FinalityStorage, ShardStateInfo, ShardStateStorage, TransactionsStorage};
+use crate::block::applier::BlockFinality;
+use crate::data::{
+    BlocksStorage, DocumentsDb, FileBasedStorage, FinalityStorage, ShardStateInfo,
+    ShardStateStorage, TransactionsStorage,
+};
 use crate::error::NodeError;
-use rand::Rng;
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::NodeResult;
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     fs::{create_dir_all, File},
     io::{ErrorKind, Read, Seek, Write},
     path::PathBuf,
-    thread,
-    time::Duration,
+    sync::Arc,
 };
-use ton_block::{
-    AccountStatus, BlkPrevInfo, Block, CurrencyCollection, Deserializable, ExtBlkRef,
-    ExtOutMessageHeader, ExternalInboundMessageHeader, GetRepresentationHash, HashmapAugType,
-    InMsg, InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, MsgEnvelope, OutMsg,
-    Serializable, ShardIdent, ShardStateUnsplit, Transaction, UnixTime32,
-};
-use ton_types::{deserialize_tree_of_cells, serialize_toc, AccountId, SliceData, UInt256, ByteOrderRead};
-use crate::block::applier::BlockFinality;
-use crate::block::builder::BlockBuilder;
-use crate::data::FileBasedStorage;
-use crate::NodeResult;
+use ton_block::*;
+use ton_types::*;
 
 #[cfg(test)]
 #[path = "../../../../tonos-se-tests/unit/test_block_finality.rs"]
@@ -63,7 +55,7 @@ where
     root_path: PathBuf,
     shard_state_storage: Arc<S>,
     blocks_storage: Arc<B>,
-    tr_storage: Arc<T>,
+    _tr_storage: Arc<T>,
     fn_storage: Arc<F>,
     db: Option<Arc<dyn DocumentsDb>>,
 
@@ -91,7 +83,7 @@ where
         root_path: PathBuf,
         shard_state_storage: Arc<S>,
         blocks_storage: Arc<B>,
-        tr_storage: Arc<T>,
+        _tr_storage: Arc<T>,
         fn_storage: Arc<F>,
         db: Option<Arc<dyn DocumentsDb>>,
         _public_keys: Vec<ed25519_dalek::PublicKey>,
@@ -104,7 +96,7 @@ where
             root_path,
             shard_state_storage,
             blocks_storage,
-            tr_storage,
+            _tr_storage,
             fn_storage,
             db,
             current_block: Box::new(ShardBlock::default()),
@@ -349,101 +341,79 @@ where
         block: &Block,
         shard_state: Arc<ShardStateUnsplit>,
     ) -> NodeResult<()> {
-        if let Some(db) = self.db.clone() {
-            // let block_root = block.serialize()?;
-            // let state_root = shard_state.serialize()?;
-            // let block_info_root = block.read_info()?.serialize()?;
-            // let block_info_cells = BagOfCells::with_root(&block_info_root.into())
-            //     .withdraw_cells();
+        let db = match self.db.clone() {
+            Some(db) => db,
+            None => return Ok(())
+        };
 
-            let block_id = block.hash()?;
-            let extra = block.read_extra()?;
-            let workchain_id = block.read_info()?.shard().workchain_id();
+        let block_id = block.hash()?;
+        let extra = block.read_extra()?;
+        let workchain_id = block.read_info()?.shard().workchain_id();
 
-            extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
-                let msg = in_msg.read_message()?;
-                log::debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {:x}", msg.hash().unwrap());
-                // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
-                // msg.prepare_boc_for_json()?;
-                let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
-                let transaction_now = in_msg
-                    .read_transaction()?
-                    .map(|transaction| transaction.now());
-                db.put_message(msg, transaction_id, transaction_now, Some(block_id.clone()))
-                    .map_err(
-                        |err| log::warn!(target: "node", "reflect message to DB(1). error: {}", err),
-                    )
-                    .ok();
-                Ok(true)
-            })?;
+        let in_msg_descr = extra.read_in_msg_descr()?;
+        in_msg_descr.iterate_with_keys(|msg_id, in_msg| {
+            let msg = in_msg.read_message()?;
+            log::debug!(target: "node", "PUT-IN-MESSAGE-BLOCK {:x}", msg_id);
+            // msg.prepare_proof_for_json(&block_info_cells, &block_root)?;
+            // msg.prepare_boc_for_json()?;
+            let transaction_id = in_msg.transaction_cell().map(|cell| cell.repr_hash());
+            let transaction_now = in_msg
+                .read_transaction()?
+                .map(|transaction| transaction.now());
+            let block_id = Some(block_id.clone());
+            if let Err(err) = db.put_message(msg, transaction_id, transaction_now, block_id) {
+                log::warn!(target: "node", "reflect message to DB(1). error: {}", err)
+            }
+            Ok(true)
+        })?;
 
-            log::debug!(target: "node", "in_msg_descr.iterate - success");
+        log::debug!(target: "node", "in_msg_descr.iterate - success");
 
-            extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
-                let msg = out_msg.read_message()?.unwrap();
-                log::debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
-                // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
-                // msg1.prepare_boc_for_json()?;
-                let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
-                db.put_message(msg, transaction_id, None, Some(block_id.clone()))
-                    .map_err(
-                        |err| log::warn!(target: "node", "reflect message to DB(2). error: {}", err),
-                    )
-                    .ok();
-                Ok(true)
-            })?;
+        extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
+            let msg = out_msg.read_message()?.unwrap();
+            log::debug!(target: "node", "PUT-OUT-MESSAGE-BLOCK {:?}", msg);
+            // msg1.prepare_proof_for_json(&block_info_cells, &block_root)?;
+            // msg1.prepare_boc_for_json()?;
+            let transaction_id = out_msg.transaction_cell().map(|cell| cell.repr_hash());
+            if let Err(err) = db.put_message(msg, transaction_id, None, Some(block_id.clone())) {
+                log::warn!(target: "node", "reflect message to DB(2). error: {}", err);
+            }
+            Ok(true)
+        })?;
 
-            log::debug!(target: "node", "out_msg_descr.iterate - success");
+        log::debug!(target: "node", "out_msg_descr.iterate - success");
 
-            let mut changed_acc = HashSet::new();
+        let accounts = shard_state.read_accounts()?;
 
-            extra.read_account_blocks()?.iterate_with_keys(|account_id, account_block| {
-                let mut orig_status = None;
-                let mut end_status = None;
-                changed_acc.insert(account_id);
-                account_block.transaction_iterate(|transaction| {
-                    // transaction.prepare_proof_for_json(&block_info_cells, &block_root)?;
-                    // transaction.prepare_boc_for_json()?;
+        extra.read_account_blocks()?.iterate_with_keys(|account_id, account_block| {
+            account_block.transaction_iterate(|transaction| {
+                // transaction.prepare_proof_for_json(&block_info_cells, &block_root)?;
+                // transaction.prepare_boc_for_json()?;
 log::debug!(target: "node", "PUT-TRANSACTION-BLOCK {:x}", transaction.hash()?);
-                    if orig_status.is_none() {
-                        orig_status = Some(transaction.orig_status.clone());
-                    }
-                    end_status = Some(transaction.end_status.clone());
-                    if let Err(err) = db.put_transaction(transaction, Some(block_id.clone()), workchain_id) {
-                        log::warn!(target: "node", "reflect transaction to DB. error: {}", err);
-                    }
-                    Ok(true)
-                })?;
-                if end_status == Some(AccountStatus::AccStateNonexist) &&
-                    end_status != orig_status
-                {
-                    let account_id = account_block.account_id().clone();
-                    if let Err(err) = db.put_deleted_account(workchain_id, account_id) {
-                        log::warn!(target: "node", "reflect deleted account to DB. error: {}", err);
-                    }
+                if let Err(err) = db.put_transaction(transaction, Some(block_id.clone()), workchain_id) {
+                    log::warn!(target: "node", "reflect transaction to DB. error: {}", err);
                 }
                 Ok(true)
             })?;
-
-            //if block_status == BlockProcessingStatus::Finalized {
-            shard_state.read_accounts()?.iterate_with_keys(|id, acc| {
-                if changed_acc.contains(&id) {
-                    // acc.account.prepare_proof_for_json(&state_root)?;
-                    // acc.account.prepare_boc_for_json()?;
-                    let acc = acc.read_account()?;
-                    if acc.is_none() {
-                        log::error!(target: "node", "something gone wrong with account {:x}", id);
-                    } else if let Err(err) = db.put_account(acc) {
-                        log::warn!(target: "node", "reflect account to DB. error: {}", err);
+            match accounts.get(&account_id)? {
+                Some(shard_acc) => {
+                    if let Err(err) = db.put_account(shard_acc.read_account()?) {
+                        log::warn!(target: "node", "reflect account {:x} to DB. error: {}", account_id, err);
                     }
                 }
-                Ok(true)
-            })?;
-            //}
+                None => {
+                    if let Err(err) = db.put_deleted_account(workchain_id, account_id.clone().into()) {
+                        log::warn!(target: "node", "reflect deleted account {:x} to DB. error: {}", account_id, err);
+                    }
+                }
+            }
+            Ok(true)
+        })?;
 
-            log::debug!(target: "node", "accounts.iterate - success");
+        log::debug!(target: "node", "account_blocks.iterate - success");
 
-            db.put_block(block)?;
+        if let Err(err) = db.put_block(block) {
+            log::warn!(target: "node", "reflect block {:x} to DB. error: {}", block_id, err);
         }
         Ok(())
     }
@@ -635,11 +605,6 @@ impl Default for ShardBlock {
 }
 
 impl ShardBlock {
-    /// Create new instance of ShardBlock
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// get current block sequence number
     pub fn get_seq_no(&self) -> u64 {
         self.seq_no
@@ -682,7 +647,7 @@ impl ShardBlock {
 
     /// deserialize shard block
     pub fn deserialize<R: Read + Seek>(rdr: &mut R) -> NodeResult<Self> {
-        let mut sb = ShardBlock::new();
+        let mut sb = ShardBlock::default();
         sb.seq_no = rdr.read_le_u64()?;
         let sb_len = rdr.read_le_u32()?;
         let mut sb_buf = vec![0; sb_len as usize];
@@ -707,130 +672,86 @@ impl ShardBlock {
 
 // runs 10 thread to generate 5000 accounts with 1 input and two output messages per every block
 // finalizes block and return
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn generate_block_with_seq_no(
     shard_ident: ShardIdent,
     seq_no: u32,
     prev_info: BlkPrevInfo,
 ) -> Block {
-    let block_builder = Arc::new(BlockBuilder::with_shard_ident(
+    let mut block_builder = crate::block::builder::BlockBuilder::with_shard_ident(
         shard_ident,
         seq_no,
         prev_info,
-        0,
-        None,
         UnixTime32::now().as_u32(),
-    ));
+    );
 
-    // start 10 thread for generate transaction
-    for _ in 0..10 {
-        let builder_clone = block_builder.clone();
-        thread::spawn(move || {
-            //println!("Thread write start.");
-            let mut rng = rand::thread_rng();
-            for _ in 0..5000 {
-                let acc = AccountId::from_raw(
+    //println!("Thread write start.");
+    for _ in 0..5000 {
+        let acc = AccountId::from_raw(
+            (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
+            256,
+        );
+        let mut transaction = Transaction::with_address_and_status(acc.clone(), AccountStatus::AccStateActive);
+        let mut value = CurrencyCollection::default();
+        value.grams = 10202u64.into();
+        let mut imh = InternalMessageHeader::with_addresses(
+            MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
+            MsgAddressInt::with_standart(
+                None,
+                0,
+                AccountId::from_raw(
                     (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
                     256,
-                );
-                let mut transaction = Transaction::with_address_and_status(
-                    acc.clone(),
-                    AccountStatus::AccStateActive,
-                );
+                ),
+            )
+            .unwrap(),
+            value,
+        );
 
-                let mut value = CurrencyCollection::default();
-                value.grams = 10202u64.into();
-                let mut imh = InternalMessageHeader::with_addresses(
-                    MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressInt::with_standart(
-                        None,
-                        0,
-                        AccountId::from_raw(
-                            (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
-                            256,
-                        ),
-                    )
-                    .unwrap(),
-                    value,
-                );
+        imh.ihr_fee = 10u64.into();
+        imh.fwd_fee = 5u64.into();
+        let mut inmsg1 = Message::with_int_header(imh);
+        inmsg1.set_body(SliceData::new(vec![0x21; 120]));
 
-                imh.ihr_fee = 10u64.into();
-                imh.fwd_fee = 5u64.into();
-                let mut inmsg1 = Arc::new(Message::with_int_header(imh));
-                if let Some(m) = Arc::get_mut(&mut inmsg1) {
-                    m.set_body(SliceData::new(vec![0x21; 120]));
-                }
+        let ext_in_header = ExternalInboundMessageHeader {
+            src: MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80])).unwrap(),
+            dst: MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
+            import_fee: 10u64.into(),
+        };
 
-                let env = MsgEnvelope::with_message_and_fee(&inmsg1, 9u64.into()).unwrap();
-                let in_msg_int = InMsg::immediatelly_msg(
-                    env.serialize().unwrap(),
-                    transaction.serialize().unwrap(),
-                    11u64.into(),
-                );
+        let mut inmsg = Message::with_ext_in_header(ext_in_header);
+        inmsg.set_body(SliceData::new(vec![0x01; 120]));
 
-                let ext_in_header = ExternalInboundMessageHeader {
-                    src: MsgAddressExt::with_extern(SliceData::new(vec![
-                        0x23, 0x52, 0x73, 0x00, 0x80,
-                    ]))
-                    .unwrap(),
-                    dst: MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    import_fee: 10u64.into(),
-                };
+        transaction.write_in_msg(Some(&inmsg1)).unwrap();
 
-                let mut inmsg = Message::with_ext_in_header(ext_in_header);
-                inmsg.set_body(SliceData::new(vec![0x01; 120]));
+        // outmsgs
+        let mut value = CurrencyCollection::default();
+        value.grams = 10202u64.into();
+        let mut imh = InternalMessageHeader::with_addresses(
+            MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
+            MsgAddressInt::with_standart(None, 0, AccountId::from_raw(vec![255; 32], 256)).unwrap(),
+            value,
+        );
 
-                transaction.write_in_msg(Some(&inmsg1)).unwrap();
-                // inmsg
-                let in_msg_ex = InMsg::external_msg(
-                    inmsg.serialize().unwrap(),
-                    transaction.serialize().unwrap(),
-                );
+        imh.ihr_fee = 10u64.into();
+        imh.fwd_fee = 5u64.into();
+        let outmsg1 = Message::with_int_header(imh);
 
-                // outmsgs
-                let mut value = CurrencyCollection::default();
-                value.grams = 10202u64.into();
-                let mut imh = InternalMessageHeader::with_addresses(
-                    MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressInt::with_standart(None, 0, AccountId::from_raw(vec![255; 32], 256))
-                        .unwrap(),
-                    value,
-                );
+        let ext_out_header = ExtOutMessageHeader::with_addresses(
+            MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
+            MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80]))
+                .unwrap(),
+        );
 
-                imh.ihr_fee = 10u64.into();
-                imh.fwd_fee = 5u64.into();
-                let outmsg1 = Message::with_int_header(imh);
+        let mut outmsg2 = Message::with_ext_out_header(ext_out_header);
+        outmsg2.set_body(SliceData::new(vec![0x02; 120]));
 
-                let ext_out_header = ExtOutMessageHeader::with_addresses(
-                    MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-                    MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80]))
-                        .unwrap(),
-                );
+        transaction.add_out_message(&outmsg1).unwrap();
+        transaction.add_out_message(&outmsg2).unwrap();
 
-                let mut outmsg2 = Message::with_ext_out_header(ext_out_header);
-                outmsg2.set_body(SliceData::new(vec![0x02; 120]));
-
-                let tr_cell = transaction.serialize().unwrap();
-
-                let env = MsgEnvelope::with_message_and_fee(&outmsg1, 9u64.into()).unwrap();
-                let out_msg1 = OutMsg::new_msg(env.serialize().unwrap(), tr_cell.clone());
-
-                let out_msg2 = OutMsg::external_msg(outmsg2.serialize().unwrap(), tr_cell);
-
-                let in_msg = Arc::new(if rng.gen() { in_msg_int } else { in_msg_ex });
-                // builder can stop earlier than writing threads it is not a problem here
-                if !builder_clone.add_transaction(in_msg, vec![out_msg1, out_msg2]) {
-                    break;
-                }
-
-                thread::sleep(Duration::from_millis(1)); // emulate timeout working TVM
-            }
-        });
+        let tr_cell = transaction.serialize().unwrap();
+        block_builder.add_raw_transaction(transaction, tr_cell).unwrap();
     }
-
-    thread::sleep(Duration::from_millis(10));
-
-    let ss = ShardStateUnsplit::default();
-
-    block_builder.finalize_block(&ss, &ss).unwrap()
+    let (block, _) = block_builder.finalize_block().unwrap();
+    block
 }

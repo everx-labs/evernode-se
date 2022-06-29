@@ -17,19 +17,21 @@
 use crate::engine::messages::{InMessagesQueue, QueuedMessage};
 use crate::engine::MessagesReceiver;
 use crate::error::NodeResult;
-use iron::prelude::*;
-use iron::status;
+use iron::{
+    prelude::{IronError, Request, Response},
+    status,
+};
+use parking_lot::Mutex;
 use router::Router;
 use serde_json::Value;
-use std::time::Duration;
 use std::{
     io::{Cursor, Read},
     sync::Arc,
     thread,
+    time::Duration,
 };
-use parking_lot::Mutex;
 use ton_block::{Deserializable, Message};
-use ton_types::{SliceData, UInt256};
+use ton_types::UInt256;
 
 pub struct MessageReceiverApi {
     path: String,
@@ -93,18 +95,14 @@ impl MessageReceiverApi {
                             };
 
                             let mut message = QueuedMessage::with_message(message).unwrap();
-                            loop {
-                                if let Err(msg) = queue.queue(message) {
-                                    if queue.has_delivery_problems() {
-                                        log::warn!(target: "node", "Request was refused because downstream services are not accessible");
-                                        return Ok(Response::with(status::ServiceUnavailable));
-                                    }
-                                    log::warn!(target: "node", "Error queue message");
-                                    message = msg;
-                                    thread::sleep(Duration::from_micros(100));
-                                } else {
-                                    break;
+                            while let Err(msg) = queue.queue(message) {
+                                if queue.has_delivery_problems() {
+                                    log::warn!(target: "node", "Request was refused because downstream services are not accessible");
+                                    return Ok(Response::with(status::ServiceUnavailable));
                                 }
+                                log::warn!(target: "node", "Error queue message");
+                                message = msg;
+                                thread::sleep(Duration::from_micros(100));
                             }
 
                             return Ok(Response::with(status::Ok));
@@ -127,8 +125,8 @@ impl MessageReceiverApi {
             Err(error) => return Err(format!("Error decoding base64-encoded message: {}", error)),
         };
 
-        let id = match base64::decode(id_b64) {
-            Ok(bytes) => bytes,
+        let id = match UInt256::from_str(id_b64) {
+            Ok(id) => id,
             Err(error) => {
                 return Err(format!(
                     "Error decoding base64-encoded message's id: {}",
@@ -136,9 +134,6 @@ impl MessageReceiverApi {
                 ))
             }
         };
-        if id.len() != 32 {
-            return Err("Error decoding base64-encoded message's id: invalid length".to_string());
-        }
 
         let message_cell = match ton_types::cells_serialization::deserialize_tree_of_cells(
             &mut Cursor::new(message_bytes),
@@ -149,17 +144,15 @@ impl MessageReceiverApi {
             }
             Ok(cell) => cell,
         };
-        if message_cell.repr_hash() != UInt256::from_slice(&id) {
+        if message_cell.repr_hash() != id {
             return Err(format!(
                 "Error: calculated message's hash doesn't correspond given key"
             ));
         }
 
-        let mut message = Message::default();
-        if let Err(error) = message.read_from(&mut SliceData::from(message_cell)) {
-            return Err(format!("Error parsing message's cells tree: {}", error));
+        match Message::construct_from_cell(message_cell) {
+            Ok(message) => Ok(message),
+            Err(error) => Err(format!("Error parsing message's cells tree: {}", error)),
         }
-
-        Ok(message)
     }
 }

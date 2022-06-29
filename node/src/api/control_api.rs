@@ -14,13 +14,17 @@
 * under the License.
 */
 
-use crate::engine::{LiveControl, LiveControlReceiver};
-use crate::{NodeError, NodeResult};
-use iron::prelude::*;
-use iron::status;
+use crate::{
+    engine::{LiveControl, LiveControlReceiver},
+    NodeError, NodeResult,
+};
+use iron::{
+    prelude::{IronError, IronResult, Request, Response},
+    status,
+};
+use parking_lot::Mutex;
 use router::Router;
 use std::sync::Arc;
-use parking_lot::Mutex;
 
 pub struct ControlApi {
     path: String,

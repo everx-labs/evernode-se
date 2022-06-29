@@ -14,12 +14,12 @@
 * under the License.
 */
 
-use crate::block::{BlockFinality, NewBlockApplier, OrdinaryBlockFinality};
+use crate::block::{BlockBuilder, BlockFinality, NewBlockApplier, OrdinaryBlockFinality};
 #[cfg(test)]
 use crate::config::NodeConfig;
 use crate::data::{DocumentsDb, DocumentsDbMock, FileBasedStorage};
 use crate::engine::{
-    InMessagesQueue, LiveControl, LiveControlReceiver, MessagesProcessor, QueuedMessage,
+    InMessagesQueue, LiveControl, LiveControlReceiver, QueuedMessage,
     DEPRECATED_GIVER_ABI2_DEPLOY_MSG, GIVER_ABI1_DEPLOY_MSG, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE,
     MULTISIG_BALANCE, MULTISIG_DEPLOY_MSG,
 };
@@ -49,15 +49,8 @@ mod tests;
 
 type Storage = FileBasedStorage;
 type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
-type ArcMsgProcessor = Arc<Mutex<MessagesProcessor<Storage>>>;
 type BlockApplier =
     Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
-
-// TODO do interval and validator field of TonNodeEngine
-// and read from config
-
-pub const GEN_BLOCK_TIMEOUT: u64 = 400;
-//800;
 
 pub struct EngineLiveProperties {
     pub time_delta: Arc<AtomicU32>,
@@ -111,14 +104,10 @@ impl LiveControl for EngineLiveControl {
 /// Initialises instances of: all messages receivers, InMessagesQueue, MessagesProcessor.
 pub struct TonNodeEngine {
     shard_ident: ShardIdent,
-
     live_properties: Arc<EngineLiveProperties>,
     receivers: Vec<Mutex<Box<dyn MessagesReceiver>>>,
     live_control_receiver: Option<Box<dyn LiveControlReceiver>>,
-
-    get_block_timout: u64,
-
-    pub msg_processor: ArcMsgProcessor,
+    pub blockchain_config: BlockchainConfig,
     pub finalizer: ArcBlockFinality,
     pub block_applier: BlockApplier,
     pub message_queue: Arc<InMessagesQueue>,
@@ -135,27 +124,15 @@ impl TonNodeEngine {
             control_receiver.run(Box::new(live_control))?;
         }
 
-        let node = self.clone();
-        if node.finalizer.lock().get_last_seq_no() == 1 {
-            let workchain_id = node.current_shard_id().workchain_id() as i8;
-            Self::deploy_contracts(workchain_id, &node.message_queue)?;
+        if self.finalizer.lock().get_last_seq_no() == 1 {
+            let workchain_id = self.current_shard_id().workchain_id() as i8;
+            self.deploy_contracts(workchain_id)?;
         }
         thread::spawn(move || loop {
-            let timestamp = UnixTime32::now().as_u32() + self.live_properties.get_time_delta();
-            match node.prepare_block(timestamp) {
-                Ok(Some(_block)) => {
-                    log::trace!(target: "node", "block generated successfully");
-                }
-                Ok(None) => {
-                    log::trace!(target: "node", "block was not generated successfully");
-                }
-                Err(err) => {
-                    log::warn!(target: "node", "failed block generation: {}", err);
-                }
+            if let Err(err) = self.prepare_block(true) {
+                log::error!(target: "node", "failed block generation: {}", err);
             }
-            thread::sleep(Duration::from_secs(1));
         });
-
         Ok(())
     }
 
@@ -176,11 +153,7 @@ impl TonNodeEngine {
         storage_path: PathBuf,
     ) -> NodeResult<Self> {
         let documents_db = documents_db.unwrap_or_else(|| Arc::new(DocumentsDbMock));
-        let message_queue = Arc::new(InMessagesQueue::with_db(
-            shard.clone(),
-            10000,
-            documents_db.clone(),
-        ));
+        let message_queue = Arc::new(InMessagesQueue::with_db(10000, documents_db.clone()));
 
         let storage = Arc::new(Storage::with_path(shard.clone(), storage_path.clone())?);
         let block_finality = Arc::new(Mutex::new(OrdinaryBlockFinality::with_params(
@@ -209,8 +182,6 @@ impl TonNodeEngine {
 
         let live_properties = Arc::new(EngineLiveProperties::new());
 
-        message_queue.set_ready(true);
-
         let receivers = receivers
             .into_iter()
             .map(|r| Mutex::new(r))
@@ -221,23 +192,11 @@ impl TonNodeEngine {
             receivers,
             live_properties,
             live_control_receiver,
-
-            get_block_timout: GEN_BLOCK_TIMEOUT,
-
-            msg_processor: Arc::new(Mutex::new(MessagesProcessor::with_params(
-                message_queue.clone(),
-                storage.clone(),
-                shard.clone(),
-                blockchain_config,
-            ))),
+            blockchain_config,
             finalizer: block_finality.clone(),
             block_applier: Mutex::new(NewBlockApplier::with_params(block_finality, documents_db)),
             message_queue,
         })
-    }
-
-    pub fn gen_block_timeout(&self) -> u64 {
-        self.get_block_timout
     }
 
     /// Getter for current shard identifier
@@ -258,81 +217,30 @@ impl TonNodeEngine {
     ///
     /// Generate new block if possible
     ///
-    pub fn prepare_block(&self, timestamp: u32) -> NodeResult<Option<Block>> {
-        let mut time = [0u128; 10];
-        let mut now = Instant::now();
-
-        log::debug!(target: "node", "PREP_BLK_START");
+    pub fn prepare_block(&self, debug: bool) -> NodeResult<()> {
         let shard_state = self.finalizer.lock().get_last_shard_state();
+        let out_msg_queue_info = shard_state.read_out_msg_queue_info()?;
+        if out_msg_queue_info.out_queue().is_empty() && self.message_queue.is_empty() {
+            self.message_queue.wait_new_message();
+        }
+
+        let timestamp = UnixTime32::now().as_u32() + self.live_properties.get_time_delta();
         let blk_prev_info = self.finalizer.lock().get_last_block_info()?;
         log::debug!(target: "node", "PARENT block: {:?}", blk_prev_info);
-        let seq_no = self.finalizer.lock().get_last_seq_no() + 1;
-        let gen_block_time = Duration::from_millis(self.gen_block_timeout());
-        time[0] = now.elapsed().as_micros();
-        now = Instant::now();
 
-        let result = self.msg_processor.lock().generate_block_multi(
-            &shard_state,
-            gen_block_time,
-            seq_no,
-            blk_prev_info,
-            timestamp,
-            true, //tvm code tracing enabled by default on trace level
-        );
-        let (block, new_shard_state) = match result? {
-            Some(result) => result,
-            None => return Ok(None),
-        };
-        time[1] = now.elapsed().as_micros();
-        now = Instant::now();
-        time[2] = now.elapsed().as_micros();
-        now = Instant::now();
-        time[3] = now.elapsed().as_micros();
-        now = Instant::now();
-
-        log::debug!(target: "node", "PREP_BLK2");
-
-        //        self.message_queue.set_ready(false);
-
-        // TODO remove debug print
-        Self::print_block_info(&block);
-
-        /*let res = self.propose_block_to_db(&mut block);
-
-        if res.is_err() {
-            log::warn!(target: "node", "Error propose_block_to_db: {}", res.unwrap_err());
-        }*/
-
-        time[4] = now.elapsed().as_micros();
-        now = Instant::now();
-
-        time[5] = now.elapsed().as_micros();
-        now = Instant::now();
-
-        time[6] = now.elapsed().as_micros();
-        now = Instant::now();
-        let (_, details) = self.finality_and_apply_block(&block, new_shard_state)?;
-
-        time[7] = now.elapsed().as_micros();
-        log::info!(target: "profiler",
-            "{} {} / {} / {} / {} / {} / {} micros",
-            "Prepare block time: setup/gen/analysis1/analysis2/seal/finality",
-            time[0], time[1], time[2], time[3], time[4] + time[5], time[6] + time[7]
-        );
-
-        let mut str_details = String::new();
-        for detail in details {
-            str_details = if str_details.is_empty() {
-                format!("{}", detail)
-            } else {
-                format!("{} / {}", str_details, detail)
+        let collator = BlockBuilder::with_params(shard_state, blk_prev_info, timestamp)?;
+        match collator.build_block(&self.message_queue, self.blockchain_config.clone(), debug)? {
+            Some((block, new_shard_state)) => {
+                log::trace!(target: "node", "block generated successfully");
+                // TODO remove debug print
+                Self::print_block_info(&block);
+                self.finality_and_apply_block(&block, new_shard_state)?;
+            }
+            None => {
+                log::trace!(target: "node", "empty block was not generated");
             }
         }
-        log::info!(target: "profiler", "Block finality details: {} / {} micros",  time[6], str_details);
-
-        log::debug!(target: "node", "PREP_BLK_SELF_STOP");
-
-        Ok(Some(block))
+        Ok(())
     }
 
     /// finality and apply block
@@ -350,33 +258,26 @@ impl TonNodeEngine {
 }
 
 impl TonNodeEngine {
-    fn deploy_contracts(workchain_id: i8, queue: &InMessagesQueue) -> NodeResult<()> {
-        Self::deploy_contract(workchain_id, GIVER_ABI1_DEPLOY_MSG, GIVER_BALANCE, 1, queue)?;
-        Self::deploy_contract(workchain_id, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE, 3, queue)?;
-        Self::deploy_contract(
-            workchain_id,
-            MULTISIG_DEPLOY_MSG,
-            MULTISIG_BALANCE,
-            5,
-            queue,
-        )?;
-        Self::deploy_contract(
+    fn deploy_contracts(&self, workchain_id: i8) -> NodeResult<()> {
+        self.deploy_contract(workchain_id, GIVER_ABI1_DEPLOY_MSG, GIVER_BALANCE, 1)?;
+        self.deploy_contract(workchain_id, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE, 3)?;
+        self.deploy_contract(workchain_id, MULTISIG_DEPLOY_MSG, MULTISIG_BALANCE, 5)?;
+        self.deploy_contract(
             workchain_id,
             DEPRECATED_GIVER_ABI2_DEPLOY_MSG,
             GIVER_BALANCE,
             7,
-            queue,
         )?;
 
         Ok(())
     }
 
     fn deploy_contract(
+        &self,
         workchain_id: i8,
         deploy_msg_boc: &[u8],
         initial_balance: u128,
         transfer_lt: u64,
-        queue: &InMessagesQueue,
     ) -> NodeResult<AccountId> {
         let (deploy_msg, deploy_addr) =
             Self::create_contract_deploy_message(workchain_id, deploy_msg_boc);
@@ -387,15 +288,15 @@ impl TonNodeEngine {
             initial_balance,
             transfer_lt,
         );
-        Self::queue_with_retry(queue, transfer_msg)?;
-        Self::queue_with_retry(queue, deploy_msg)?;
+        self.queue_with_retry(transfer_msg)?;
+        self.queue_with_retry(deploy_msg)?;
 
         Ok(deploy_addr)
     }
 
-    fn queue_with_retry(queue: &InMessagesQueue, message: Message) -> NodeResult<()> {
+    fn queue_with_retry(&self, message: Message) -> NodeResult<()> {
         let mut message = QueuedMessage::with_message(message)?;
-        while let Err(msg) = queue.queue(message) {
+        while let Err(msg) = self.message_queue.queue(message) {
             message = msg;
             thread::sleep(Duration::from_micros(100));
         }
