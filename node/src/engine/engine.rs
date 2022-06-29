@@ -14,12 +14,12 @@
 * under the License.
 */
 
-use crate::block::{BlockFinality, NewBlockApplier, OrdinaryBlockFinality};
+use crate::block::{BlockFinality, NewBlockApplier, OrdinaryBlockFinality, BlockBuilder};
 #[cfg(test)]
 use crate::config::NodeConfig;
 use crate::data::{DocumentsDb, DocumentsDbMock, FileBasedStorage};
 use crate::engine::{
-    InMessagesQueue, LiveControl, LiveControlReceiver, MessagesProcessor, QueuedMessage,
+    InMessagesQueue, LiveControl, LiveControlReceiver, QueuedMessage,
     DEPRECATED_GIVER_ABI2_DEPLOY_MSG, GIVER_ABI1_DEPLOY_MSG, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE,
     MULTISIG_BALANCE, MULTISIG_DEPLOY_MSG,
 };
@@ -49,7 +49,6 @@ mod tests;
 
 type Storage = FileBasedStorage;
 type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
-type ArcMsgProcessor = Arc<Mutex<MessagesProcessor<Storage>>>;
 type BlockApplier =
     Mutex<NewBlockApplier<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 
@@ -118,14 +117,14 @@ pub struct TonNodeEngine {
 
     get_block_timout: u64,
 
-    pub msg_processor: ArcMsgProcessor,
+    pub blockchain_config: BlockchainConfig,
     pub finalizer: ArcBlockFinality,
     pub block_applier: BlockApplier,
     pub message_queue: Arc<InMessagesQueue>,
 }
 
 impl TonNodeEngine {
-    pub fn start(self: Arc<Self>) -> NodeResult<()> {
+    pub fn start(self) -> NodeResult<()> {
         for recv in self.receivers.iter() {
             recv.lock().run(Arc::clone(&self.message_queue))?;
         }
@@ -135,14 +134,13 @@ impl TonNodeEngine {
             control_receiver.run(Box::new(live_control))?;
         }
 
-        let node = self.clone();
-        if node.finalizer.lock().get_last_seq_no() == 1 {
-            let workchain_id = node.current_shard_id().workchain_id() as i8;
-            Self::deploy_contracts(workchain_id, &node.message_queue)?;
+        if self.finalizer.lock().get_last_seq_no() == 1 {
+            let workchain_id = self.current_shard_id().workchain_id() as i8;
+            Self::deploy_contracts(workchain_id, &self.message_queue)?;
         }
         thread::spawn(move || loop {
             let timestamp = UnixTime32::now().as_u32() + self.live_properties.get_time_delta();
-            match node.prepare_block(timestamp) {
+            match self.prepare_block(timestamp) {
                 Ok(Some(_block)) => {
                     log::trace!(target: "node", "block generated successfully");
                 }
@@ -209,8 +207,6 @@ impl TonNodeEngine {
 
         let live_properties = Arc::new(EngineLiveProperties::new());
 
-        message_queue.set_ready(true);
-
         let receivers = receivers
             .into_iter()
             .map(|r| Mutex::new(r))
@@ -224,12 +220,7 @@ impl TonNodeEngine {
 
             get_block_timout: GEN_BLOCK_TIMEOUT,
 
-            msg_processor: Arc::new(Mutex::new(MessagesProcessor::with_params(
-                message_queue.clone(),
-                storage.clone(),
-                shard.clone(),
-                blockchain_config,
-            ))),
+            blockchain_config,
             finalizer: block_finality.clone(),
             block_applier: Mutex::new(NewBlockApplier::with_params(block_finality, documents_db)),
             message_queue,
@@ -259,76 +250,35 @@ impl TonNodeEngine {
     /// Generate new block if possible
     ///
     pub fn prepare_block(&self, timestamp: u32) -> NodeResult<Option<Block>> {
-        let mut time = [0u128; 10];
-        let mut now = Instant::now();
-
         log::debug!(target: "node", "PREP_BLK_START");
         let shard_state = self.finalizer.lock().get_last_shard_state();
         let blk_prev_info = self.finalizer.lock().get_last_block_info()?;
         log::debug!(target: "node", "PARENT block: {:?}", blk_prev_info);
         let seq_no = self.finalizer.lock().get_last_seq_no() + 1;
         let gen_block_time = Duration::from_millis(self.gen_block_timeout());
-        time[0] = now.elapsed().as_micros();
-        now = Instant::now();
 
-        let result = self.msg_processor.lock().generate_block_multi(
-            &shard_state,
-            gen_block_time,
+        let collator = BlockBuilder::with_params(
+            shard_state,
             seq_no,
             blk_prev_info,
             timestamp,
-            true, //tvm code tracing enabled by default on trace level
+        )?;
+        let result = collator.build_block(
+            self.message_queue.clone(),
+            self.blockchain_config.clone(),
+            gen_block_time,
+            true
         );
         let (block, new_shard_state) = match result? {
             Some(result) => result,
             None => return Ok(None),
         };
-        time[1] = now.elapsed().as_micros();
-        now = Instant::now();
-        time[2] = now.elapsed().as_micros();
-        now = Instant::now();
-        time[3] = now.elapsed().as_micros();
-        now = Instant::now();
-
         log::debug!(target: "node", "PREP_BLK2");
-
-        //        self.message_queue.set_ready(false);
 
         // TODO remove debug print
         Self::print_block_info(&block);
 
-        /*let res = self.propose_block_to_db(&mut block);
-
-        if res.is_err() {
-            log::warn!(target: "node", "Error propose_block_to_db: {}", res.unwrap_err());
-        }*/
-
-        time[4] = now.elapsed().as_micros();
-        now = Instant::now();
-
-        time[5] = now.elapsed().as_micros();
-        now = Instant::now();
-
-        time[6] = now.elapsed().as_micros();
-        now = Instant::now();
-        let (_, details) = self.finality_and_apply_block(&block, new_shard_state)?;
-
-        time[7] = now.elapsed().as_micros();
-        log::info!(target: "profiler",
-            "{} {} / {} / {} / {} / {} / {} micros",
-            "Prepare block time: setup/gen/analysis1/analysis2/seal/finality",
-            time[0], time[1], time[2], time[3], time[4] + time[5], time[6] + time[7]
-        );
-
-        let mut str_details = String::new();
-        for detail in details {
-            str_details = if str_details.is_empty() {
-                format!("{}", detail)
-            } else {
-                format!("{} / {}", str_details, detail)
-            }
-        }
-        log::info!(target: "profiler", "Block finality details: {} / {} micros",  time[6], str_details);
+        self.finality_and_apply_block(&block, new_shard_state)?;
 
         log::debug!(target: "node", "PREP_BLK_SELF_STOP");
 

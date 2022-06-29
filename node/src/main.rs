@@ -178,10 +178,9 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
         PathBuf::from("./"),
     )?;
 
-    let ton = Arc::new(ton);
-    TonNodeEngine::start(ton.clone())?;
-    let addr = format!("{}:{}", config.node.api.address, config.node.api.port);
+    ton.start()?;
 
+    let addr = format!("{}:{}", config.node.api.address, config.node.api.port);
     if let Some(router) = router.lock().take() {
         thread::spawn(move || {
             Iron::new(router).http(addr).expect("error starting api");

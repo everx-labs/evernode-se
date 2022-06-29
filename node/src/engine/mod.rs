@@ -19,11 +19,8 @@ use std::clone::Clone;
 use std::collections::VecDeque;
 use std::convert::From;
 use std::sync::Arc;
-use ton_block::{
-    Account, Block, CurrencyCollection, GetRepresentationHash, Serializable, ShardIdent,
-    Transaction,
-};
-use ton_types::{Cell, UInt256};
+use ton_block::{GetRepresentationHash, Serializable, ShardIdent};
+use ton_types::UInt256;
 
 pub mod messages;
 pub use self::messages::*;
