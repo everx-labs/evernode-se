@@ -27,7 +27,7 @@ root:
 loggers:
   # Node messages
   node:
-    level: debug
+    level: info
     appenders:
       - stdout
 
@@ -45,17 +45,10 @@ loggers:
     appenders:
       - tvm_logfile
 
-  ## Next targets for PoA:
-  poa:
-    level: off
-
   engine:
     level: error
     appenders:
       - stdout
-
-  network:
-    level: off
 
   shutdown:
     level: warn
