@@ -1,6 +1,6 @@
 # Evernode Simple Emulator (SE)
 
-Ever OS Local Node for Everscale DApp development and testing.
+Local Node with GraphQL API for Everscale DApp development and testing.
 
 **Have a question? Get quick help in our channel:**
 
