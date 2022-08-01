@@ -98,6 +98,10 @@ impl LiveControl for EngineLiveControl {
         log::info!(target: "node", "SE time delta set to 0");
         Ok(())
     }
+
+    fn time_delta(&self) -> NodeResult<u32> {
+        Ok(self.properties.get_time_delta())
+    }
 }
 
 /// It is top level struct provided node functionality related to transactions processing.
