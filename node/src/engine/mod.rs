@@ -36,6 +36,7 @@ pub trait MessagesReceiver: Send {
 pub trait LiveControl: Send + Sync {
     fn increase_time(&self, delta: u32) -> NodeResult<()>;
     fn reset_time(&self) -> NodeResult<()>;
+    fn time_delta(&self) -> NodeResult<u32>;
 }
 
 pub trait LiveControlReceiver: Send + Sync {

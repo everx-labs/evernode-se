@@ -42,19 +42,27 @@ impl ControlApi {
     ) -> Result<Response, IronError> {
         log::info!(target: "node", "Control API request: {}", req.url.path().last().unwrap_or(&""));
         let command = ControlCommand::from_req(req)?;
-        match command {
+        let response = match command {
             ControlCommand::IncreaseTime(delta) => {
                 control.increase_time(delta).map_err(|err| {
                     internal_server_error(format!("Increase time failed: {}", err))
                 })?;
+                Response::with(status::Ok)
             }
             ControlCommand::ResetTime => {
                 control
                     .reset_time()
                     .map_err(|err| internal_server_error(format!("Reset time failed: {}", err)))?;
+                Response::with(status::Ok)
             }
-        }
-        return Ok(Response::with(status::Ok));
+            ControlCommand::TimeDelta => {
+                let time_delta = control
+                    .time_delta()
+                    .map_err(|err| internal_server_error(format!("Time delta failed: {}", err)))?;
+                Response::with((status::Ok, format!("{}", time_delta)))
+            }
+        };
+        Ok(response)
 
         // log::warn!(target: "node", "Error handling control request");
         // Ok(Response::with((
@@ -80,6 +88,7 @@ impl LiveControlReceiver for ControlApi {
 enum ControlCommand {
     IncreaseTime(u32),
     ResetTime,
+    TimeDelta,
 }
 
 impl ControlCommand {
@@ -88,6 +97,7 @@ impl ControlCommand {
             match cmd.to_lowercase().as_str() {
                 "increase-time" => Ok(Self::IncreaseTime(required_u32(req, "delta")?)),
                 "reset-time" => Ok(Self::ResetTime),
+                "time-delta" => Ok(Self::TimeDelta),
                 _ => Err(bad_request(format!(
                     "Unknown live control command \"{}\".",
                     cmd
