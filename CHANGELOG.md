@@ -1,7 +1,7 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.32.1 Aug 03, 2022
+## 0.33.0 Aug 04, 2022
 
 ### New
 - `/se/time-delta` returns current `gen_time_delta` property value.
