@@ -212,6 +212,10 @@ SE control commands (must be sent using POST HTTP method):
 - `/se/increase-time?delta=<seconds>` – increase `gen_time_delta` by
   specified <seconds> value.
 
+- `/se/reset-time` – resets `gen_time_delta` to `0`.
+
+- `/se/time-delta` – returns current `gen_time_delta` value.
+
 # Note for SE Developers
 
 This repository contains several useful tools for SE development and debugging.

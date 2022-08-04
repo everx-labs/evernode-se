@@ -318,7 +318,7 @@ impl BlockBuilder {
                     self.out_queue_info
                         .out_queue_mut()
                         .set(&key, &enq, &enq.aug()?)?;
-                    let out_msg = OutMsg::new_msg(enq.out_msg_cell(), tr_cell);
+                    let out_msg = OutMsg::new(enq.out_msg_cell(), tr_cell);
                     self.out_msg_descr
                         .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
                 } else {
@@ -366,9 +366,9 @@ impl BlockBuilder {
             let in_msg = if let Some(hdr) = msg.int_header() {
                 let fee = hdr.fwd_fee();
                 let env = MsgEnvelope::with_message_and_fee(&msg, *fee)?;
-                InMsg::immediatelly_msg(env.serialize()?, tr_cell.clone(), *fee)
+                InMsg::immediate(env.serialize()?, tr_cell.clone(), *fee)
             } else {
-                InMsg::external_msg(msg_cell.clone(), tr_cell.clone())
+                InMsg::external(msg_cell.clone(), tr_cell.clone())
             };
             self.in_msg_descr
                 .set(&msg_cell.repr_hash(), &in_msg, &in_msg.aug()?)?;
@@ -379,7 +379,7 @@ impl BlockBuilder {
                 self.new_messages.push((msg, tr_cell.clone()));
             } else {
                 let msg_cell = msg.serialize()?;
-                let out_msg = OutMsg::external_msg(msg_cell.clone(), tr_cell.clone());
+                let out_msg = OutMsg::external(msg_cell.clone(), tr_cell.clone());
                 self.out_msg_descr
                     .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
             }
