@@ -60,6 +60,7 @@ struct ArangoHelperConfig {
 struct ArangoHelperContext {
     pub config: ArangoHelperConfig,
     pub has_delivery_problems: Arc<AtomicBool>,
+    pub client: reqwest::Client,
 }
 
 pub struct ArangoHelper {
@@ -78,6 +79,7 @@ impl ArangoHelper {
         let context = ArangoHelperContext {
             config,
             has_delivery_problems: has_delivery_problems.clone(),
+            client: reqwest::Client::new(),
         };
 
         thread::spawn(move || {
@@ -101,6 +103,7 @@ impl ArangoHelper {
             &context.config.blocks_collection,
             &context.has_delivery_problems,
             format!("{:#}", serde_json::json!(doc)),
+            &context.client,
         );
         Ok(())
     }
@@ -116,6 +119,7 @@ impl ArangoHelper {
             &context.config.messages_collection,
             &context.has_delivery_problems,
             format!("{:#}", serde_json::json!(doc)),
+            &context.client,
         );
         Ok(())
     }
@@ -131,6 +135,7 @@ impl ArangoHelper {
             &context.config.transactions_collection,
             &context.has_delivery_problems,
             format!("{:#}", serde_json::json!(doc)),
+            &context.client,
         );
         Ok(())
     }
@@ -146,6 +151,7 @@ impl ArangoHelper {
             &context.config.accounts_collection,
             &context.has_delivery_problems,
             format!("{:#}", serde_json::json!(doc)),
+            &context.client,
         );
         Ok(())
     }
@@ -161,6 +167,7 @@ impl ArangoHelper {
             &context.config.accounts_collection,
             &context.has_delivery_problems,
             format!("{:#}", serde_json::json!(doc)),
+            &context.client,
         );
         Ok(())
     }
@@ -189,8 +196,8 @@ impl ArangoHelper {
         collection: &str,
         has_delivery_problems: &AtomicBool,
         doc: String,
+        client: &reqwest::Client,
     ) {
-        let client = reqwest::Client::new();
         let mut timeout = FIRST_TIMEOUT;
         loop {
             let url = format!(
