@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.33.1 Aug 24, 2022
+
+### Improved
+- Messages processing speeded up by decreasing q-server polling interval and reusing DB connection
+
 ## 0.33.0 Aug 04, 2022
 
 ### New
