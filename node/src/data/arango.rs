@@ -206,7 +206,7 @@ impl ArangoHelper {
             );
             let res = client
                 .post(&url)
-                .query(&[("overwrite", "true")])
+                .query(&[("overwrite", "true"), ("waitForSync", "true")])
                 .header("accept", "application/json")
                 .body(doc.clone())
                 .send();
