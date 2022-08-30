@@ -15,7 +15,7 @@ docker build ^
     --no-cache ^
     --build-arg BIN_TARGET="%BIN_TARGET%" ^
     --tag %TON_NODE% ^
-    ton-node-se ^
+    node ^
     || exit /b
 
 echo.

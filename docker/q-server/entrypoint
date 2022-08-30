@@ -10,6 +10,7 @@ export Q_REQUESTS_MODE=rest
 export Q_REQUESTS_SERVER=http://127.0.0.1
 export Q_HOST=127.0.0.1
 export Q_PORT=4000
+export Q_QUERY_WAIT_FOR_PERIOD=10
 
 cd /home/node/ton-q-server
 exec node index.js
