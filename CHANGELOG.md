@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 ## 0.33.1 Aug 24, 2022
 
 ### Improved
-- Inner refactoring that increases message processing speed approximately by 70%
+- Inner refactoring that increases message processing speed by 70-400% depending on the test logic.
 
 ## 0.33.0 Aug 04, 2022
 
