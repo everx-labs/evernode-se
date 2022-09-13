@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.34.0 Sep 13, 2022
+
+### New
+- Gosh VM instructions are supported.
+
 ## 0.33.1 Aug 24, 2022
 
 ### Improved
