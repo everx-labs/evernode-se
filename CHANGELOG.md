@@ -1,6 +1,23 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.34.0 Sep 13, 2022
+
+### New
+- Gosh VM instructions are supported:
+  - execute_diff
+  - execute_diff_patch_not_quiet
+  - execute_zip
+  - execute_unzip
+  - execute_diff_zip
+  - execute_diff_patch_zip_not_quiet
+  - execute_diff_patch_quiet
+  - execute_diff_patch_zip_quiet
+  - execute_diff_patch_binary_not_quiet
+  - execute_diff_patch_binary_zip_not_quiet
+  - execute_diff_patch_binary_quiet
+  - execute_diff_patch_binary_zip_quiet
+
 ## 0.33.1 Aug 24, 2022
 
 ### Improved
