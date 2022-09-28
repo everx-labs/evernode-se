@@ -171,7 +171,7 @@ application specify [SE endpoints](https://docs.everos.dev/evernode-platform/pro
 
 * [EverX implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
 * [ArangoDB database](https://www.arangodb.com/)
-* [GraphQL endpoint with web playground](https://docs.ton.dev/86757ecb2/p/793337-graphql-api)
+* [GraphQL endpoint with web playground](https://docs.everos.dev/ever-sdk/reference/ever-os-api)
 * [Ever-live explorer](https://ton.live)
 * [Pre-deployed high-performance Giver, ABI v2](contracts)
 
