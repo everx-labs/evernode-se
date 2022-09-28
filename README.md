@@ -159,12 +159,12 @@ configuration [in the log4rs documentation](https://docs.rs/log4rs/1.0.0/log4rs/
 ## How to connect to Evernode SE Graphql API from SDK
 
 **Attention** at the moment there are a
-few [differences in SE behaviour comparing with a real TON blockchain](https://docs.ton.dev/86757ecb2/p/683279-difference-in-behaviour)
+few [differences in SE behaviour comparing with a real TON blockchain](https://docs.everos.dev/evernode-platform/products/simple-emulator-se#23854b)
 . Read about them before you start implemennting. Please note that we plan to upgrade the SE
 behaviour in the next releases so that it will work the same way as a real network.
 
 To connect to local blockchain from your
-application [specify localhost in SDK Client network config](https://docs.ton.dev/86757ecb2/p/5328db-tonclient)
+application specify [SE endpoints](https://docs.everos.dev/evernode-platform/products/simple-emulator-se/endpoint) in SDK Client [network config](https://docs.everos.dev/ever-sdk/guides/installation/configure_sdk#local-node)
 .
 
 ## Evernode SE components
