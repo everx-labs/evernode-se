@@ -91,6 +91,9 @@ const COLLECTIONS = {
     blocks_signatures: {
         indexes: [],
     },
+    chain_ranges_verification: {
+        indexes: [],
+    },
 };
 
 function checkBlockchainDb() {
