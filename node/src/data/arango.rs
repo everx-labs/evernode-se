@@ -85,7 +85,7 @@ impl ArangoHelper {
     fn replace_key(item: SerializedItem) -> NodeResult<String> {
         match item.data {
             serde_json::Value::Object(mut map) => {
-                map.remove(&item.id);
+                map.remove("id");
                 map.insert("_key".to_owned(), item.id.into());
                 Ok(format!("{:#}", serde_json::json!(map)))
             },
@@ -104,7 +104,7 @@ impl ArangoHelper {
             &context.config.database,
             collection,
             &context.has_delivery_problems,
-            format!("{:#}", serde_json::json!(data)),
+            data,
             &context.client,
         );
         Ok(())
