@@ -38,8 +38,8 @@ mod tests;
 
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
-    static ref MINTER_ADDRESS: MsgAddressInt = 
-        MsgAddressInt::AddrStd(MsgAddrStd::with_address(None, -1, [0; 32].into()));
+    pub static ref MINTER_ADDRESS: MsgAddressInt = 
+        MsgAddressInt::AddrStd(MsgAddrStd::with_address(None, 0, [0; 32].into()));
 );
 
 /// Structure for Block finality layer
