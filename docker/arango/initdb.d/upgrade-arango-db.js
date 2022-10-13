@@ -91,6 +91,13 @@ const COLLECTIONS = {
     blocks_signatures: {
         indexes: [],
     },
+    chain_ranges_verification: {
+        indexes: [],
+        data: [{
+            _key: "summary",
+            reliable_chain_order_upper_boundary: "z"
+        }]
+    },
 };
 
 function checkBlockchainDb() {
@@ -121,6 +128,13 @@ function checkCollection(name, props) {
         });
     });
 
+    if (props.data) {
+        props.data.forEach((doc) => {
+            if (!collection.exists(doc)) {
+                collection.insert(doc)
+            }
+        });
+    }
 }
 
 function checkCollections(collections) {

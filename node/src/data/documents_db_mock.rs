@@ -15,36 +15,26 @@
 */
 
 use crate::error::NodeResult;
-use ton_block::{Account, Block, Message, Transaction};
-use ton_types::{AccountId, UInt256};
 use crate::data::DocumentsDb;
+
+use super::SerializedItem;
 
 pub struct DocumentsDbMock;
 
 impl DocumentsDb for DocumentsDbMock {
-    fn put_account(&self, _: Account) -> NodeResult<()> {
+    fn put_account(&self, _: SerializedItem) -> NodeResult<()> {
         Ok(())
     }
 
-    fn put_deleted_account(&self, _: i32, _: AccountId) -> NodeResult<()> {
+    fn put_block(&self, _: SerializedItem) -> NodeResult<()> {
         Ok(())
     }
 
-    fn put_block(&self, _: &Block) -> NodeResult<()> {
+    fn put_message(&self, _: SerializedItem) -> NodeResult<()> {
         Ok(())
     }
 
-    fn put_message(
-        &self,
-        _: Message,
-        _: Option<UInt256>,
-        _: Option<u32>,
-        _: Option<UInt256>,
-    ) -> NodeResult<()> {
-        Ok(())
-    }
-
-    fn put_transaction(&self, _: Transaction, _: Option<UInt256>, _: i32) -> NodeResult<()> {
+    fn put_transaction(&self, _: SerializedItem) -> NodeResult<()> {
         Ok(())
     }
 
