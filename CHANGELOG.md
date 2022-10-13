@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.35.0 Oct 13, 2022
+
+### New
+- Implementation of chain-orders
+
 ## 0.34.0 Sep 13, 2022
 
 ### New
