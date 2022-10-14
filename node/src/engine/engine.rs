@@ -14,6 +14,7 @@
 * under the License.
 */
 
+use crate::block::finality::MINTER_ADDRESS;
 use crate::block::{BlockBuilder, BlockFinality, NewBlockApplier, OrdinaryBlockFinality};
 #[cfg(test)]
 use crate::config::NodeConfig;
@@ -287,7 +288,7 @@ impl TonNodeEngine {
             Self::create_contract_deploy_message(workchain_id, deploy_msg_boc);
         let transfer_msg = Self::create_transfer_message(
             workchain_id,
-            deploy_addr.clone(),
+            MINTER_ADDRESS.address(),
             deploy_addr.clone(),
             initial_balance,
             transfer_lt,

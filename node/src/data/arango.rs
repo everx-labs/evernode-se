@@ -24,27 +24,17 @@ use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use ton_block::{
-    Account, Block, BlockId, BlockProcessingStatus, Message, MessageProcessingStatus, Serializable,
-    Transaction, TransactionId, TransactionProcessingStatus,
-};
-use ton_block_json::{
-    db_serialize_account, db_serialize_block, db_serialize_deleted_account, db_serialize_message,
-    db_serialize_transaction, AccountSerializationSet, BlockSerializationSet,
-    DeletedAccountSerializationSet, MessageSerializationSet, TransactionSerializationSet,
-};
-use ton_types::{serialize_toc, AccountId, BuilderData};
+use super::SerializedItem;
 
 const FIRST_TIMEOUT: u64 = 1000;
 const MAX_TIMEOUT: u64 = 20000;
 const TIMEOUT_BACKOFF_MULTIPLIER: f64 = 1.2;
 
 enum ArangoRecord {
-    Block(BlockSerializationSet),
-    Transaction(TransactionSerializationSet),
-    Account(AccountSerializationSet),
-    DeletedAccount(DeletedAccountSerializationSet),
-    Message(MessageSerializationSet),
+    Block(SerializedItem),
+    Transaction(SerializedItem),
+    Account(SerializedItem),
+    Message(SerializedItem),
 }
 
 #[derive(Clone, Deserialize, Default)]
@@ -92,81 +82,29 @@ impl ArangoHelper {
         })
     }
 
-    fn process_put_block(
-        context: &ArangoHelperContext,
-        set: BlockSerializationSet,
-    ) -> NodeResult<()> {
-        let doc = db_serialize_block("_key", &set)?;
-        Self::post_to_arango(
-            &context.config.server,
-            &context.config.database,
-            &context.config.blocks_collection,
-            &context.has_delivery_problems,
-            format!("{:#}", serde_json::json!(doc)),
-            &context.client,
-        );
-        Ok(())
+    fn replace_key(item: SerializedItem) -> NodeResult<String> {
+        match item.data {
+            serde_json::Value::Object(mut map) => {
+                map.remove("id");
+                map.insert("_key".to_owned(), item.id.into());
+                Ok(format!("{:#}", serde_json::json!(map)))
+            },
+            _ => Err(NodeError::InvalidData("serialized item is not an object".to_owned()))
+        }
     }
 
-    fn process_put_message(
+    fn process_item(
         context: &ArangoHelperContext,
-        set: MessageSerializationSet,
+        collection: &str,
+        item: SerializedItem,
     ) -> NodeResult<()> {
-        let doc = db_serialize_message("_key", &set)?;
+        let data = Self::replace_key(item)?;
         Self::post_to_arango(
             &context.config.server,
             &context.config.database,
-            &context.config.messages_collection,
+            collection,
             &context.has_delivery_problems,
-            format!("{:#}", serde_json::json!(doc)),
-            &context.client,
-        );
-        Ok(())
-    }
-
-    fn process_put_transaction(
-        context: &ArangoHelperContext,
-        set: TransactionSerializationSet,
-    ) -> NodeResult<()> {
-        let doc = db_serialize_transaction("_key", &set)?;
-        Self::post_to_arango(
-            &context.config.server,
-            &context.config.database,
-            &context.config.transactions_collection,
-            &context.has_delivery_problems,
-            format!("{:#}", serde_json::json!(doc)),
-            &context.client,
-        );
-        Ok(())
-    }
-
-    fn process_put_account(
-        context: &ArangoHelperContext,
-        set: AccountSerializationSet,
-    ) -> NodeResult<()> {
-        let doc = db_serialize_account("_key", &set)?;
-        Self::post_to_arango(
-            &context.config.server,
-            &context.config.database,
-            &context.config.accounts_collection,
-            &context.has_delivery_problems,
-            format!("{:#}", serde_json::json!(doc)),
-            &context.client,
-        );
-        Ok(())
-    }
-
-    fn process_put_deleted_account(
-        context: &ArangoHelperContext,
-        set: DeletedAccountSerializationSet,
-    ) -> NodeResult<()> {
-        let doc = db_serialize_deleted_account("_key", &set)?;
-        Self::post_to_arango(
-            &context.config.server,
-            &context.config.database,
-            &context.config.accounts_collection,
-            &context.has_delivery_problems,
-            format!("{:#}", serde_json::json!(doc)),
+            data,
             &context.client,
         );
         Ok(())
@@ -175,13 +113,10 @@ impl ArangoHelper {
     fn put_records_worker(receiver: Receiver<ArangoRecord>, context: ArangoHelperContext) {
         for record in receiver {
             let result = match record {
-                ArangoRecord::Block(set) => Self::process_put_block(&context, set),
-                ArangoRecord::Transaction(set) => Self::process_put_transaction(&context, set),
-                ArangoRecord::Account(set) => Self::process_put_account(&context, set),
-                ArangoRecord::DeletedAccount(set) => {
-                    Self::process_put_deleted_account(&context, set)
-                }
-                ArangoRecord::Message(set) => Self::process_put_message(&context, set),
+                ArangoRecord::Block(item) => Self::process_item(&context, &context.config.blocks_collection, item),
+                ArangoRecord::Transaction(item) => Self::process_item(&context, &context.config.transactions_collection, item),
+                ArangoRecord::Account(item) => Self::process_item(&context, &context.config.accounts_collection, item),
+                ArangoRecord::Message(item) => Self::process_item(&context, &context.config.messages_collection, item),
             };
 
             if result.is_err() {
@@ -206,7 +141,7 @@ impl ArangoHelper {
             );
             let res = client
                 .post(&url)
-                .query(&[("overwrite", "true"), ("waitForSync", "true")])
+                .query(&[("overwriteMode", "update"), ("waitForSync", "true")])
                 .header("accept", "application/json")
                 .body(doc.clone())
                 .send();
@@ -234,123 +169,41 @@ impl ArangoHelper {
 }
 
 impl DocumentsDb for ArangoHelper {
-    fn put_block(&self, block: &Block) -> NodeResult<()> {
-        let cell = block.serialize()?;
-        let boc = serialize_toc(&cell)?;
-        let set = BlockSerializationSet {
-            block: block.clone(),
-            id: cell.repr_hash(),
-            status: BlockProcessingStatus::Finalized,
-            boc,
-            ..Default::default()
-        };
-
-        if let Err(SendError(ArangoRecord::Block(set))) =
-            self.sender.lock().send(ArangoRecord::Block(set))
+    fn put_block(&self, item: SerializedItem) -> NodeResult<()> {
+        if let Err(SendError(ArangoRecord::Block(item))) =
+            self.sender.lock().send(ArangoRecord::Block(item))
         {
-            log::error!(target: "node", "Error sending block {:x}:", set.id);
+            log::error!(target: "node", "Error sending block {}:", item.id);
         };
 
         Ok(())
     }
 
-    fn put_message(
-        &self,
-        message: Message,
-        transaction_id: Option<TransactionId>,
-        transaction_now: Option<u32>,
-        block_id: Option<BlockId>,
-    ) -> NodeResult<()> {
-        let cell = message.serialize()?;
-        let boc = serialize_toc(&cell)?;
-        let set = MessageSerializationSet {
-            message,
-            id: cell.repr_hash(),
-            block_id,
-            transaction_id,
-            transaction_now,
-            status: MessageProcessingStatus::Finalized,
-            boc,
-            proof: None,
-            ..Default::default()
-        };
-
-        if let Err(SendError(ArangoRecord::Message(set))) =
-            self.sender.lock().send(ArangoRecord::Message(set))
+    fn put_message(&self, item: SerializedItem) -> NodeResult<()> {
+        if let Err(SendError(ArangoRecord::Message(item))) =
+            self.sender.lock().send(ArangoRecord::Message(item))
         {
-            log::error!(target: "node", "Error sending message {:x}:", set.id);
+            log::error!(target: "node", "Error sending message {}:", item.id);
         };
 
         Ok(())
     }
 
-    fn put_transaction(
-        &self,
-        transaction: Transaction,
-        block_id: Option<BlockId>,
-        workchain_id: i32,
-    ) -> NodeResult<()> {
-        let cell = transaction.serialize()?;
-        let boc = serialize_toc(&cell)?;
-        let set = TransactionSerializationSet {
-            transaction,
-            id: cell.repr_hash(),
-            status: TransactionProcessingStatus::Finalized,
-            block_id,
-            workchain_id,
-            boc,
-            proof: None,
-            ..Default::default()
-        };
-
-        if let Err(SendError(ArangoRecord::Transaction(set))) =
-            self.sender.lock().send(ArangoRecord::Transaction(set))
+    fn put_transaction(&self, item: SerializedItem) -> NodeResult<()> {
+        if let Err(SendError(ArangoRecord::Transaction(item))) =
+            self.sender.lock().send(ArangoRecord::Transaction(item))
         {
-            log::error!(target: "node", "Error sending transaction {:x}:", set.id);
+            log::error!(target: "node", "Error sending transaction {}:", item.id);
         };
 
         Ok(())
     }
 
-    fn put_account(&self, account: Account) -> NodeResult<()> {
-        let account_addr = account.get_id().unwrap_or_default();
-        let cell = account.serialize()?;
-        let boc = serialize_toc(&cell)?;
-        let mut boc1 = None;
-        if account.init_code_hash().is_some() {
-            // new format
-            let mut builder = BuilderData::new();
-            account.write_original_format(&mut builder)?;
-            boc1 = Some(serialize_toc(&builder.into_cell()?)?);
-        }
-        let set = AccountSerializationSet {
-            account,
-            boc,
-            boc1,
-            proof: None,
-            ..Default::default()
-        };
-
-        if let Err(SendError(ArangoRecord::Account(_))) =
-            self.sender.lock().send(ArangoRecord::Account(set))
+    fn put_account(&self, item: SerializedItem) -> NodeResult<()> {
+        if let Err(SendError(ArangoRecord::Account(item))) =
+            self.sender.lock().send(ArangoRecord::Account(item))
         {
-            log::error!(target: "node", "Error sending account {:x}:", account_addr);
-        };
-
-        Ok(())
-    }
-
-    fn put_deleted_account(&self, workchain_id: i32, account_id: AccountId) -> NodeResult<()> {
-        let set = DeletedAccountSerializationSet {
-            account_id: account_id.clone(),
-            workchain_id,
-            ..Default::default()
-        };
-
-        if let Err(SendError(ArangoRecord::DeletedAccount(_))) =
-            self.sender.lock().send(ArangoRecord::DeletedAccount(set))
-        {
-            log::error!(target: "node", "Error sending deleted account {}:{:x}:", workchain_id, account_id);
+            log::error!(target: "node", "Error sending account {}:", item.id);
         };
 
         Ok(())

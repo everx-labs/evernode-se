@@ -2,7 +2,7 @@ use crate::NodeResult;
 #[cfg(test)]
 use std::io::Read;
 use std::sync::Arc;
-use ton_block::{Account, Block, Message, ShardStateUnsplit, Transaction};
+use ton_block::{Block, ShardStateUnsplit, Transaction};
 #[cfg(test)]
 use ton_types::ByteOrderRead;
 use ton_types::{AccountId, Cell, UInt256};
@@ -85,26 +85,16 @@ pub trait TransactionsStorage {
     }
 }
 
+pub struct SerializedItem {
+    pub id: String,
+    pub data: serde_json::Value,
+}
+
 pub trait DocumentsDb: Send + Sync {
-    fn put_account(&self, acc: Account) -> NodeResult<()>;
-    fn put_deleted_account(&self, workchain_id: i32, account_id: AccountId) -> NodeResult<()>;
-    fn put_block(&self, block: &Block) -> NodeResult<()>;
-
-    fn put_message(
-        &self,
-        msg: Message,
-        transaction_id: Option<UInt256>,
-        transaction_now: Option<u32>,
-        block_id: Option<UInt256>,
-    ) -> NodeResult<()>;
-
-    fn put_transaction(
-        &self,
-        tr: Transaction,
-        block_id: Option<UInt256>,
-        workchain_id: i32,
-    ) -> NodeResult<()>;
-
+    fn put_account(&self, item: SerializedItem) -> NodeResult<()>;
+    fn put_block(&self, item: SerializedItem) -> NodeResult<()>;
+    fn put_message(&self, item: SerializedItem) -> NodeResult<()>;
+    fn put_transaction(&self, item: SerializedItem) -> NodeResult<()>;
     fn has_delivery_problems(&self) -> bool;
 }
 

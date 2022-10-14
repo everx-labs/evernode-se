@@ -260,12 +260,17 @@ impl BlockBuilder {
         // first import internal messages
         let mut block_full = false;
         let out_queue = self.out_queue_info.out_queue().clone();
-        log::debug!(target: "node", "out queue len={}", out_queue.len()?);
+        let msg_count = out_queue.len()?;
+        log::debug!(target: "node", "out queue len={}", msg_count);
+        let mut sorted = Vec::with_capacity(msg_count);
         for out in out_queue.iter() {
             let (key, mut slice) = out?;
             let key = key.into_cell()?;
             // key is not matter for one shard
-            let (enq, _create_lt) = OutMsgQueue::value_aug(&mut slice)?;
+            sorted.push((key, OutMsgQueue::value_aug(&mut slice)?));
+        }
+        sorted.sort_by(|a, b| a.1.1.cmp(&b.1.1));
+        for (key, (enq, _create_lt)) in sorted {
             let env = enq.read_out_msg()?;
             let message = env.read_message()?;
             if let Some(acc_id) = message.int_dst_account_id() {
