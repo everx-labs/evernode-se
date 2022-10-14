@@ -566,7 +566,9 @@ where
             // extract ids of changed accounts
             let state_upd = account_block.read_state_update()?;
             if state_upd.new_hash == *ACCOUNT_NONE_HASH {
-                deleted_acc.insert(account_block.account_id().clone());
+                if state_upd.old_hash != *ACCOUNT_NONE_HASH {
+                    deleted_acc.insert(account_block.account_id().clone());
+                }
             } else {
                 changed_acc.insert(account_block.account_id().clone());
             }
