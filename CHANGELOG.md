@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file.
 ## 0.35.0 Oct 13, 2022
 
 ### New
-- Implementation of chain-orders
+
+- Blockchain API is supported (except `blockchain{ key_blocks }`)
+
+### Fixed
+
+- Incorrect inner message order
+- Account with `nonExist` acc_type was created upon a failed deploy
 
 ## 0.34.0 Sep 13, 2022
 
