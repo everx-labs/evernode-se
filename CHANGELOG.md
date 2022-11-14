@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 ## 0.35.1 Nov 14, 2022
 
 ### New
-- Build with new version q-server 0.54.1
+- Max ext_in_msg size is 64kb
 
 ## 0.35.0 Oct 13, 2022
 
