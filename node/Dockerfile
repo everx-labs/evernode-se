@@ -2,7 +2,7 @@
 
 
 ###   STAGE build-kit
-FROM alpine:latest as build-kit
+FROM alpine:3.10 as build-kit
 
 RUN apk update; \
     apk add \
