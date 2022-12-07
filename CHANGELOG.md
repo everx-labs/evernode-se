@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.35.2 Dec 7, 2022
+
+### Fixed
+- Account balance was not updated after account destruction
+
 ## 0.35.1 Nov 14, 2022
 
 ### New

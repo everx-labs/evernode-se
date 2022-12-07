@@ -14,6 +14,7 @@
 * under the License.
 */
 
+use super::SerializedItem;
 use crate::data::DocumentsDb;
 use crate::error::{NodeError, NodeResult};
 use parking_lot::Mutex;
@@ -24,11 +25,27 @@ use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use super::SerializedItem;
 
 const FIRST_TIMEOUT: u64 = 1000;
 const MAX_TIMEOUT: u64 = 20000;
 const TIMEOUT_BACKOFF_MULTIPLIER: f64 = 1.2;
+
+pub enum ArangoOverwriteMode {
+    #[allow(dead_code)]
+    Ignore,
+    Replace,
+    Update,
+}
+
+impl ArangoOverwriteMode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Ignore => "ignore",
+            Self::Replace => "replace",
+            Self::Update => "update",
+        }
+    }
+}
 
 enum ArangoRecord {
     Block(SerializedItem),
@@ -88,8 +105,10 @@ impl ArangoHelper {
                 map.remove("id");
                 map.insert("_key".to_owned(), item.id.into());
                 Ok(format!("{:#}", serde_json::json!(map)))
-            },
-            _ => Err(NodeError::InvalidData("serialized item is not an object".to_owned()))
+            }
+            _ => Err(NodeError::InvalidData(
+                "serialized item is not an object".to_owned(),
+            )),
         }
     }
 
@@ -97,6 +116,7 @@ impl ArangoHelper {
         context: &ArangoHelperContext,
         collection: &str,
         item: SerializedItem,
+        overwrite_mode: ArangoOverwriteMode,
     ) -> NodeResult<()> {
         let data = Self::replace_key(item)?;
         Self::post_to_arango(
@@ -106,6 +126,7 @@ impl ArangoHelper {
             &context.has_delivery_problems,
             data,
             &context.client,
+            overwrite_mode,
         );
         Ok(())
     }
@@ -113,10 +134,30 @@ impl ArangoHelper {
     fn put_records_worker(receiver: Receiver<ArangoRecord>, context: ArangoHelperContext) {
         for record in receiver {
             let result = match record {
-                ArangoRecord::Block(item) => Self::process_item(&context, &context.config.blocks_collection, item),
-                ArangoRecord::Transaction(item) => Self::process_item(&context, &context.config.transactions_collection, item),
-                ArangoRecord::Account(item) => Self::process_item(&context, &context.config.accounts_collection, item),
-                ArangoRecord::Message(item) => Self::process_item(&context, &context.config.messages_collection, item),
+                ArangoRecord::Block(item) => Self::process_item(
+                    &context,
+                    &context.config.blocks_collection,
+                    item,
+                    ArangoOverwriteMode::Replace,
+                ),
+                ArangoRecord::Transaction(item) => Self::process_item(
+                    &context,
+                    &context.config.transactions_collection,
+                    item,
+                    ArangoOverwriteMode::Replace,
+                ),
+                ArangoRecord::Account(item) => Self::process_item(
+                    &context,
+                    &context.config.accounts_collection,
+                    item,
+                    ArangoOverwriteMode::Replace,
+                ),
+                ArangoRecord::Message(item) => Self::process_item(
+                    &context,
+                    &context.config.messages_collection,
+                    item,
+                    ArangoOverwriteMode::Update,
+                ),
             };
 
             if result.is_err() {
@@ -132,6 +173,7 @@ impl ArangoHelper {
         has_delivery_problems: &AtomicBool,
         doc: String,
         client: &reqwest::Client,
+        overwrite_mode: ArangoOverwriteMode,
     ) {
         let mut timeout = FIRST_TIMEOUT;
         loop {
@@ -141,7 +183,10 @@ impl ArangoHelper {
             );
             let res = client
                 .post(&url)
-                .query(&[("overwriteMode", "update"), ("waitForSync", "true")])
+                .query(&[
+                    ("overwriteMode", overwrite_mode.as_str()),
+                    ("waitForSync", "true"),
+                ])
                 .header("accept", "application/json")
                 .body(doc.clone())
                 .send();
