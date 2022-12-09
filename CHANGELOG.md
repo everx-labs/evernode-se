@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 ### New
 
 - `CapFullBodyInBounced` is enabled to put full body in bounced message
+- `CapCopyleft` is enabled to use contracts with copyleft instructions
 
 ### Fixed
 - Account balance was not updated after account destruction
