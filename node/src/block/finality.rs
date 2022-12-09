@@ -541,7 +541,7 @@ where
         };
 
         let add_proof = false;
-        let block_id = shard_block.root_hash;
+        let block_id = &shard_block.root_hash;
         log::trace!("Processor block_stuff.id {}", block_id.to_hex_string());
         let file_hash = shard_block.file_hash.clone();
         let block = &shard_block.block;
@@ -576,7 +576,7 @@ where
             account_block.transactions().iterate_slices(|_, transaction_slice| {
                 // extract transactions
                 let cell = transaction_slice.reference(0)?;
-                let transaction = Transaction::construct_from(&mut cell.clone().into())?;
+                let transaction = Transaction::construct_from(&mut SliceData::load_cell(cell.clone())?)?;
                 let ordering_key = (transaction.logical_time(), transaction.account_id().clone());
                 transactions.insert(ordering_key, (cell, transaction));
                 tr_count += 1;
@@ -923,7 +923,7 @@ impl ShardBlock {
         let hash = rdr.read_u256()?;
         sb.file_hash = UInt256::from(hash);
 
-        let mut shard_slice = deserialize_tree_of_cells(rdr)?.into();
+        let mut shard_slice = SliceData::load_cell(deserialize_tree_of_cells(rdr)?)?;
         sb.shard_state.read_from(&mut shard_slice)?;
 
         let cell = deserialize_tree_of_cells(rdr)?;
