@@ -24,6 +24,7 @@ use iron::{
 use parking_lot::Mutex;
 use router::Router;
 use serde_json::Value;
+use std::str::FromStr;
 use std::{
     io::{Cursor, Read},
     sync::Arc,

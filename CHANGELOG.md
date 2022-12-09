@@ -1,7 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.35.2 Dec 7, 2022
+## 0.36.0 Dec 7, 2022
+
+### New
+
+- `CapFullBodyInBounced` is enabled to put full body in bounced message
 
 ### Fixed
 - Account balance was not updated after account destruction

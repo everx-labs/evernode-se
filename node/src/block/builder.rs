@@ -29,7 +29,7 @@ use ton_executor::{
     BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
     TransactionExecutor,
 };
-use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, UInt256};
+use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, UInt256, SliceData};
 
 use crate::engine::{InMessagesQueue, QueuedMessage};
 use crate::error::NodeResult;
@@ -277,7 +277,7 @@ impl BlockBuilder {
                 let msg = QueuedMessage::with_message(message)?;
                 self.execute(msg, blockchain_config.clone(), &acc_id, debug)?;
             }
-            self.out_queue_info.out_queue_mut().remove(key.into())?;
+            self.out_queue_info.out_queue_mut().remove(SliceData::load_cell(key)?)?;
             // TODO: check block full
             is_empty = false;
             if self.total_gas_used > 1_000_000 {
