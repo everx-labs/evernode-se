@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 ### New
 
 - `CapFullBodyInBounced` is enabled to put full body in bounced message
-- `CapCopyleft` is enabled to use contracts with copyleft instructions (but does not work fully yes, masterchain is not yet supported in SE)
+- `CapCopyleft` is enabled to use contracts with copyleft instructions (but does not work fully yet because masterchain is not yet supported in SE)
 
 ### Fixed
 - Account balance was not updated after account destruction
