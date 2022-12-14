@@ -2,7 +2,7 @@
 
 
 ###   STAGE build-kit
-FROM alpine:latest as build-kit
+FROM alpine:3.14 as build-kit
 
 RUN apk update; \
     apk add \
@@ -28,6 +28,8 @@ RUN ssh-keygen -q -P "" -f ~/.ssh/id_rsa; \
 
 ENV PKG_CONFIG_ALLOW_CROSS=1
 ENV RUSTFLAGS="-C target-feature=-crt-static"
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+
 WORKDIR /ton-node
 COPY . .
 
