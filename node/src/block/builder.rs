@@ -23,7 +23,7 @@ use ton_block::{
     MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr, OutMsgQueue, OutMsgQueueInfo,
     OutMsgQueueKey, Serializable, ShardAccount, ShardAccountBlocks, ShardAccounts, ShardIdent,
     ShardStateUnsplit, TrComputePhase, TrComputePhaseVm, Transaction, TransactionDescr,
-    TransactionDescrOrdinary, UnixTime32, ValueFlow,
+    TransactionDescrOrdinary, UnixTime32, ValueFlow, CopyleftRewards,
 };
 use ton_executor::{
     BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
@@ -57,6 +57,7 @@ pub struct BlockBuilder {
     total_gas_used: u64,
     start_lt: u64,
     end_lt: u64, // biggest logical time of all messages
+    copyleft_rewards: CopyleftRewards,
 }
 
 impl BlockBuilder {
@@ -365,6 +366,10 @@ impl BlockBuilder {
 
         self.account_blocks
             .add_serialized_transaction(&transaction, &tr_cell)?;
+        
+        if let Some(copyleft_reward) = transaction.copyleft_reward() {
+            self.copyleft_rewards.add_copyleft_reward(&copyleft_reward.address, &copyleft_reward.reward)?;
+        }
 
         if let Some(msg_cell) = transaction.in_msg_cell() {
             let msg = Message::construct_from_cell(msg_cell.clone())?;
@@ -455,6 +460,7 @@ impl BlockBuilder {
         value_flow.exported = self.out_msg_descr.root_extra().clone();
         value_flow.from_prev_blk = self.from_prev_blk;
         value_flow.to_next_blk = self.accounts.full_balance().clone();
+        value_flow.copyleft_rewards = self.copyleft_rewards;
 
         // it can be long, even we don't need to build it
         // let new_ss_root = new_shard_state.serialize()?;
