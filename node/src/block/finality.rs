@@ -565,24 +565,37 @@ where
         block_extra.read_account_blocks()?.iterate_objects(|account_block: AccountBlock| {
             // extract ids of changed accounts
             let state_upd = account_block.read_state_update()?;
+            let mut check_account_existed = false;
             if state_upd.new_hash == *ACCOUNT_NONE_HASH {
-                if state_upd.old_hash != *ACCOUNT_NONE_HASH {
-                    deleted_acc.insert(account_block.account_id().clone());
+                deleted_acc.insert(account_block.account_id().clone());
+                if state_upd.old_hash == *ACCOUNT_NONE_HASH {
+                    check_account_existed = true;
                 }
             } else {
                 changed_acc.insert(account_block.account_id().clone());
             }
 
+            let mut account_existed = false;
             account_block.transactions().iterate_slices(|_, transaction_slice| {
                 // extract transactions
                 let cell = transaction_slice.reference(0)?;
                 let transaction = Transaction::construct_from(&mut SliceData::load_cell(cell.clone())?)?;
                 let ordering_key = (transaction.logical_time(), transaction.account_id().clone());
+                if  transaction.orig_status != AccountStatus::AccStateNonexist ||
+                    transaction.end_status != AccountStatus::AccStateNonexist
+                {
+                    account_existed = true;
+                }
                 transactions.insert(ordering_key, (cell, transaction));
                 tr_count += 1;
 
                 Ok(true)
             })?;
+            
+            if check_account_existed && !account_existed {
+                deleted_acc.remove(account_block.account_id());
+            }
+
             Ok(true)
         })?;
         log::trace!("TIME: preliminary prepare {} transactions {}ms;   {}", tr_count, now.elapsed().as_millis(), block_id);
