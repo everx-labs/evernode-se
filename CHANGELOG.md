@@ -9,7 +9,9 @@ All notable changes to this project will be documented in this file.
 - `CapCopyleft` is enabled to use contracts with copyleft instructions (but does not work fully yet because masterchain is not yet supported in SE)
 
 ### Fixed
+
 - Account balance was not updated after account destruction
+- Account was not reflected in DB if it was created and deleted in one block
 
 ## 0.35.1 Nov 14, 2022
 
