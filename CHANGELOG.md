@@ -1,6 +1,18 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.36.0 Dec 7, 2022
+
+### New
+
+- `CapFullBodyInBounced` is enabled to put full body in bounced message
+- `CapCopyleft` is enabled to use contracts with copyleft instructions (but does not work fully yet because masterchain is not yet supported in SE)
+
+### Fixed
+
+- Account balance was not updated after account destruction
+- Account was not reflected in DB if it was created and deleted in one block
+
 ## 0.35.1 Nov 14, 2022
 
 ### New

@@ -1,10 +1,14 @@
 body {
-    height:100vh;
+    height: 100vh;
     margin: 0;
 }
 
 a {
     text-decoration: none;
+}
+
+input {
+    min-width: 0;
 }
 
 #spinner-container {
