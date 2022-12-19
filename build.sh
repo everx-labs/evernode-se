@@ -12,6 +12,7 @@ echo
 echo "*** Building TON Node SE ***"
 echo
 docker build \
+    --platform linux/amd64 \
     --no-cache \
     --build-arg BIN_TARGET="$BIN_TARGET" \
     --build-arg FEATURES="${1:-disable-tests}" \
@@ -22,6 +23,7 @@ echo
 echo "*** Building TONOS SE image ***"
 echo
 docker build \
+    --platform linux/amd64 \
     --no-cache \
     --build-arg TON_NODE="$TON_NODE" \
     --build-arg Q_SERVER_GITHUB_REPO="$Q_SERVER_GITHUB_REPO" \
