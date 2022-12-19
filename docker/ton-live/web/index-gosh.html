@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<head>
+<!--  &lt;!&ndash; Global site tag (gtag.js) - Google Analytics &ndash;&gt;-->
+<!--  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-136527613-15"></script>-->
+<!--  <script>-->
+<!--    window.dataLayer = window.dataLayer || [];-->
+<!--    function gtag(){dataLayer.push(arguments);}-->
+<!--    gtag('js', new Date());-->
+
+<!--    gtag('config', 'UA-136527613-15');-->
+<!--  </script>-->
+
+  <title>Gosh Explorer</title>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="Description" content="Gosh Explorer by EverX allows you to monitor the pulse of Gosh blockchain in real time. Analyze blocks and transactions for proactive planning and informed decisions.">
+  <meta name="Snippet" content="Gosh Explorer allows monitoring blocks and transactions in Gosh blockchain. Use this feed for planning and decisioning.">
+  <meta name="Keywords" content="Gosh, blockchain, DApp, decentralized application, smart contract, development, software, cryptocurrency, block, transaction, explore blockchain.">
+
+  <meta name="theme-color" content="#0073C4" />
+
+  <link href="/favicon-gosh.svg" rel="shortcut icon" type="image/x-icon">
+  <link href="/style.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+  <div id="spinner-container">
+    <img id="spinner" src="/24-blue@3x.png" />
+  </div>
+  <div id="MainContainer" data-development=true data-mode="website"></div>
+  <script src="/assets/main.bundle.js" charset="UTF-8" async="true" defer="true"></script>
+  <script>
+    const theme = localStorage.getItem('tonLiveTheme');
+    const container = document.getElementById('spinner-container');
+    if (theme === 'dark') {
+      container.style.backgroundColor = '#20262A';
+    }
+
+    const { pathname, origin, search } = window.location;
+    const depoolsSection = '/depools';
+    if (pathname.toLowerCase() === depoolsSection.toLowerCase() && pathname !== depoolsSection) {
+      window.location.replace(origin + depoolsSection);
+    }
+
+    const depoolDetailsPath = `${depoolsSection}/depoolDetails`;
+    if (pathname.toLowerCase().includes(depoolDetailsPath.toLowerCase()) && !pathname.includes(depoolDetailsPath)) {
+      window.location.replace(origin + depoolDetailsPath + search);
+    }
+  </script>
+</body>

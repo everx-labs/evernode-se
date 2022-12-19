@@ -14,7 +14,7 @@
   ],
   "p8": {
     "version": 5,
-    "capabilities": "1180974"
+    "capabilities": "1508654"
   },
   "p9": [
     0,
@@ -271,6 +271,19 @@
       {
         "public_key": "bfa0d77ec39ac4fc386cfd0fb2a940b746502adbbdc361271042cea05f14e7fb",
         "weight": "17"
+      }
+    ]
+  },
+  "p42": {
+    "threshold": "0x3b9aca00",
+    "payouts": [
+      {
+        "license_type": 0,
+        "payout_percent": 30
+      },
+      {
+        "license_type": 1,
+        "payout_percent": 20
       }
     ]
   }

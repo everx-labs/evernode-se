@@ -10,23 +10,41 @@
 <!--    gtag('config', 'UA-136527613-15');-->
 <!--  </script>-->
 
-  <title>TON.live: blockchain explorer </title>
+  <title>Everscale Explorer</title>
 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="Description" content="TON.live explorer by TON Labs allows you to monitor the pulse of TON blockchain in real time. Analyze blocks and transactions for proactive planning and informed decisions. Create an account to get the most of the service.">
-  <meta name="Snippet" content="TON.live explorer allows monitoring blocks and transactions in TON blockchain. Use this feed for planning and decisioning. ">
-  <meta name="Keywords" content="TON, Telegram, blockchain, DApp, decentralized application, peer-to-peer, p2p, smart contract, mainnet, testnet, development, software, cryptocurrency, block, transaction, explore blockchain.">
+  <meta name="Description" content="Everscale Explorer by EverX allows you to monitor the pulse of Everscale blockchain in real time. Analyze blocks and transactions for proactive planning and informed decisions. Create an account to get the most of the service.">
+  <meta name="Snippet" content="Everscale Explorer allows monitoring blocks and transactions in Everscale blockchain. Use this feed for planning and decisioning. ">
+  <meta name="Keywords" content="Everscale, blockchain, DApp, decentralized application, peer-to-peer, p2p, smart contract, mainnet, testnet, development, software, cryptocurrency, block, transaction, explore blockchain.">
 
-  <meta name="theme-color" content="#0088CC" />
+  <meta name="theme-color" content="#0073C4" />
 
-  <link href="/favicon.png" rel="shortcut icon" type="image/x-icon">
+  <link href="/favicon-ever.svg" rel="shortcut icon" type="image/x-icon">
   <link href="/style.css" rel="stylesheet" type="text/css">
 </head>
 <body>
   <div id="spinner-container">
-    <img id="spinner" src="/ico-triangle-blue@3x.png" />
+    <img id="spinner" src="/24-blue@3x.png" />
   </div>
-  <div id="TONContainer" data-development=true data-mode="website"></div>
+  <div id="MainContainer" data-development=true data-mode="website"></div>
   <script src="/assets/main.bundle.js" charset="UTF-8" async="true" defer="true"></script>
+  <script>
+    const theme = localStorage.getItem('tonLiveTheme');
+    const container = document.getElementById('spinner-container');
+    if (theme === 'dark') {
+      container.style.backgroundColor = '#20262A';
+    }
+
+    const { pathname, origin, search } = window.location;
+    const depoolsSection = '/depools';
+    if (pathname.toLowerCase() === depoolsSection.toLowerCase() && pathname !== depoolsSection) {
+      window.location.replace(origin + depoolsSection);
+    }
+
+    const depoolDetailsPath = `${depoolsSection}/depoolDetails`;
+    if (pathname.toLowerCase().includes(depoolDetailsPath.toLowerCase()) && !pathname.includes(depoolDetailsPath)) {
+      window.location.replace(origin + depoolDetailsPath + search);
+    }
+  </script>
 </body>
