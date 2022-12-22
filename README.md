@@ -21,6 +21,7 @@ Local Node with GraphQL API for Everscale DApp development and testing.
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
+  - [Memory limits](#memory-limits)
 - [SE live control (REST API)](#se-live-control-rest-api)
 - [Note for SE Developers](#note-for-se-developers)
 
@@ -196,6 +197,26 @@ To build docker image, run from the repository root:
 ```commandline
 build.cmd
 ```
+
+## Memory limits
+
+Evernode SE needs about 1Gb of memory but it is not limited to this value. There is an instance of
+ArangoDB inside and GraphQL server running in NodeJS environment which can require more memory
+during the high load over a long period of time. If there is a need to hardly limit memory 
+consumption then you can change default setting for these services. ArangoDB config is placed at
+`/arango/config` and GraphQL server entrypoint is at `/q-server/entrypoint`. There is some minimum 
+required memory limits are preconfigured in `./memory/config` for ArangoDB and `./memory/entrypoint`.
+You can copy them to `evernode-se` container with the following commands
+```commandline
+docker cp ./memory/config evernode-se:/arango/config
+docker cp ./memory/entrypoint evernode-se:/q-server/entrypoint
+```
+Memory configuration values for ArangoDB can be found in [official documentation](https://www.arangodb.com/docs/3.10/administration-reduce-memory-footprint.html)
+
+*Note* Node engine also consumes memory and can not be limited. So during the work memory
+consumption will be slightly increasing.
+
+**Warning** Memory limitation affects Evernode SE performance so use it only if necessary 
 
 # SE live control (REST API)
 
