@@ -197,6 +197,21 @@ To build docker image, run from the repository root:
 build.cmd
 ```
 
+## Memory limits
+
+Evernode SE needs about 1Gb of memory but it is not limited to this value. There is an instance of
+ArangoDB inside and GraphQL server running in NodeJS environment which can require more memory
+during the high load over a long period of time. If there is a need to hardly limit memory 
+consumption then you can change default setting for these services. ArangoDB config is placed at
+`/arango/config` and GraphQL server entrypoint is at `/q-server/entrypoint`. There is some minimum 
+required memory limits are preconfigured in `./memory/config` for ArangoDB and `./memory/entrypoint`.
+You can copy them to `evernode-se` container with the following commands
+```commandline
+docker cp ./memory/config evernode-se:/arango/config
+docker cp ./memory/entrypoint evernode-se:/q-server/entrypoint
+```
+Memory configuration values for ArangoDB can be found in [official documentation](https://www.arangodb.com/docs/3.10/administration-reduce-memory-footprint.html)
+
 # SE live control (REST API)
 
 Evernode SE has special REST endpoint `/se` that allows to perform *live* control over
