@@ -1,6 +1,13 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.36.1 Dec 22, 2022
+
+### Improvements
+
+ - ArangoDB version is increased to 3.10.1
+ - Memory management section [Memory limits](./README.md#memory-limits) is added to README
+
 ## 0.36.0 Dec 7, 2022
 
 ### New
