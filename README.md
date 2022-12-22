@@ -212,6 +212,11 @@ docker cp ./memory/entrypoint evernode-se:/q-server/entrypoint
 ```
 Memory configuration values for ArangoDB can be found in [official documentation](https://www.arangodb.com/docs/3.10/administration-reduce-memory-footprint.html)
 
+*Note* Node engine also consumes memory and can not be limited. So during the work memory
+consumption will be slightly increasing.
+
+**Warning** Memory limitation affects Evernode SE performance so use it only if necessary 
+
 # SE live control (REST API)
 
 Evernode SE has special REST endpoint `/se` that allows to perform *live* control over
