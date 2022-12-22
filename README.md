@@ -21,6 +21,7 @@ Local Node with GraphQL API for Everscale DApp development and testing.
   - [How to build docker image locally](#how-to-build-docker-image-locally)
     - [Linux/Mac:](#linuxmac)
     - [Windows:](#windows)
+  - [Memory limits](#memory-limits)
 - [SE live control (REST API)](#se-live-control-rest-api)
 - [Note for SE Developers](#note-for-se-developers)
 
