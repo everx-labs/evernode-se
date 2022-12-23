@@ -1,6 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.36.2 Dec 23, 2022
+
+### Fixed
+- Running arango container on M1 arch (downgrade ArangoDB version to 3.7.11)
+
 ## 0.36.1 Dec 22, 2022
 
 ### Improvements
