@@ -18,7 +18,7 @@ RUN npm ci; \
 
 FROM ${TON_NODE} as ton-node
 
-FROM arangodb:3.10.1
+FROM arangodb:3.7.11
 
 ENV LANG=en_US.UTF-8
 ENV PYTHONIOENCODING=utf-8
