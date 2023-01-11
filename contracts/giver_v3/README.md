@@ -63,3 +63,4 @@ everdev network giver --signer <name_signer> --type GiverV3 <name_network> <give
 * ABI: [GiverV3.abi.json](GiverV3.abi.json)
 * Keypair: [GiverV3.keys.json](GiverV3.keys.json)
 * Source code: [GiverV3.sol](GiverV3.sol)
+* TVC file: [GiverV3.tvc](GiverV3.tvc)
