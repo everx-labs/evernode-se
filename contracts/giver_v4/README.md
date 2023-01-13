@@ -2,51 +2,44 @@
 
 This directory contains Giver v4 (ABI v2.2) contract. This giver is recommended to use with solc version above 0.61.2 to deploy it on devnet or mainnet.
 
-## Usage
-Method: `sendTransaction`
+## Self deploy contract on any network
 
-parameters: 
-* `dest`: `address` - destination address;
-* `value`: `uint128` - amount to send, in nanotokens;
-* `bounce`: `bool` - bounce flag of the message.
-
-### Using tonos-cli:
-```shell
-npx tonos-cli call 0:78fbd6980c10cf41401b32e9b51810415e7578b52403af80dae68ddf99714498 \
-    sendTransaction '{"dest":"<address>","value":<nanotokens>,"bounce":false}' \
-    --abi GiverV4.abi.json \
-    --sign <private_key>  
-```
-
-## Self deploy
-
-### Compile
+### Compile Giver contract
+This contract is prepared for compilation by `solc_0_61_2` and `tvm_linker_0_17_3` or above.
 ```shell
 npx everdev sol set --compiler 0.61.2 --linker 0.17.3
 npx everdev sol compile GiverV4.sol
 ```
 
 ### Setup your signer
+You can skip this step if you already have one. But make sure the right signer linked to `<name_network>`.
 ```shell
 npx everdev signer add <name_signer> <private_key>
 npx everdev signer default <name_signer>
 ```
 
-### Get `<giver_address>` and topup it
+### Get your Giver `<giver_address>`
+The address was calculated using the compiled contract codehash and your public key.
 ```shell
 npx everdev contract info GiverV4
 ```
 
-### Deploy
-Before deploy you need to transfer some tokens on address (calculated from TVC and signer public)
+### Deploy your Giver
+Before deploy you need to transfer tokens to `<giver_address>`.
 ```shell
 npx everdev contract deploy GiverV4
 ```
 
 ### Setup your Giver
-Type of this giver same as GiverV3
+Before this step, make sure that you have configured the network with the correct endpoint, which contains your evercloud projectId.
 ```shell
-everdev network giver --signer <name_signer> --type GiverV3 <name_network> <giver_address>
+npx everdev network giver --signer <name_signer> --type GiverV4 <name_network> <giver_address>
+```
+
+### Using your Giver
+This command under the hood will use predefined signer and configured giver on the default network.
+```
+npx everdev contract topup -a `<refill_address>` -v `<nano_tokens_value>`
 ```
 
 ## Files
