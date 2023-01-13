@@ -1,6 +1,12 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.36.3 Jan 11, 2023
+
+### Fixed
+
+- Ever Live explorer, as well as Evernode SE can be run on a host with fully qualified domain name.
+
 ## 0.36.2 Dec 23, 2022
 
 ### Fixed
