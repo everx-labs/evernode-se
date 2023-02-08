@@ -9,38 +9,38 @@
 	},
 	"blockchain": {
 		"accounts": [
-			"http://root@localhost:8529"
+			"http://root@localhost:8529?name=se_master_blocks"
 		],
 		"blocks": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@localhost:8529?name=se_master_blocks"
 			],
 			"cold": []
 		},
 		"transactions": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@localhost:8529?name=se_master_blocks"
 			],
 			"cold": []
 		},
-		"zerostate": "http://root@localhost:8529"
+		"zerostate": "http://root@localhost:8529?name=se_master_blocks"
 	},
 	"slowQueriesBlockchain": {
 		"accounts": [
-			"http://root@localhost:8529"
+			"http://root@localhost:8529?name=se_master_blocks"
 		],
 		"blocks": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@localhost:8529?name=se_master_blocks"
 			],
 			"cold": []
 		},
 		"transactions": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@localhost:8529?name=se_master_blocks"
 			],
 			"cold": []
 		},
-		"zerostate": "http://root@localhost:8529"
+		"zerostate": "http://root@localhost:8529?name=se_master_blocks"
 	}
 }

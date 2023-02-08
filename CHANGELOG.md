@@ -1,6 +1,15 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.37.0 Jan 11, 2023
+
+### New
+
+- Masterchain block producing.
+- `global_id` parameter in `ton-node.conf.json` is written into blocks.
+- `global_id` parameter is used as a `signature_id` if related cap is turned  
+    on in the blockchain config.
+
 ## 0.36.3 Jan 11, 2023
 
 ### Fixed

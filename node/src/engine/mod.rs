@@ -20,6 +20,8 @@ use std::sync::Arc;
 pub mod messages;
 pub use self::messages::*;
 pub mod engine;
+pub mod shardchain;
+mod masterchain;
 
 const GIVER_BALANCE: u128 = 5_000_000_000_000_000_000;
 const MULTISIG_BALANCE: u128 = 1_000_000_000_000_000;

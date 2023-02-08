@@ -15,41 +15,20 @@
 */
 
 use crate::data::DocumentsDb;
-use parking_lot::{Mutex, Condvar};
-use std::{sync::Arc, collections::VecDeque};
-use ton_block::{GetRepresentationHash, Message, Serializable};
-use ton_types::{serialize_toc, Result, UInt256};
+use parking_lot::{Condvar, Mutex};
+use std::{collections::VecDeque, sync::Arc};
+use ton_block::{Message, Serializable};
+use ton_types::serialize_toc;
 
 #[cfg(test)]
 #[path = "../../../../tonos-se-tests/unit/test_messages.rs"]
 mod tests;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct QueuedMessage {
-    message: Message,
-    hash: UInt256,
-}
-
-impl QueuedMessage {
-    pub fn with_message(message: Message) -> Result<Self> {
-        let hash = message.hash()?;
-        Ok(Self { message, hash })
-    }
-
-    pub fn message(&self) -> &Message {
-        &self.message
-    }
-
-    pub fn message_hash(&self) -> &UInt256 {
-        &self.hash
-    }
-}
-
 /// This FIFO accumulates inbound messages from all types of receivers.
 /// The struct might be used from many threads. It provides internal mutability.
 pub struct InMessagesQueue {
     present: Condvar,
-    storage: Mutex<VecDeque<QueuedMessage>>,
+    storage: Mutex<VecDeque<Message>>,
     db: Option<Arc<dyn DocumentsDb>>,
     capacity: usize,
 }
@@ -82,7 +61,7 @@ impl InMessagesQueue {
     }
 
     /// Include message into end queue.
-    pub fn queue(&self, msg: QueuedMessage) -> std::result::Result<(), QueuedMessage> {
+    pub fn queue(&self, msg: Message) -> std::result::Result<(), Message> {
         if self.has_delivery_problems() {
             log::debug!(target: "node", "Has delivery problems");
             return Err(msg);
@@ -93,16 +72,22 @@ impl InMessagesQueue {
             return Err(msg);
         }
 
-        log::debug!(target: "node", "Queued message: {:?}", msg.message());
+        log::debug!(target: "node", "Queued message: {:?}", msg);
         storage.push_back(msg);
         self.present.notify_one();
 
         Ok(())
     }
 
-    /// Extract oldest message from queue.
-    pub fn dequeue(&self) -> Option<QueuedMessage> {
-        self.storage.lock().pop_front()
+    /// Extract oldest message for specified workchain from queue.
+    pub fn dequeue(&self, workchain_id: i32) -> Option<Message> {
+        let mut storage = self.storage.lock();
+        for i in 0..storage.len() {
+            if storage[i].workchain_id() == Some(workchain_id) {
+                return storage.remove(i);
+            }
+        }
+        None
     }
 
     pub fn print_message(msg: &Message) {

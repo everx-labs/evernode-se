@@ -197,7 +197,7 @@ impl ArangoHelper {
                         log::error!(target: "node", "error sending to arango {}, ({:?})", url, resp.status().canonical_reason());
                     } else {
                         has_delivery_problems.store(false, Ordering::SeqCst);
-                        log::debug!(target: "node", "sucessfully sent to arango");
+                        log::debug!(target: "node", "successfully sent to arango");
                         break;
                     }
                 }

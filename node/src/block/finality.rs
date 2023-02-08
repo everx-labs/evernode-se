@@ -14,14 +14,13 @@
 * under the License.
 */
 
-use crate::block::applier::BlockFinality;
 use crate::data::{
-    BlocksStorage, DocumentsDb, FileBasedStorage, FinalityStorage, ShardStateInfo,
-    ShardStateStorage, TransactionsStorage, SerializedItem,
+    BlocksStorage, DocumentsDb, FileBasedStorage, FinalityStorage, SerializedItem, ShardStateInfo,
+    ShardStateStorage, TransactionsStorage,
 };
 use crate::error::NodeError;
 use crate::NodeResult;
-use std::collections::{HashSet, BTreeMap};
+use std::collections::{BTreeMap, HashSet};
 use std::{
     collections::HashMap,
     fs::{create_dir_all, File},
@@ -38,7 +37,7 @@ mod tests;
 
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
-    pub static ref MINTER_ADDRESS: MsgAddressInt = 
+    pub static ref MINTER_ADDRESS: MsgAddressInt =
         MsgAddressInt::AddrStd(MsgAddrStd::with_address(None, 0, [0; 32].into()));
 );
 
@@ -67,8 +66,10 @@ where
     db: Option<Arc<dyn DocumentsDb>>,
 
     current_block: Box<ShardBlock>,
-    blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>, // need to remove
-    blocks_by_no: HashMap<u64, Box<FinalityBlock>>,       // need to remove
+    blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
+    // need to remove
+    blocks_by_no: HashMap<u64, Box<FinalityBlock>>,
+    // need to remove
     last_finalized_block: Box<ShardBlock>,
 }
 
@@ -86,6 +87,7 @@ where
     /// Create new instance BlockFinality
     /// with all kind of storages
     pub fn with_params(
+        global_id: i32,
         shard_ident: ShardIdent,
         root_path: PathBuf,
         shard_state_storage: Arc<S>,
@@ -99,18 +101,22 @@ where
             .expect("cannot create shards directory");
 
         OrdinaryBlockFinality {
-            shard_ident,
+            shard_ident: shard_ident.clone(),
             root_path,
             shard_state_storage,
             blocks_storage,
             _tr_storage,
             fn_storage,
             db,
-            current_block: Box::new(ShardBlock::default()),
+            current_block: Box::new(ShardBlock::new(global_id, shard_ident.clone())),
             blocks_by_hash: HashMap::new(),
             blocks_by_no: HashMap::new(),
-            last_finalized_block: Box::new(ShardBlock::default()),
+            last_finalized_block: Box::new(ShardBlock::new(global_id, shard_ident.clone())),
         }
+    }
+
+    pub(crate) fn get_last_info(&self) -> NodeResult<(Arc<ShardStateUnsplit>, BlkPrevInfo)> {
+        Ok((self.get_last_shard_state(), self.get_last_block_info()?))
     }
 
     fn finality_blocks(&mut self, root_hash: UInt256) -> NodeResult<()> {
@@ -245,7 +251,6 @@ where
 
     ///
     /// Write data BlockFinality to file
-    ///
     fn serialize(&self, writer: &mut dyn Write) -> NodeResult<()> {
         // serialize struct:
         // 32bit - length of structure ShardBlock
@@ -292,7 +297,10 @@ where
         let seq_no = rdr.read_le_u64()?;
         log::info!(target: "node", "read_one_sb:seq_no: {}", seq_no);
         if seq_no == 0 {
-            Ok(Box::new(ShardBlock::default()))
+            Ok(Box::new(ShardBlock::new(
+                self.current_block.block.global_id,
+                self.shard_ident.clone(),
+            )))
         } else {
             let mut current_block_name = block_finality_path.clone();
             current_block_name.push(hash.to_hex_string());
@@ -342,7 +350,6 @@ where
         Ok(())
     }
 
-    
     fn prepare_messages_from_transaction(
         transaction: &Transaction,
         block_id: UInt256,
@@ -353,7 +360,7 @@ where
         if let Some(message_cell) = transaction.in_msg_cell() {
             let message = Message::construct_from_cell(message_cell.clone())?;
             let message_id = message_cell.repr_hash();
-            let mut doc = 
+            let mut doc =
                 if message.is_inbound_external() || message.src_ref() == Some(&MINTER_ADDRESS) {
                     Self::prepare_message_json(
                         message_cell,
@@ -363,21 +370,21 @@ where
                         Some(transaction.now()),
                     )?
                 } else {
-                    messages.remove(&message_id)
-                        .unwrap_or_else(|| {
-                            let mut doc = serde_json::value::Map::with_capacity(2);
-                            doc.insert("id".into(), message_id.as_hex_string().into());
-                            doc
-                        })
+                    messages.remove(&message_id).unwrap_or_else(|| {
+                        let mut doc = serde_json::value::Map::with_capacity(2);
+                        doc.insert("id".into(), message_id.as_hex_string().into());
+                        doc
+                    })
                 };
-    
+
             doc.insert(
                 "dst_chain_order".into(),
-                format!("{}{}", tr_chain_order, ton_block_json::u64_to_string(0)).into());
-    
+                format!("{}{}", tr_chain_order, ton_block_json::u64_to_string(0)).into(),
+            );
+
             messages.insert(message_id, doc);
         };
-    
+
         let mut index: u64 = 1;
         transaction.out_msgs.iterate_slices(|slice| {
             let message_cell = slice.reference(0)?;
@@ -390,17 +397,18 @@ where
                 block_id.clone(),
                 None, // transaction_now affects ExtIn messages only
             )?;
-    
+
             // messages are ordered by created_lt
             doc.insert(
                 "src_chain_order".into(),
-                format!("{}{}", tr_chain_order, ton_block_json::u64_to_string(index)).into());
-    
+                format!("{}{}", tr_chain_order, ton_block_json::u64_to_string(index)).into(),
+            );
+
             index += 1;
             messages.insert(message_id, doc);
             Ok(true)
         })?;
-    
+
         Ok(())
     }
 
@@ -415,7 +423,7 @@ where
         let proof = block_root_for_proof
             .map(|cell| serialize_toc(&message.prepare_proof(true, cell)?))
             .transpose()?;
-    
+
         let set = ton_block_json::MessageSerializationSet {
             message,
             id: message_cell.repr_hash(),
@@ -438,7 +446,7 @@ where
     }
 
     fn prepare_transaction_json(
-        tr_cell: Cell, 
+        tr_cell: Cell,
         transaction: Transaction,
         block_root: &Cell,
         block_id: UInt256,
@@ -469,7 +477,7 @@ where
         account: Account,
         prev_account_state: Option<Account>,
         last_trans_chain_order: Option<String>,
-    ) -> Result<SerializedItem> {        
+    ) -> Result<SerializedItem> {
         let mut boc1 = None;
         if account.init_code_hash().is_some() {
             // new format
@@ -487,10 +495,13 @@ where
             boc1,
             ..Default::default()
         };
-        
+
         let mut doc = ton_block_json::db_serialize_account("id", &set)?;
         if let Some(last_trans_chain_order) = last_trans_chain_order {
-            doc.insert("last_trans_chain_order".to_owned(), last_trans_chain_order.into());
+            doc.insert(
+                "last_trans_chain_order".to_owned(),
+                last_trans_chain_order.into(),
+            );
         }
         Ok(Self::doc_to_item(doc))
     }
@@ -510,7 +521,10 @@ where
 
         let mut doc = ton_block_json::db_serialize_deleted_account("id", &set)?;
         if let Some(last_trans_chain_order) = last_trans_chain_order {
-            doc.insert("last_trans_chain_order".to_owned(), last_trans_chain_order.into());
+            doc.insert(
+                "last_trans_chain_order".to_owned(),
+                last_trans_chain_order.into(),
+            );
         }
         Ok(Self::doc_to_item(doc))
     }
@@ -537,7 +551,7 @@ where
     pub fn reflect_block_in_db(&self, shard_block: &ShardBlock) -> Result<()> {
         let db = match self.db.clone() {
             Some(db) => db,
-            None => return Ok(())
+            None => return Ok(()),
         };
 
         let add_proof = false;
@@ -554,7 +568,7 @@ where
         let shard_accounts = shard_block.shard_state.read_accounts()?;
 
         let now_all = std::time::Instant::now();
-    
+
         // Prepare sorted ton_block transactions and addresses of changed accounts
         let mut changed_acc = HashSet::new();
         let mut deleted_acc = HashSet::new();
@@ -562,44 +576,54 @@ where
         let now = std::time::Instant::now();
         let mut tr_count = 0;
         let mut transactions = BTreeMap::new();
-        block_extra.read_account_blocks()?.iterate_objects(|account_block: AccountBlock| {
-            // extract ids of changed accounts
-            let state_upd = account_block.read_state_update()?;
-            let mut check_account_existed = false;
-            if state_upd.new_hash == *ACCOUNT_NONE_HASH {
-                deleted_acc.insert(account_block.account_id().clone());
-                if state_upd.old_hash == *ACCOUNT_NONE_HASH {
-                    check_account_existed = true;
+        block_extra
+            .read_account_blocks()?
+            .iterate_objects(|account_block: AccountBlock| {
+                // extract ids of changed accounts
+                let state_upd = account_block.read_state_update()?;
+                let mut check_account_existed = false;
+                if state_upd.new_hash == *ACCOUNT_NONE_HASH {
+                    deleted_acc.insert(account_block.account_id().clone());
+                    if state_upd.old_hash == *ACCOUNT_NONE_HASH {
+                        check_account_existed = true;
+                    }
+                } else {
+                    changed_acc.insert(account_block.account_id().clone());
                 }
-            } else {
-                changed_acc.insert(account_block.account_id().clone());
-            }
 
-            let mut account_existed = false;
-            account_block.transactions().iterate_slices(|_, transaction_slice| {
-                // extract transactions
-                let cell = transaction_slice.reference(0)?;
-                let transaction = Transaction::construct_from(&mut SliceData::load_cell(cell.clone())?)?;
-                let ordering_key = (transaction.logical_time(), transaction.account_id().clone());
-                if  transaction.orig_status != AccountStatus::AccStateNonexist ||
-                    transaction.end_status != AccountStatus::AccStateNonexist
-                {
-                    account_existed = true;
+                let mut account_existed = false;
+                account_block
+                    .transactions()
+                    .iterate_slices(|_, transaction_slice| {
+                        // extract transactions
+                        let cell = transaction_slice.reference(0)?;
+                        let transaction =
+                            Transaction::construct_from(&mut SliceData::load_cell(cell.clone())?)?;
+                        let ordering_key =
+                            (transaction.logical_time(), transaction.account_id().clone());
+                        if transaction.orig_status != AccountStatus::AccStateNonexist
+                            || transaction.end_status != AccountStatus::AccStateNonexist
+                        {
+                            account_existed = true;
+                        }
+                        transactions.insert(ordering_key, (cell, transaction));
+                        tr_count += 1;
+
+                        Ok(true)
+                    })?;
+
+                if check_account_existed && !account_existed {
+                    deleted_acc.remove(account_block.account_id());
                 }
-                transactions.insert(ordering_key, (cell, transaction));
-                tr_count += 1;
 
                 Ok(true)
             })?;
-            
-            if check_account_existed && !account_existed {
-                deleted_acc.remove(account_block.account_id());
-            }
-
-            Ok(true)
-        })?;
-        log::trace!("TIME: preliminary prepare {} transactions {}ms;   {}", tr_count, now.elapsed().as_millis(), block_id);
-
+        log::trace!(
+            "TIME: preliminary prepare {} transactions {}ms;   {}",
+            tr_count,
+            now.elapsed().as_millis(),
+            block_id
+        );
 
         // Iterate ton_block transactions to:
         // - prepare messages and transactions for external db
@@ -608,8 +632,12 @@ where
         let mut index = 0;
         let mut messages = Default::default();
         for (_, (cell, transaction)) in transactions.into_iter() {
-            let tr_chain_order = format!("{}{}", block_order, ton_block_json::u64_to_string(index as u64));
-            
+            let tr_chain_order = format!(
+                "{}{}",
+                block_order,
+                ton_block_json::u64_to_string(index as u64)
+            );
+
             Self::prepare_messages_from_transaction(
                 &transaction,
                 block_root.repr_hash(),
@@ -622,16 +650,16 @@ where
             acc_last_trans_chain_order.insert(account_id, tr_chain_order.clone());
 
             let mut doc = Self::prepare_transaction_json(
-                cell, 
+                cell,
                 transaction,
                 &block_root,
                 block_root.repr_hash(),
                 workchain_id,
-                add_proof
+                add_proof,
             )?;
             doc.insert("chain_order".into(), tr_chain_order.into());
             db.put_transaction(Self::doc_to_item(doc))?;
-            
+
             index += 1;
         }
         let msg_count = messages.len(); // is 0 if not process_message
@@ -646,17 +674,16 @@ where
             block_id,
         );
 
-        
         // Prepare accounts (changed and deleted)
         let now = std::time::Instant::now();
         for account_id in changed_acc.iter() {
-            let acc = shard_accounts.account(account_id)?
-                .ok_or_else(|| 
-                    NodeError::InvalidData(
-                        "Block and shard state mismatch: \
-                        state doesn't contain changed account".to_string()
-                    )
-                )?;
+            let acc = shard_accounts.account(account_id)?.ok_or_else(|| {
+                NodeError::InvalidData(
+                    "Block and shard state mismatch: \
+                        state doesn't contain changed account"
+                        .to_string(),
+                )
+            })?;
             let acc = acc.read_account()?;
 
             db.put_account(Self::prepare_account_record(
@@ -675,35 +702,37 @@ where
                 last_trans_chain_order,
             )?)?;
         }
-        log::trace!("TIME: accounts {} {}ms;   {}", changed_acc.len(), now.elapsed().as_millis(), block_id);
+        log::trace!(
+            "TIME: accounts {} {}ms;   {}",
+            changed_acc.len(),
+            now.elapsed().as_millis(),
+            block_id
+        );
 
         // Block
         let now = std::time::Instant::now();
-        db.put_block(
-            Self::prepare_block_record(
-                block,
-                &block_root,
-                block_boc,
-                &file_hash,
-                block_order.clone(),
-            )?
-        )?;
-        log::trace!("TIME: block {}ms;   {}", now.elapsed().as_millis(), block_id);
-        log::trace!("TIME: prepare & build jsons {}ms;   {}", now_all.elapsed().as_millis(), block_id);
+        db.put_block(Self::prepare_block_record(
+            block,
+            &block_root,
+            block_boc,
+            &file_hash,
+            block_order.clone(),
+        )?)?;
+        log::trace!(
+            "TIME: block {}ms;   {}",
+            now.elapsed().as_millis(),
+            block_id
+        );
+        log::trace!(
+            "TIME: prepare & build jsons {}ms;   {}",
+            now_all.elapsed().as_millis(),
+            block_id
+        );
         Ok(())
     }
 
-}
-
-impl<S, B, T, F> BlockFinality for OrdinaryBlockFinality<S, B, T, F>
-where
-    S: ShardStateStorage,
-    B: BlocksStorage,
-    T: TransactionsStorage,
-    F: FinalityStorage,
-{
     /// Save block until finality comes
-    fn put_block_with_info(
+    pub(crate) fn put_block_with_info(
         &mut self,
         block: &Block,
         shard_state: Arc<ShardStateUnsplit>,
@@ -727,7 +756,7 @@ where
     }
 
     /// get last block sequence number
-    fn get_last_seq_no(&self) -> u32 {
+    pub(crate) fn get_last_seq_no(&self) -> u32 {
         self.current_block.block.read_info().unwrap().seq_no()
     }
 
@@ -749,8 +778,9 @@ where
         //log::warn!("LAST SHARD BAG {}", self.current_block.shard_bag.get_repr_hash_by_index(0).unwrap().to_hex_string()));
         Arc::clone(&self.current_block.shard_state)
     }
-    /// find block by hash and return his sequence number (for sync)
-    fn find_block_by_hash(&self, hash: &UInt256) -> u64 {
+
+    #[cfg(test)]
+    pub fn find_block_by_hash(&self, hash: &UInt256) -> u64 {
         if self.blocks_by_hash.contains_key(hash) {
             self.blocks_by_hash.get(hash).unwrap().seq_no()
         } else {
@@ -759,7 +789,8 @@ where
     }
 
     /// Rollback shard state to one of block candidates
-    fn rollback_to(&mut self, hash: &UInt256) -> NodeResult<()> {
+    #[cfg(test)]
+    pub fn rollback_to(&mut self, hash: &UInt256) -> NodeResult<()> {
         if self.blocks_by_hash.contains_key(hash) {
             let sb = self.blocks_by_hash.remove(hash).unwrap();
             let mut seq_no = sb.seq_no();
@@ -782,41 +813,7 @@ where
         }
     }
 
-    /// get raw signed block data - for synchronize
-    fn get_raw_block_by_seqno(&self, seq_no: u32, vert_seq_no: u32) -> NodeResult<Vec<u8>> {
-        let key = key_by_seqno(seq_no, vert_seq_no);
-        if self.blocks_by_no.contains_key(&key) {
-            /* TODO: which case to use?
-            return Ok(self.blocks_by_no.get(&key).unwrap().serialized_block.clone())
-            TODO rewrite to
-            return Ok(
-                self.fn_storage.load_non_finalized_block_by_seq_no(key)?.serialized_block.clone()
-            )*/
-            return Ok(self
-                .stored_to_loaded(self.blocks_by_no.get(&key).unwrap().clone())?
-                .serialized_block
-                .clone());
-        }
-        self.blocks_storage.raw_block(seq_no, vert_seq_no)
-    }
 
-    /// get number of last finalized shard
-    fn get_last_finality_shard_hash(&self) -> NodeResult<(u64, UInt256)> {
-        // TODO avoid serialization there
-        let cell = self.last_finalized_block.shard_state.serialize()?;
-
-        Ok((self.last_finalized_block.seq_no, cell.repr_hash()))
-    }
-
-    /// reset block finality
-    /// clean all maps, load last finalized data
-    fn reset(&mut self) -> NodeResult<()> {
-        self.current_block = self.last_finalized_block.clone();
-        // remove files from disk
-        self.blocks_by_hash.clear();
-        self.blocks_by_no.clear();
-        Ok(())
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -833,6 +830,7 @@ impl FinalityBlock {
         }
     }
 
+    #[cfg(test)]
     pub fn root_hash(&self) -> &UInt256 {
         match self {
             FinalityBlock::Stored(sb) => &sb.root_hash,
@@ -867,20 +865,23 @@ pub struct ShardBlock {
     shard_state: Arc<ShardStateUnsplit>,
 }
 
-impl Default for ShardBlock {
-    fn default() -> Self {
+impl ShardBlock {
+    fn new(global_id: i32, shard: ShardIdent) -> Self {
+        let mut shard_state = ShardStateUnsplit::default();
+        shard_state.set_global_id(global_id);
+        shard_state.set_shard(shard);
+        let mut block = Block::default();
+        block.global_id = global_id;
         Self {
             seq_no: 0,
             serialized_block: Vec::new(),
             root_hash: UInt256::ZERO,
             file_hash: UInt256::ZERO,
-            block: Block::default(),
-            shard_state: Arc::new(ShardStateUnsplit::default()),
+            block,
+            shard_state: Arc::new(shard_state),
         }
     }
-}
 
-impl ShardBlock {
     /// get current block sequence number
     pub fn get_seq_no(&self) -> u64 {
         self.seq_no
@@ -923,7 +924,7 @@ impl ShardBlock {
 
     /// deserialize shard block
     pub fn deserialize<R: Read + Seek>(rdr: &mut R) -> NodeResult<Self> {
-        let mut sb = ShardBlock::default();
+        let mut sb = ShardBlock::new(0, ShardIdent::default());
         sb.seq_no = rdr.read_le_u64()?;
         let sb_len = rdr.read_le_u32()?;
         let mut sb_buf = vec![0; sb_len as usize];
@@ -941,7 +942,6 @@ impl ShardBlock {
 
         let cell = deserialize_tree_of_cells(rdr)?;
         sb.block = Block::construct_from_cell(cell)?;
-
         Ok(sb)
     }
 }
@@ -967,7 +967,8 @@ pub fn generate_block_with_seq_no(
             (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
             256,
         );
-        let mut transaction = Transaction::with_address_and_status(acc.clone(), AccountStatus::AccStateActive);
+        let mut transaction =
+            Transaction::with_address_and_status(acc.clone(), AccountStatus::AccStateActive);
         let mut value = CurrencyCollection::default();
         value.grams = 10202u64.into();
         let mut imh = InternalMessageHeader::with_addresses(
@@ -990,7 +991,8 @@ pub fn generate_block_with_seq_no(
         inmsg1.set_body(SliceData::new(vec![0x21; 120]));
 
         let ext_in_header = ExternalInboundMessageHeader {
-            src: MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80])).unwrap(),
+            src: MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80]))
+                .unwrap(),
             dst: MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
             import_fee: 10u64.into(),
         };
@@ -1015,8 +1017,7 @@ pub fn generate_block_with_seq_no(
 
         let ext_out_header = ExtOutMessageHeader::with_addresses(
             MsgAddressInt::with_standart(None, 0, acc.clone()).unwrap(),
-            MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80]))
-                .unwrap(),
+            MsgAddressExt::with_extern(SliceData::new(vec![0x23, 0x52, 0x73, 0x00, 0x80])).unwrap(),
         );
 
         let mut outmsg2 = Message::with_ext_out_header(ext_out_header);
@@ -1026,7 +1027,9 @@ pub fn generate_block_with_seq_no(
         transaction.add_out_message(&outmsg2).unwrap();
 
         let tr_cell = transaction.serialize().unwrap();
-        block_builder.add_raw_transaction(transaction, tr_cell).unwrap();
+        block_builder
+            .add_raw_transaction(transaction, tr_cell)
+            .unwrap();
     }
     let (block, _) = block_builder.finalize_block().unwrap();
     block
