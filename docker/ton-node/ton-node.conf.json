@@ -32,7 +32,7 @@
 	},
 	"document_db": {
 		"server": "127.0.0.1:8529",
-		"database": "se_master_blocks",
+		"database": "blockchain",
 		"blocks_collection": "blocks",
 		"messages_collection": "messages",
 		"transactions_collection": "transactions",
