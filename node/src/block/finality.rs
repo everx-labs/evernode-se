@@ -755,11 +755,6 @@ where
         Ok(())
     }
 
-    /// get last block sequence number
-    pub(crate) fn get_last_seq_no(&self) -> u32 {
-        self.current_block.block.read_info().unwrap().seq_no()
-    }
-
     /// get last block info
     fn get_last_block_info(&self) -> NodeResult<BlkPrevInfo> {
         let info = &self.current_block.block.read_info()?;

@@ -437,7 +437,7 @@ impl BlockBuilder {
     /// Complete the construction of the block and return it.
     /// returns generated block and new shard state bag (and transaction count)
     ///
-    pub fn finalize_block(self) -> Result<(Block, ShardStateUnsplit)> {
+    pub fn finalize_block(mut self) -> Result<(Block, ShardStateUnsplit)> {
         let mut new_shard_state = self.shard_state.deref().clone();
         new_shard_state.set_seq_no(self.block_info.seq_no());
         new_shard_state.write_accounts(&self.accounts)?;
@@ -465,6 +465,7 @@ impl BlockBuilder {
         // let old_ss_root = self.shard_state.serialize()?;
         // let state_update = MerkleUpdate::create(&old_ss_root, &new_ss_root)?;
         let state_update = MerkleUpdate::default();
+        self.block_info.set_end_lt(self.end_lt.max(self.start_lt + 1));
 
         let block = Block::with_params(
             self.shard_state.global_id(),
