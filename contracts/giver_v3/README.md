@@ -1,4 +1,4 @@
-# Giver v4
+# Giver v3
 
 This directory contains Giver v3 contract. This giver is recommended to use with solc version above 0.61.2 to deploy it on devnet or mainnet.
 
@@ -51,7 +51,7 @@ npx everdev contract deploy GiverV3
 Run this command to set up the giver for your network. 
 
 ```shell
-npx everdev network giver --signer <name_signer> --type GiverV4 <name_network> <giver_address>
+npx everdev network giver --signer <name_signer> --type GiverV3 <name_network> <giver_address>
 ```
 
 ### Using your Giver
