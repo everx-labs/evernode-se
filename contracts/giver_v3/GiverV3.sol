@@ -1,6 +1,7 @@
-pragma ton-solidity >= 0.59.0;
+pragma ever-solidity >= 0.61.2;
 pragma AbiHeader time;
 pragma AbiHeader expire;
+pragma AbiHeader pubkey;
 
 abstract contract Upgradable {
     /*
@@ -22,7 +23,7 @@ abstract contract Upgradable {
 contract GiverV3 is Upgradable {
 
     uint8 constant MAX_CLEANUP_MSGS = 30;
-    mapping(uint256 => uint64) m_messages;
+    mapping(uint256 => uint32) m_messages;
 
     modifier acceptOnlyOwner {
         require(msg.pubkey() == tvm.pubkey(), 101);
@@ -55,7 +56,7 @@ contract GiverV3 is Upgradable {
         // owner check
         require(msg.pubkey() == tvm.pubkey(), 101);
         // load and drop message timestamp (uint64)
-        (, uint64 expireAt) = body.decode(uint64, uint32);
+        (, uint32 expireAt) = body.decode(uint64, uint32);
         require(expireAt > now, 57);
         uint256 msgHash = tvm.hash(message);
         require(!m_messages.exists(msgHash), 102);
@@ -69,7 +70,7 @@ contract GiverV3 is Upgradable {
     /// @notice Allows to delete expired messages from dict.
     function gc() private inline {
         uint counter = 0;
-        for ((uint256 msgHash, uint64 expireAt) : m_messages) {
+        for ((uint256 msgHash, uint32 expireAt) : m_messages) {
             if (counter >= MAX_CLEANUP_MSGS) {
                 break;
             }
@@ -85,10 +86,10 @@ contract GiverV3 is Upgradable {
      */
     struct Message {
         uint256 hash;
-        uint64 expireAt;
+        uint32 expireAt;
     }
     function getMessages() public view returns (Message[] messages) {
-        for ((uint256 msgHash, uint64 expireAt) : m_messages) {
+        for ((uint256 msgHash, uint32 expireAt) : m_messages) {
             messages.push(Message(msgHash, expireAt));
         }
     }
