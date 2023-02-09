@@ -14,6 +14,7 @@ type Storage = FileBasedStorage;
 type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
 
 pub struct Shardchain {
+    pub(crate) finality_was_loaded: bool,
     pub(crate) shard_ident: ShardIdent,
     pub(crate) blockchain_config: Arc<BlockchainConfig>,
     message_queue: Arc<InMessagesQueue>,
@@ -41,21 +42,24 @@ impl Shardchain {
             Some(documents_db.clone()),
             Vec::new(),
         )));
-        match block_finality.lock().load() {
+        let finality_was_loaded = match block_finality.lock().load() {
             Ok(_) => {
                 log::info!(target: "node", "load block finality successfully");
+                true
             }
             Err(NodeError::Io(err)) => {
                 if err.kind() != ErrorKind::NotFound {
                     return Err(NodeError::Io(err));
                 }
+                false
             }
             Err(err) => {
                 return Err(err);
             }
-        }
+        };
 
         Ok(Self {
+            finality_was_loaded,
             shard_ident: shard.clone(),
             blockchain_config,
             message_queue,
