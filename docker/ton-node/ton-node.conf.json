@@ -1,38 +1,41 @@
 {
-    "node_index": 0,
-    "port": 40301,
-    "poa_validators": 2,
-    "poa_interval": 1,
-    "private_key": "./private-key",
-    "keys": ["./pub-key"],
-    "boot": [],
-    "shard_id": {
-        "workchain": 0,
-        "shardchain_pfx": 0,
-        "shardchain_pfx_len": 0
-    },
-    "adnl": {
-        "address": "127.0.0.1:3030",
-        "keys": [
-            {
-                "type_id": -1977122418,
-                "pub_key": "BBKmgGAxz4ZofRgMO2qhYt+K1bGlGeowukPONVAkOcU=",
-                "pvt_key": "3CFeiTSlGkJf3D8w3ZXS4QS+6/0p+MFZGuv0XYMvMRo="
-            }
-        ]
-    },
+	"node_index": 0,
+	"port": 40301,
+	"poa_validators": 2,
+	"poa_interval": 1,
+	"private_key": "./private-key",
+	"keys": [
+		"./pub-key"
+	],
+	"boot": [],
+	"global_id": 100,
+	"shard_id": {
+		"workchain": 0,
+		"shardchain_pfx": 0,
+		"shardchain_pfx_len": 0
+	},
+	"adnl": {
+		"address": "127.0.0.1:3030",
+		"keys": [
+			{
+				"type_id": -1977122418,
+				"pub_key": "BBKmgGAxz4ZofRgMO2qhYt+K1bGlGeowukPONVAkOcU=",
+				"pvt_key": "3CFeiTSlGkJf3D8w3ZXS4QS+6/0p+MFZGuv0XYMvMRo="
+			}
+		]
+	},
 	"api": {
 		"messages": "topics/requests",
 		"live_control": "se",
-        "address": "127.0.0.1",
-        "port": 3000
+		"address": "127.0.0.1",
+		"port": 3000
 	},
-    "document_db": {
-        "server": "127.0.0.1:8529",
-        "database": "blockchain",
-        "blocks_collection": "blocks",
-        "messages_collection": "messages",
-        "transactions_collection": "transactions",
-        "accounts_collection": "accounts"
-    }
+	"document_db": {
+		"server": "127.0.0.1:8529",
+		"database": "blockchain",
+		"blocks_collection": "blocks",
+		"messages_collection": "messages",
+		"transactions_collection": "transactions",
+		"accounts_collection": "accounts"
+	}
 }

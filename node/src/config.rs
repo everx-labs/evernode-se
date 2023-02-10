@@ -89,6 +89,8 @@ pub struct NodeConfig {
     pub private_key: String,
     pub keys: Vec<String>,
     pub boot: Vec<String>,
+    #[serde(default = "NodeConfig::default_global_id")]
+    pub global_id: i32,
     pub shard_id: ShardIdConfig,
     pub document_db: serde_json::Value,
     #[serde(default = "NodeConfig::default_log_path")]
@@ -98,6 +100,9 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
+    fn default_global_id() -> i32 {
+        0
+    }
     fn default_log_path() -> String {
         "./log_cfg.yml".to_string()
     }

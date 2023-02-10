@@ -15,6 +15,7 @@
 */
 
 use super::{BlocksStorage, ShardStateStorage, TransactionsStorage};
+use crate::data::{FinalityStorage, ShardStateInfo};
 use crate::error::NodeResult;
 use parking_lot::Mutex;
 use std;
@@ -30,7 +31,6 @@ use ton_block::{
 };
 use ton_types::cells_serialization::{deserialize_tree_of_cells, serialize_tree_of_cells};
 use ton_types::{types::UInt256, AccountId, Cell};
-use crate::data::{FinalityStorage, ShardStateInfo};
 
 #[cfg(test)]
 #[path = "../../../../tonos-se-tests/unit/test_file_based_storage.rs"]
@@ -54,7 +54,6 @@ impl ShardHash {
             shard_hash: UInt256::from([0; 32]),
         }
     }
-
 }
 
 impl Ord for ShardHash {
@@ -105,8 +104,7 @@ impl FileBasedStorage {
 
     /// Create "Shards" directory
     pub fn create_workchains_dir(root: &PathBuf) -> NodeResult<PathBuf> {
-        let mut shards = root.clone();
-        shards.push("workchains");
+        let shards = root.join("workchains");
         if !shards.as_path().exists() {
             create_dir_all(shards.as_path())?;
         }
@@ -115,37 +113,34 @@ impl FileBasedStorage {
 
     ///
     /// Create catalog tree for storage
-    /// root_path/Shards/
-    ///                  /Shard_(PFX)/Shard
-    ///                              /Blocks/Block_(seq_no)_(ver_no)
+    /// root_path
+    ///     workchains
+    ///         MC | WC<id>
+    ///             shard_(prefix)
+    ///                 blocks
+    ///                     block_(seq_no)_(ver_no)
     ///
     /// returned Shard_state_path and Blocks_dir_path
     pub fn create_default_shard_catalog(
-        mut workchains_dir: PathBuf,
+        workchains_dir: PathBuf,
         shard_ident: &ShardIdent,
     ) -> NodeResult<(PathBuf, PathBuf, PathBuf)> {
-        workchains_dir.push(format!("WC{}", shard_ident.workchain_id()));
-        workchains_dir.push(format!(
-            "shard_{:016x}",
-            shard_ident.shard_prefix_with_tag()
-        ));
-        if !workchains_dir.as_path().exists() {
-            create_dir_all(workchains_dir.as_path())?;
+        let workchain_name = if shard_ident.is_masterchain() {
+            "MC".to_string()
+        } else {
+            format!("WC{}", shard_ident.workchain_id())
+        };
+        let shard_name = format!("shard_{:016x}", shard_ident.shard_prefix_with_tag());
+        let shard_dir = workchains_dir.join(workchain_name).join(shard_name);
+        let blocks_dir = shard_dir.join("blocks");
+        let transactions_dir = shard_dir.join("transactions");
+        if !blocks_dir.as_path().exists() {
+            create_dir_all(blocks_dir.as_path())?;
         }
-
-        let mut shard_blocks_dir = workchains_dir.clone();
-        shard_blocks_dir.push("blocks");
-        if !shard_blocks_dir.as_path().exists() {
-            create_dir_all(shard_blocks_dir.as_path())?;
-        }
-
-        let mut transactions_dir = workchains_dir.clone();
-        transactions_dir.push("transactions");
         if !transactions_dir.as_path().exists() {
             create_dir_all(transactions_dir.as_path())?;
         }
-
-        Ok((workchains_dir, shard_blocks_dir, transactions_dir))
+        Ok((shard_dir, blocks_dir, transactions_dir))
     }
 
     fn key_by_seqno(seq_no: u32, vert_seq_no: u32) -> u64 {
@@ -516,4 +511,3 @@ impl TransactionsStorage for FileBasedStorage {
 //             shard_data: Option<Vec<u8>>, shard_hash: &UInt256,
 //             shard_state_info: ShardStateInfo) -> NodeResult<()>;
 // }
-

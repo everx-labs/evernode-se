@@ -9,38 +9,38 @@
 	},
 	"blockchain": {
 		"accounts": [
-			"http://root@localhost:8529"
+			"http://root@127.0.0.1:8529"
 		],
 		"blocks": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@127.0.0.1:8529"
 			],
 			"cold": []
 		},
 		"transactions": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@127.0.0.1:8529"
 			],
 			"cold": []
 		},
-		"zerostate": "http://root@localhost:8529"
+		"zerostate": "http://root@127.0.0.1:8529"
 	},
 	"slowQueriesBlockchain": {
 		"accounts": [
-			"http://root@localhost:8529"
+			"http://root@127.0.0.1:8529"
 		],
 		"blocks": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@127.0.0.1:8529"
 			],
 			"cold": []
 		},
 		"transactions": {
 			"hot": [
-				"http://root@localhost:8529"
+				"http://root@127.0.0.1:8529"
 			],
 			"cold": []
 		},
-		"zerostate": "http://root@localhost:8529"
+		"zerostate": "http://root@127.0.0.1:8529"
 	}
 }

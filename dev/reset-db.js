@@ -1,7 +1,9 @@
 const { Database } = require("arangojs");
+const fs = require("fs");
+const path = require("path");
 
 const config = {
-    url: "http://localhost:8529",
+    url: "http://127.0.0.1:8529",
     auth: {
         username: "root",
         password: "",
@@ -158,6 +160,12 @@ async function checkCollections(collections) {
     try {
         await checkBlockchainDb();
         await checkCollections(COLLECTIONS);
+        fs.rmSync(path.resolve(__dirname, "..", "docker", "ton-node", "workchains"),
+            {
+                recursive: true,
+                force: true,
+            },
+        );
     } catch (err) {
         console.error(err);
         process.exit(1);
