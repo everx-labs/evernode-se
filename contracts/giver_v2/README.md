@@ -6,7 +6,7 @@ In Evernode SE this giver is predeployed at `0:ece57bcc6c530283becbbd8a3b24d3c59
 and its initial balance is about 5 billion tokens. 
 
 It is not recommented to use in production or recompile Giver V2 because its works on old Solidity version.
-If you want to make changes to the Giver contract or use it in production - use [Giver V3](../contracts/giver_v3) version which can be successfully compiled with the latest Solidity compiler. 
+If you want to make changes to the Giver contract or use it in production - use [Giver V3](../giver_v3) version which can be successfully compiled with the latest Solidity compiler. 
 
 ## Keys:
 * Public: `2ada2e65ab8eeab09490e3521415f45b6e42df9c760a639bcf53957550b25a16`
