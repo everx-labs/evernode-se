@@ -119,4 +119,9 @@ impl Shardchain {
             .put_block_with_info(block, new_state.clone())?;
         Ok(new_state)
     }
+
+    /// get last finalized block
+    pub fn get_last_finalized_block(&self) -> NodeResult<Block> {
+        Ok(self.finalizer.lock().last_finalized_block.block.clone())
+    }
 }

@@ -7,9 +7,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use ton_block::{BinTree, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent};
+use ton_block::{
+    BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent,
+};
 use ton_executor::BlockchainConfig;
-use ton_types::UInt256;
+use ton_types::{SliceData, UInt256};
 
 pub struct Masterchain {
     shardchain: Shardchain,
@@ -107,4 +109,51 @@ impl Masterchain {
         log::trace!(target: "node", "master block generated successfully");
         Ok(Some(master_block))
     }
+
+    fn get_last_finalized_mc_extra(&self) -> Option<McBlockExtra> {
+        self.shardchain
+            .get_last_finalized_block()
+            .map_or(None, |block| block.read_extra().ok())
+            .map_or(None, |extra| extra.read_custom().ok())
+            .flatten()
+    }
+
+    pub(crate) fn restore_state(&self) -> NodeResult<()> {
+        if !self.shardchain.finality_was_loaded {
+            return Ok(());
+        }
+        if let Some(mc) = self.get_last_finalized_mc_extra() {
+            {
+                let mut shards = self.shards.write();
+                mc.shards().iterate_with_keys(&mut |workchain_id: i32,
+                                                     InRefValue(tree): InRefValue<
+                    BinTree<ShardDescr>,
+                >| {
+                    tree.iterate(&mut |shard: SliceData, descr: ShardDescr| {
+                        let shard = ShardIdent::with_tagged_prefix(
+                            workchain_id,
+                            shard_ident_to_u64(shard.cell().data()),
+                        )
+                        .unwrap();
+                        shards.insert(shard, descr);
+                        Ok(true)
+                    })
+                })?;
+                self.shards_has_been_changed.store(true, Ordering::Relaxed);
+            }
+            if let Some(last_config) = mc.config() {
+                if last_config != self.shardchain.blockchain_config.raw_config() {
+                    self.generate_block(0, false)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn shard_ident_to_u64(shard: &[u8]) -> u64 {
+    let mut shard_key = [0; 8];
+    let len = std::cmp::min(shard.len(), 8);
+    shard_key[..len].copy_from_slice(&shard[..len]);
+    u64::from_be_bytes(shard_key)
 }

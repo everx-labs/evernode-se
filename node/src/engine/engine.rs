@@ -122,7 +122,9 @@ impl TonNodeEngine {
             control_receiver.run(Box::new(live_control))?;
         }
 
-        if !self.workchain.finality_was_loaded {
+        if self.workchain.finality_was_loaded {
+            self.masterchain.restore_state()?;
+        } else {
             self.initialize_blockchain()?;
         }
         thread::spawn(move || loop {

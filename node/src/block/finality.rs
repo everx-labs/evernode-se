@@ -70,7 +70,7 @@ where
     // need to remove
     blocks_by_no: HashMap<u64, Box<FinalityBlock>>,
     // need to remove
-    last_finalized_block: Box<ShardBlock>,
+    pub(crate) last_finalized_block: Box<ShardBlock>,
 }
 
 fn key_by_seqno(seq_no: u32, vert_seq_no: u32) -> u64 {
@@ -856,7 +856,7 @@ pub struct ShardBlock {
     serialized_block: Vec<u8>,
     root_hash: UInt256,
     file_hash: UInt256,
-    block: Block,
+    pub(crate) block: Block,
     shard_state: Arc<ShardStateUnsplit>,
 }
 
