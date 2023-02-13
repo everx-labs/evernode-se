@@ -21,9 +21,9 @@ use crate::data::DocumentsDb;
 use crate::engine::masterchain::Masterchain;
 use crate::engine::shardchain::Shardchain;
 use crate::engine::{
-    InMessagesQueue, LiveControl, LiveControlReceiver, DEPRECATED_GIVER_ABI2_DEPLOY_MSG,
-    GIVER_ABI1_DEPLOY_MSG, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE, MULTISIG_BALANCE,
-    MULTISIG_DEPLOY_MSG,
+    InMessagesQueue, LiveControl, LiveControlReceiver, 
+    GIVER_ABI1_DEPLOY_MSG, GIVER_ABI2_DEPLOY_MSG, GIVER_ABI2_V3_DEPLOY_MSG, GIVER_BALANCE,
+    MULTISIG_BALANCE, MULTISIG_DEPLOY_MSG,
 };
 use crate::error::NodeResult;
 use crate::MessagesReceiver;
@@ -38,8 +38,8 @@ use std::{
     time::Duration,
 };
 use ton_block::{
-    CommonMsgInfo, CurrencyCollection, Deserializable, Grams, InternalMessageHeader, Message,
-    MsgAddressInt, ShardIdent, UnixTime32,
+    CurrencyCollection, Deserializable, Grams, Message,
+    MsgAddressInt, ShardIdent, UnixTime32, MsgAddressIntOrNone,
 };
 use ton_executor::BlockchainConfig;
 use ton_types::AccountId;
@@ -207,14 +207,9 @@ impl TonNodeEngine {
         log::info!(target: "node", "Initialize blockchain");
         let workchain_id = self.workchain.shard_ident.workchain_id() as i8;
         self.enqueue_deploy_message(workchain_id, GIVER_ABI1_DEPLOY_MSG, GIVER_BALANCE, 1)?;
-        self.enqueue_deploy_message(workchain_id, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE, 3)?;
-        self.enqueue_deploy_message(workchain_id, MULTISIG_DEPLOY_MSG, MULTISIG_BALANCE, 5)?;
-        self.enqueue_deploy_message(
-            workchain_id,
-            DEPRECATED_GIVER_ABI2_DEPLOY_MSG,
-            GIVER_BALANCE,
-            7,
-        )?;
+        self.enqueue_deploy_message(workchain_id, GIVER_ABI2_DEPLOY_MSG, GIVER_BALANCE, 2)?;
+        self.enqueue_deploy_message(workchain_id, GIVER_ABI2_V3_DEPLOY_MSG, GIVER_BALANCE, 3)?;
+        self.enqueue_deploy_message(workchain_id, MULTISIG_DEPLOY_MSG, MULTISIG_BALANCE, 4)?;
 
         Ok(())
     }
@@ -225,20 +220,17 @@ impl TonNodeEngine {
         deploy_msg_boc: &[u8],
         initial_balance: u128,
         transfer_lt: u64,
-    ) -> NodeResult<AccountId> {
-        let (deploy_msg, deploy_addr) =
-            Self::create_contract_deploy_message(workchain_id, deploy_msg_boc);
-        let transfer_msg = Self::create_transfer_message(
+    ) -> NodeResult<()> {
+        let deploy_msg = Self::create_contract_deploy_message(
             workchain_id,
             MINTER_ADDRESS.address(),
-            deploy_addr.clone(),
+            deploy_msg_boc,
             initial_balance,
             transfer_lt,
         );
-        self.queue_with_retry(transfer_msg)?;
         self.queue_with_retry(deploy_msg)?;
 
-        Ok(deploy_addr)
+        Ok(())
     }
 
     fn queue_with_retry(&self, message: Message) -> NodeResult<()> {
@@ -251,47 +243,28 @@ impl TonNodeEngine {
         Ok(())
     }
 
-    fn create_contract_deploy_message(workchain_id: i8, msg_boc: &[u8]) -> (Message, AccountId) {
-        let mut msg = Message::construct_from_bytes(msg_boc).unwrap();
-        if let CommonMsgInfo::ExtInMsgInfo(ref mut header) = msg.header_mut() {
-            match header.dst {
-                MsgAddressInt::AddrStd(ref mut addr) => addr.workchain_id = workchain_id,
-                _ => panic!("Contract deploy message has invalid destination address"),
-            }
-        }
-
-        let address = msg.int_dst_account_id().unwrap();
-
-        (msg, address)
-    }
-
-    // create transfer funds message for initialize balance
-    pub fn create_transfer_message(
+    fn create_contract_deploy_message(
         workchain_id: i8,
         src: AccountId,
-        dst: AccountId,
+        msg_boc: &[u8],
         value: u128,
         lt: u64,
     ) -> Message {
-        let hdr = Self::create_transfer_int_header(workchain_id, src, dst, value);
-        let mut msg = Message::with_int_header(hdr);
+        let mut msg = Message::construct_from_bytes(msg_boc).expect("Can not parse contract deploy message");
+        let mut header = msg.int_header_mut().expect("Contract deploy message is not internal");
+        match header.dst {
+            MsgAddressInt::AddrStd(ref mut addr) => {
+                addr.workchain_id = workchain_id;
+            }
+            _ => panic!("Contract deploy message has invalid destination address"),
+        }
+        header.src = MsgAddressIntOrNone::Some(MsgAddressInt::with_standart(None, workchain_id, src).unwrap());
+        header.value = CurrencyCollection::from_grams(Grams::new(value).unwrap());
+        header.bounce = false;
+        header.created_lt = lt;
+        header.created_at = UnixTime32::now();
 
-        msg.set_at_and_lt(UnixTime32::now().as_u32(), lt);
         msg
-    }
-
-    pub fn create_transfer_int_header(
-        workchain_id: i8,
-        src: AccountId,
-        dst: AccountId,
-        value: u128,
-    ) -> InternalMessageHeader {
-        InternalMessageHeader::with_addresses_and_bounce(
-            MsgAddressInt::with_standart(None, workchain_id, src).unwrap(),
-            MsgAddressInt::with_standart(None, workchain_id, dst).unwrap(),
-            CurrencyCollection::from_grams(Grams::new(value).unwrap()),
-            false,
-        )
     }
 }
 

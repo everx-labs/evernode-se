@@ -2,6 +2,29 @@
 
 This directory contains Giver v3 contract. This giver is recommended to use with solc version above 0.61.2 to deploy it on devnet or mainnet.
 
+In Evernode SE this giver is predeployed at `0:ca600a7edcd15c13047b7b0bdf19c624f5c7fa3474d38afe323a373b0bdb30f5` address 
+and its initial balance is about 5 billion tokens. 
+
+## Keys:
+* Public: `2ada2e65ab8eeab09490e3521415f45b6e42df9c760a639bcf53957550b25a16`
+* Secret: `172af540e43a524763dd53b26a066d472a97c4de37d5498170564510608250c3`
+
+## Usage
+Method: `sendTransaction`
+
+parameters: 
+* `dest`: `address` - destination address;
+* `value`: `uint128` - amount to send, in nanotokens;
+* `bounce`: `bool` - bounce flag of the message.
+
+### Using tonos-cli:
+```commandline
+tonos-cli call 0:ca600a7edcd15c13047b7b0bdf19c624f5c7fa3474d38afe323a373b0bdb30f5 \
+    sendTransaction '{"dest":"<address>","value":<nanotokens>,"bounce":false}' \
+    --abi GiverV3.abi.json \
+    --sign GiverV3.keys.json  
+```
+
 ## How to deploy GiverV3 on any network
 
 ### Setup your signer
