@@ -5,10 +5,14 @@ All notable changes to this project will be documented in this file.
 
 ### New
 
-- Masterchain block producing.
-- `global_id` parameter in `ton-node.conf.json` is written into blocks.
-- `global_id` parameter is used as a `signature_id` if related cap is turned  
+- Produces masterchain block for each workchain block. 
+- Added ability to update blockchain config with node restart (without killing the database). After [changing the config](https://github.com/tonlabs/evernode-se#how-to-change-the-blockchain-configuration) stop and start the node to apply it. It will produce new key block from the new config. 
+- `CapSignatureWithId` capability is supported: `global_id` parameter is used as a `signature_id` if `CapSignatureWithId` cap is turned  
     on in the blockchain config.
+
+### Fixed
+- `global_id` parameter in `ton-node.conf.json` is written into blocks.
+
 
 ## 0.36.3 Jan 11, 2023
 
