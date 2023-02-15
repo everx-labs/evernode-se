@@ -22,7 +22,7 @@ parameters:
 tonos-cli call 0:ca600a7edcd15c13047b7b0bdf19c624f5c7fa3474d38afe323a373b0bdb30f5 \
     sendTransaction '{"dest":"<address>","value":<nanotokens>,"bounce":false}' \
     --abi GiverV3.abi.json \
-    --sign GiverV3.keys.json  
+    --sign seGiver.keys.json
 ```
 
 ## How to deploy GiverV3 on any network
@@ -37,13 +37,13 @@ npx everdev signer default devnet_giver_keys
 ### [Optional] Verify Giver contract bytecode
 This contract is compiled with `0.66.0 ` Solidity and `0.19.3`Linker version.
 
-To check that the code hash of the compiled version from repository is equal to your freshly compiled version, run this command and check that the Code Hash is
+To check that the code hash of the compiled version from repository is equal to your freshly compiled version, run this command and check that the *Code Hash* is
 `5534bff04d2d0a14bb2257ec23027947c722159486ceff9e408d6a4d796a0989`. 
 
 ```shell
 npx everdev sol set --compiler 0.66.0 --linker 0.19.3
 npx everdev sol compile GiverV3.sol
-npx everdev c i --signer devnet_giver_keys GiverV3
+npx everdev contract info --signer devnet_giver_keys GiverV3
 
 Configuration
 
@@ -56,9 +56,9 @@ Code Hash: 5534bff04d2d0a14bb2257ec23027947c722159486ceff9e408d6a4d796a0989 (fro
 
 ### Get your Giver address and top it up
 The address is calculated from the compiled contract codehash and your public key.
-Run this command to see the address: 
+Run this command to see the *Address*:
 ```shell
-npx everdev c i --signer devnet_giver_keys GiverV3
+npx everdev contract info --signer devnet_giver_keys GiverV3
 ```
 Now, you need to top up your giver. Transfer tokens from Surf wallet or Everwallet.
 
