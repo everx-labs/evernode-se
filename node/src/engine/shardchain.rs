@@ -15,7 +15,6 @@ type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storag
 
 pub struct Shardchain {
     pub(crate) finality_was_loaded: bool,
-    pub(crate) shard_ident: ShardIdent,
     pub(crate) blockchain_config: Arc<BlockchainConfig>,
     message_queue: Arc<InMessagesQueue>,
     pub(crate) finalizer: ArcBlockFinality,
@@ -60,7 +59,6 @@ impl Shardchain {
 
         Ok(Self {
             finality_was_loaded,
-            shard_ident: shard.clone(),
             blockchain_config,
             message_queue,
             finalizer: block_finality.clone(),

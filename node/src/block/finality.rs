@@ -242,10 +242,28 @@ where
                 self.root_path.clone(),
                 &self.shard_ident,
             )?;
-        shard_path.push("blocks_finality.info");
-        log::info!(target: "node", "load: {}", shard_path.to_str().unwrap());
-        let mut file_info = File::open(shard_path)?;
-        self.deserialize(&mut file_info)?;
+        let mut info_path = shard_path.clone();
+        info_path.push("blocks_finality.info");
+        log::info!(target: "node", "load: {}", info_path.to_str().unwrap());
+        if let Ok(mut file_info) = File::open(info_path) {
+            self.deserialize(&mut file_info)?;
+        } else {
+            shard_path.push("zerostate");
+            log::info!(target: "node", "load: {}", shard_path.to_str().unwrap());
+            let zerostate = std::fs::read(shard_path)?;
+            self.load_zerostate(zerostate)?;
+        }
+        Ok(())
+    }
+
+    ///
+    /// Load zerostate
+    ///
+    fn load_zerostate(&mut self, zerostate: Vec<u8>) -> NodeResult<()> {
+        let mut zerostate = ShardStateUnsplit::construct_from_bytes(&zerostate)?;
+        zerostate.set_global_id(self.current_block.block.global_id());
+        self.current_block.shard_state = Arc::new(zerostate.clone());
+        self.last_finalized_block.shard_state = Arc::new(zerostate);
         Ok(())
     }
 
