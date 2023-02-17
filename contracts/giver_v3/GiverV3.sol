@@ -1,7 +1,6 @@
 pragma ever-solidity >= 0.61.2;
 pragma AbiHeader time;
 pragma AbiHeader expire;
-pragma AbiHeader pubkey;
 
 abstract contract Upgradable {
     /*
