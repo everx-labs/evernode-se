@@ -1,7 +1,6 @@
 pragma ever-solidity >= 0.61.2;
 pragma AbiHeader time;
 pragma AbiHeader expire;
-pragma AbiHeader pubkey;
 
 abstract contract Upgradable {
     /*
@@ -50,19 +49,19 @@ contract GiverV3 is Upgradable {
 
     /// @notice Function with predefined name called after signature check. Used to
     /// implement custom replay protection with parallel access.
-    function afterSignatureCheck(TvmSlice body, TvmCell message) private inline
+    function afterSignatureCheck(TvmSlice body, TvmCell) private inline
     returns (TvmSlice)
     {
         // owner check
         require(msg.pubkey() == tvm.pubkey(), 101);
+        uint256 bodyHash = tvm.hash(body);
         // load and drop message timestamp (uint64)
         (, uint32 expireAt) = body.decode(uint64, uint32);
         require(expireAt > now, 57);
-        uint256 msgHash = tvm.hash(message);
-        require(!m_messages.exists(msgHash), 102);
+        require(!m_messages.exists(bodyHash), 102);
 
         tvm.accept();
-        m_messages[msgHash] = expireAt;
+        m_messages[bodyHash] = expireAt;
 
         return body;
     }
@@ -70,13 +69,13 @@ contract GiverV3 is Upgradable {
     /// @notice Allows to delete expired messages from dict.
     function gc() private inline {
         uint counter = 0;
-        for ((uint256 msgHash, uint32 expireAt) : m_messages) {
+        for ((uint256 bodyHash, uint32 expireAt) : m_messages) {
             if (counter >= MAX_CLEANUP_MSGS) {
                 break;
             }
             counter++;
             if (expireAt <= now) {
-                delete m_messages[msgHash];
+                delete m_messages[bodyHash];
             }
         }
     }
