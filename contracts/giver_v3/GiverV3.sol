@@ -49,7 +49,7 @@ contract GiverV3 is Upgradable {
 
     /// @notice Function with predefined name called after signature check. Used to
     /// implement custom replay protection with parallel access.
-    function afterSignatureCheck(TvmSlice body, TvmCell message) private inline
+    function afterSignatureCheck(TvmSlice body, TvmCell) private inline
     returns (TvmSlice)
     {
         // owner check
