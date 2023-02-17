@@ -14,7 +14,7 @@
 * under the License.
 */
 
-use crate::engine::messages::{InMessagesQueue, QueuedMessage};
+use crate::engine::messages::InMessagesQueue;
 use crate::engine::MessagesReceiver;
 use crate::error::NodeResult;
 use iron::{
@@ -95,7 +95,7 @@ impl MessageReceiverApi {
                                 }
                             };
 
-                            let mut message = QueuedMessage::with_message(message).unwrap();
+                            let mut message = message;
                             while let Err(msg) = queue.queue(message) {
                                 if queue.has_delivery_problems() {
                                     log::warn!(target: "node", "Request was refused because downstream services are not accessible");

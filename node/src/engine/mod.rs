@@ -20,14 +20,8 @@ use std::sync::Arc;
 pub mod messages;
 pub use self::messages::*;
 pub mod engine;
-
-const GIVER_BALANCE: u128 = 5_000_000_000_000_000_000;
-const MULTISIG_BALANCE: u128 = 1_000_000_000_000_000;
-const GIVER_ABI1_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi1_deploy_msg.boc");
-const DEPRECATED_GIVER_ABI2_DEPLOY_MSG: &[u8] =
-    include_bytes!("../../data/deprecated_giver_abi2_deploy_msg.boc");
-const GIVER_ABI2_DEPLOY_MSG: &[u8] = include_bytes!("../../data/giver_abi2_deploy_msg.boc");
-const MULTISIG_DEPLOY_MSG: &[u8] = include_bytes!("../../data/safemultisig_deploy_msg.boc");
+pub mod shardchain;
+mod masterchain;
 
 pub trait MessagesReceiver: Send {
     fn run(&mut self, queue: Arc<InMessagesQueue>) -> NodeResult<()>;

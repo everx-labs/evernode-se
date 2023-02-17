@@ -19,19 +19,19 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use ton_block::{
     Account, AddSub, Augmentation, BlkPrevInfo, Block, BlockExtra, BlockInfo, ComputeSkipReason,
-    CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType, InMsg, InMsgDescr,
-    MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr, OutMsgQueue, OutMsgQueueInfo,
-    OutMsgQueueKey, Serializable, ShardAccount, ShardAccountBlocks, ShardAccounts, ShardIdent,
-    ShardStateUnsplit, TrComputePhase, TrComputePhaseVm, Transaction, TransactionDescr,
-    TransactionDescrOrdinary, UnixTime32, ValueFlow, CopyleftRewards,
+    CopyleftRewards, CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType,
+    InMsg, InMsgDescr, MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr, OutMsgQueue,
+    OutMsgQueueInfo, OutMsgQueueKey, Serializable, ShardAccount, ShardAccountBlocks, ShardAccounts,
+    ShardIdent, ShardStateUnsplit, TrComputePhase, TrComputePhaseVm, Transaction, TransactionDescr,
+    TransactionDescrOrdinary, UnixTime32, ValueFlow,
 };
 use ton_executor::{
     BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
     TransactionExecutor,
 };
-use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, UInt256, SliceData};
+use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, SliceData, UInt256};
 
-use crate::engine::{InMessagesQueue, QueuedMessage};
+use crate::engine::InMessagesQueue;
 use crate::error::NodeResult;
 
 #[cfg(test)]
@@ -145,6 +145,7 @@ impl BlockBuilder {
                 last_tr_lt: Arc::clone(&lt),
                 seed_block: self.rand_seed.clone(),
                 debug,
+                signature_id: self.shard_state.global_id(),
                 ..Default::default()
             },
         );
@@ -201,20 +202,23 @@ impl BlockBuilder {
 
     pub fn execute(
         &mut self,
-        msg: QueuedMessage,
-        blockchain_config: BlockchainConfig,
+        message: Message,
+        blockchain_config: &BlockchainConfig,
         acc_id: &AccountId,
         debug: bool,
     ) -> NodeResult<()> {
         let shard_acc = self.accounts.account(acc_id)?.unwrap_or_default();
         let mut acc_root = shard_acc.account_cell();
-        let executor = OrdinaryTransactionExecutor::new(blockchain_config);
+        let executor = OrdinaryTransactionExecutor::new((*blockchain_config).clone());
 
-        log::debug!("Executing message {:x}", msg.message_hash());
+        log::debug!(
+            "Executing message {:x}",
+            message.serialize().unwrap_or_default().repr_hash()
+        );
         let (mut transaction, max_lt) = self.try_prepare_transaction(
             &executor,
             &mut acc_root,
-            msg.message(),
+            &message,
             shard_acc.last_trans_lt(),
             debug,
         )?;
@@ -253,9 +257,9 @@ impl BlockBuilder {
     pub fn build_block(
         mut self,
         queue: &InMessagesQueue,
-        blockchain_config: BlockchainConfig,
+        blockchain_config: &BlockchainConfig,
         debug: bool,
-    ) -> NodeResult<Option<(Block, ShardStateUnsplit)>> {
+    ) -> NodeResult<(Block, ShardStateUnsplit, bool)> {
         let mut is_empty = true;
 
         // first import internal messages
@@ -275,10 +279,11 @@ impl BlockBuilder {
             let env = enq.read_out_msg()?;
             let message = env.read_message()?;
             if let Some(acc_id) = message.int_dst_account_id() {
-                let msg = QueuedMessage::with_message(message)?;
-                self.execute(msg, blockchain_config.clone(), &acc_id, debug)?;
+                self.execute(message, blockchain_config, &acc_id, debug)?;
             }
-            self.out_queue_info.out_queue_mut().remove(SliceData::load_cell(key)?)?;
+            self.out_queue_info
+                .out_queue_mut()
+                .remove(SliceData::load_cell(key)?)?;
             // TODO: check block full
             is_empty = false;
             if self.total_gas_used > 1_000_000 {
@@ -286,12 +291,13 @@ impl BlockBuilder {
                 break;
             }
         }
+        let workchain_id = self.shard_state.shard().workchain_id();
         // second import external messages
-        while let Some(msg) = queue.dequeue() {
-            let acc_id = msg.message().int_dst_account_id().unwrap();
+        while let Some(msg) = queue.dequeue(workchain_id) {
+            let acc_id = msg.int_dst_account_id().unwrap();
 
             // lock account in queue
-            let res = self.execute(msg, blockchain_config.clone(), &acc_id, debug);
+            let res = self.execute(msg, blockchain_config, &acc_id, debug);
             if let Err(err) = res {
                 log::warn!(target: "node", "Executor execute failed. {}", err);
             } else {
@@ -328,12 +334,7 @@ impl BlockBuilder {
                     self.out_msg_descr
                         .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
                 } else {
-                    self.execute(
-                        QueuedMessage::with_message(message)?,
-                        blockchain_config.clone(),
-                        &acc_id,
-                        debug,
-                    )?;
+                    self.execute(message, blockchain_config, &acc_id, debug)?;
                     if self.total_gas_used > 1_000_000 {
                         block_full = true;
                     }
@@ -343,15 +344,11 @@ impl BlockBuilder {
         }
         if !is_empty {
             log::info!(target: "node", "in messages queue len={}", queue.len());
-            // let seq_no = self.block_info.seq_no();
-            let (block, new_shard_state) = self.finalize_block()?;
-            // let block_text = ton_block_json::debug_block_full(&block)?;
-            // std::fs::write(&format!("e:\\block_{}.json", seq_no), block_text)?;
-            Ok(Some((block, new_shard_state)))
         } else {
             log::debug!(target: "node", "block is empty in messages queue len={}", queue.len());
-            Ok(None)
         }
+        let (block, new_shard_state) = self.finalize_block()?;
+        Ok((block, new_shard_state, is_empty))
     }
 
     ///
@@ -366,9 +363,10 @@ impl BlockBuilder {
 
         self.account_blocks
             .add_serialized_transaction(&transaction, &tr_cell)?;
-        
+
         if let Some(copyleft_reward) = transaction.copyleft_reward() {
-            self.copyleft_rewards.add_copyleft_reward(&copyleft_reward.address, &copyleft_reward.reward)?;
+            self.copyleft_rewards
+                .add_copyleft_reward(&copyleft_reward.address, &copyleft_reward.reward)?;
         }
 
         if let Some(msg_cell) = transaction.in_msg_cell() {
@@ -439,7 +437,7 @@ impl BlockBuilder {
     /// Complete the construction of the block and return it.
     /// returns generated block and new shard state bag (and transaction count)
     ///
-    pub fn finalize_block(self) -> Result<(Block, ShardStateUnsplit)> {
+    pub fn finalize_block(mut self) -> Result<(Block, ShardStateUnsplit)> {
         let mut new_shard_state = self.shard_state.deref().clone();
         new_shard_state.set_seq_no(self.block_info.seq_no());
         new_shard_state.write_accounts(&self.accounts)?;
@@ -467,8 +465,15 @@ impl BlockBuilder {
         // let old_ss_root = self.shard_state.serialize()?;
         // let state_update = MerkleUpdate::create(&old_ss_root, &new_ss_root)?;
         let state_update = MerkleUpdate::default();
+        self.block_info.set_end_lt(self.end_lt.max(self.start_lt + 1));
 
-        let block = Block::with_params(0, self.block_info, value_flow, state_update, block_extra)?;
+        let block = Block::with_params(
+            self.shard_state.global_id(),
+            self.block_info,
+            value_flow,
+            state_update,
+            block_extra,
+        )?;
         Ok((block, new_shard_state))
     }
 }

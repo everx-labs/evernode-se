@@ -27,9 +27,9 @@ block-signer-config.json
 /ton-node-se/pub-key
 /ton-node-se/log_cfg.yml
 /ton-node-se/tonos-se-tests
-workchains
 docker/.DS_Store
 readme.html
 /dev/node_modules/
 /dev/package-lock.json
 /node/target/
+/target/

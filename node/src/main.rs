@@ -22,6 +22,7 @@ use crate::engine::MessagesReceiver;
 use crate::error::{NodeError, NodeResult};
 use clap::{Arg, ArgMatches, Command};
 use iron::Iron;
+use parking_lot::Mutex;
 use router::Router;
 use serde_json::Value;
 use std::{
@@ -31,7 +32,6 @@ use std::{
     thread,
     time::Duration,
 };
-use parking_lot::Mutex;
 use ton_executor::BlockchainConfig;
 
 pub mod error;
@@ -170,11 +170,12 @@ fn start_node(config: StartNodeConfig) -> NodeResult<()> {
     )?);
 
     let ton = TonNodeEngine::with_params(
+        config.node.global_id,
         config.node.shard_id_config().shard_ident(),
         receivers,
         Some(control_api),
-        config.blockchain,
-        Some(db),
+        Arc::new(config.blockchain),
+        db,
         PathBuf::from("./"),
     )?;
 
