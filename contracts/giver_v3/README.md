@@ -2,7 +2,7 @@
 
 This directory contains Giver v3 contract. This giver is recommended to use with solc version above 0.61.2 to deploy it on devnet or mainnet.
 
-In Evernode SE this giver is predeployed at `0:cbd3ef42dcc261b9369fdb15fb836b460d4806c5b255e31541c46d6676a2f13d` address 
+In Evernode SE this giver is predeployed at `0:96137b99dcd65afce5a54a48dac83c0fd276432abbe3ba7f1bfb0fb795e69025` address 
 and its initial balance is about 5 billion tokens. 
 
 ## Keys:
@@ -38,7 +38,7 @@ npx everdev signer default devnet_giver_keys
 This contract is compiled with `0.66.0 ` Solidity and `0.19.3`Linker version.
 
 To check that the code hash of the compiled version from repository is equal to your freshly compiled version, run this command and check that the *Code Hash* is
-`5534bff04d2d0a14bb2257ec23027947c722159486ceff9e408d6a4d796a0989`. 
+`57a1e5e4304f4db2beb23117e4d85df9cb5caec127531350e73219a8b8dc8afd`. 
 
 ```shell
 npx everdev sol set --compiler 0.66.0 --linker 0.19.3
@@ -51,7 +51,7 @@ Configuration
   Signer:  devnet_giver_keys (public 7fbbd813ac8358ed2d8598de156eb62bdddf5191d6ce4a0f307d4eac8d4c8e16)
 
 Address:   0:dd39b607834a23f7091d4d6d8982c6269c1d71f1b512757cf4d298325a550b6a (calculated from TVC and signer public)
-Code Hash: 5534bff04d2d0a14bb2257ec23027947c722159486ceff9e408d6a4d796a0989 (from TVC file)
+Code Hash: 57a1e5e4304f4db2beb23117e4d85df9cb5caec127531350e73219a8b8dc8afd (from TVC file)
 ```
 
 ### Get your Giver address and top it up
