@@ -1,7 +1,7 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.37.0 Jan 11, 2023
+## 0.37.0 Feb 17, 2023
 
 ### New
 
