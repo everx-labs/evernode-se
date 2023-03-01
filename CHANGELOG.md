@@ -10,8 +10,17 @@ All notable changes to this project will be documented in this file.
 - `CapSignatureWithId` capability is supported: `global_id` parameter is used as a `signature_id` if `CapSignatureWithId` cap is turned  
     on in the blockchain config.
 
+### Improved
+
+- The [list of givers](./contracts) was refactored.
+
 ### Fixed
+
 - `global_id` parameter in `ton-node.conf.json` is written into blocks.
+
+### Breaking changes
+
+- Giver `0:b5e5...a19a5` was removed. See the list of [recommended givers](./contracts). 
 
 
 ## 0.36.3 Jan 11, 2023
