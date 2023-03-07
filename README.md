@@ -1,6 +1,6 @@
 # Evernode Simple Emulator (SE)
 
-Local Node with GraphQL API for Everscale DApp development and testing.
+Local Node with GraphQL API for DApp development and testing in TVM compatible blockchains (Everscale, Venom, TON, Gosh, etc.).
 
 **Have a question? Get quick help in our channel:**
 
