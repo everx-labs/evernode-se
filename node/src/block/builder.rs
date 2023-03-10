@@ -91,6 +91,7 @@ impl BlockBuilder {
             block_info,
             rand_seed,
             start_lt,
+            end_lt: start_lt + 1,
             ..Default::default()
         })
     }
@@ -130,12 +131,11 @@ impl BlockBuilder {
         executor: &OrdinaryTransactionExecutor,
         acc_root: &mut Cell,
         msg: &Message,
-        acc_last_lt: u64,
+        block_last_lt: u64,
         debug: bool,
     ) -> NodeResult<(Transaction, u64)> {
         let (block_unixtime, block_lt) = self.at_and_lt();
-        let last_lt = std::cmp::max(acc_last_lt, block_lt);
-        let lt = Arc::new(AtomicU64::new(last_lt + 1));
+        let lt = Arc::new(AtomicU64::new(block_last_lt));
         let result = executor.execute_with_libs_and_params(
             Some(&msg),
             acc_root,
@@ -157,7 +157,7 @@ impl BlockBuilder {
                 Ok((transaction, lt.load(Ordering::Relaxed)))
             }
             Err(err) => {
-                let lt = last_lt + 1;
+                let lt = block_last_lt + 1;
                 let account = Account::construct_from_cell(acc_root.clone())?;
                 let mut transaction = Transaction::with_account_and_message(&account, msg, lt)?;
                 transaction.set_now(block_unixtime);
@@ -219,7 +219,7 @@ impl BlockBuilder {
             &executor,
             &mut acc_root,
             &message,
-            shard_acc.last_trans_lt(),
+            self.end_lt,
             debug,
         )?;
         self.end_lt = std::cmp::max(self.end_lt, max_lt);
