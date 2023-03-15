@@ -131,11 +131,11 @@ impl BlockBuilder {
         executor: &OrdinaryTransactionExecutor,
         acc_root: &mut Cell,
         msg: &Message,
-        block_last_lt: u64,
+        last_lt: u64,
         debug: bool,
     ) -> NodeResult<(Transaction, u64)> {
         let (block_unixtime, block_lt) = self.at_and_lt();
-        let lt = Arc::new(AtomicU64::new(block_last_lt));
+        let lt = Arc::new(AtomicU64::new(last_lt));
         let result = executor.execute_with_libs_and_params(
             Some(&msg),
             acc_root,
@@ -157,8 +157,14 @@ impl BlockBuilder {
                 Ok((transaction, lt.load(Ordering::Relaxed)))
             }
             Err(err) => {
-                let lt = block_last_lt + 1;
-                let account = Account::construct_from_cell(acc_root.clone())?;
+                let old_hash = acc_root.repr_hash();
+                let mut account = Account::construct_from_cell(acc_root.clone())?;
+                let lt = std::cmp::max(
+                    account.last_tr_time().unwrap_or(0), 
+                    std::cmp::max(last_lt, msg.lt().unwrap_or(0) + 1)
+                );
+                account.set_last_tr_time(lt);
+                *acc_root = account.serialize()?;
                 let mut transaction = Transaction::with_account_and_message(&account, msg, lt)?;
                 transaction.set_now(block_unixtime);
                 let mut description = TransactionDescrOrdinary::default();
@@ -192,8 +198,7 @@ impl BlockBuilder {
                     _ => return Err(err)?,
                 }
                 transaction.write_description(&TransactionDescr::Ordinary(description))?;
-                let hash = acc_root.repr_hash();
-                let state_update = HashUpdate::with_hashes(hash.clone(), hash);
+                let state_update = HashUpdate::with_hashes(old_hash, acc_root.repr_hash());
                 transaction.write_state_update(&state_update)?;
                 Ok((transaction, lt))
             }
@@ -219,7 +224,7 @@ impl BlockBuilder {
             &executor,
             &mut acc_root,
             &message,
-            self.end_lt,
+            std::cmp::max(self.start_lt, shard_acc.last_trans_lt() + 1),
             debug,
         )?;
         self.end_lt = std::cmp::max(self.end_lt, max_lt);
