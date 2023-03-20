@@ -1,10 +1,11 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.37.1 Mar 9, 2023
+## 0.37.1 Mar 21, 2023
 
 ### Fixed
 
+- Build docker image with q-server v0.55.0
 - Post request with several external messages processed only of the messages
 
 ## 0.37.0 Feb 17, 2023
