@@ -2,6 +2,8 @@
 
 Local Node with GraphQL API for DApp development and testing in TVM compatible blockchains (Everscale, Venom, TON, Gosh, etc.).
 
+![](./vf-dev-program.png)
+
 **Have a question? Get quick help in our channel:**
 
 [![Channel on Telegram](https://img.shields.io/badge/chat-on%20telegram-9cf.svg)](https://t.me/ever_sdk)
