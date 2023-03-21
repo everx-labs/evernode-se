@@ -105,10 +105,10 @@ impl MessageReceiverApi {
                                 message = msg;
                                 thread::sleep(Duration::from_micros(100));
                             }
-
-                            return Ok(Response::with(status::Ok));
                         }
                     }
+
+                    return Ok(Response::with(status::Ok));
                 }
             }
         }

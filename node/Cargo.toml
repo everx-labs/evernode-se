@@ -2,7 +2,7 @@
 edition = '2021'
 build = 'build.rs'
 name = 'ton_node_startup'
-version = '0.37.0'
+version = '0.37.1'
 
 [dependencies]
 # External
