@@ -1,6 +1,6 @@
 ARG TON_NODE
 
-FROM node:14-buster as q-server-build
+FROM node:18-buster as q-server-build
 
 ARG Q_SERVER_GITHUB_REPO
 ARG Q_SERVER_GITHUB_REV
