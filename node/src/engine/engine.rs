@@ -19,11 +19,10 @@ use crate::config::NodeConfig;
 use crate::data::DocumentsDb;
 use crate::engine::masterchain::Masterchain;
 use crate::engine::shardchain::Shardchain;
-use crate::engine::{InMessagesQueue, LiveControl, LiveControlReceiver};
+use crate::engine::InMessagesQueue;
 use crate::error::NodeResult;
-use crate::MessagesReceiver;
-use parking_lot::Mutex;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::{
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -34,84 +33,42 @@ use std::{
 use ton_block::ShardIdent;
 use ton_executor::BlockchainConfig;
 
-#[cfg(test)]
-#[path = "../../../../tonos-se-tests/unit/test_ton_node_engine.rs"]
-mod tests;
-
-pub struct EngineLiveProperties {
-    pub time_delta: Arc<AtomicU32>,
-}
-
-impl EngineLiveProperties {
-    fn new() -> Self {
-        Self {
-            time_delta: Arc::new(AtomicU32::new(0)),
-        }
-    }
-
-    fn get_time_delta(&self) -> u32 {
-        self.time_delta.load(Ordering::Relaxed)
-    }
-
-    fn set_time_delta(&self, value: u32) {
-        self.time_delta.store(value, Ordering::Relaxed)
-    }
-
-    fn increment_time(&self, delta: u32) {
-        self.set_time_delta(self.get_time_delta() + delta)
-    }
-}
-
-struct EngineLiveControl {
-    properties: Arc<EngineLiveProperties>,
-}
-
-impl EngineLiveControl {
-    fn new(properties: Arc<EngineLiveProperties>) -> Self {
-        Self { properties }
-    }
-}
-
-impl LiveControl for EngineLiveControl {
-    fn increase_time(&self, delta: u32) -> NodeResult<()> {
-        self.properties.increment_time(delta);
-        log::info!(target: "node", "SE time delta set to {}", self.properties.get_time_delta());
-        Ok(())
-    }
-
-    fn reset_time(&self) -> NodeResult<()> {
-        self.properties.set_time_delta(0);
-        log::info!(target: "node", "SE time delta set to 0");
-        Ok(())
-    }
-
-    fn time_delta(&self) -> NodeResult<u32> {
-        Ok(self.properties.get_time_delta())
-    }
-}
-
 /// It is top level struct provided node functionality related to transactions processing.
 /// Initialises instances of: all messages receivers, InMessagesQueue, MessagesProcessor.
 pub struct TonNodeEngine {
-    live_properties: Arc<EngineLiveProperties>,
-    receivers: Vec<Mutex<Box<dyn MessagesReceiver>>>,
-    live_control_receiver: Option<Box<dyn LiveControlReceiver>>,
+    time_delta: AtomicU32,
+    seq_mode: AtomicBool,
     pub message_queue: Arc<InMessagesQueue>,
     pub masterchain: Masterchain,
     pub workchain: Shardchain,
 }
 
 impl TonNodeEngine {
+    pub fn increase_time(&self, delta: u32) {
+        let new_time_delta = self.time_delta() + delta;
+        self.time_delta.store(new_time_delta, Ordering::Relaxed);
+        log::info!(target: "node", "SE time delta set to {}", new_time_delta);
+    }
+
+    pub fn reset_time(&self) {
+        self.time_delta.store(0, Ordering::Relaxed);
+        log::info!(target: "node", "SE time delta set to 0");
+    }
+
+    pub fn time_delta(&self) -> u32 {
+        self.time_delta.load(Ordering::Relaxed)
+    }
+
+    pub fn seq_mode(&self) -> bool {
+        self.seq_mode.load(Ordering::Relaxed)
+    }
+
+    pub fn set_seq_mode(&self, mode: bool) {
+        self.seq_mode.store(mode, Ordering::Relaxed);
+        log::info!(target: "node", "SE seq mode to {}", mode);
+    }
+
     pub fn start(self: Arc<Self>) -> NodeResult<()> {
-        for recv in self.receivers.iter() {
-            recv.lock().run(Arc::clone(&self.message_queue))?;
-        }
-
-        let live_control = EngineLiveControl::new(self.live_properties.clone());
-        if let Some(ref control_receiver) = self.live_control_receiver {
-            control_receiver.run(Box::new(live_control))?;
-        }
-
         if self.workchain.finality_was_loaded {
             self.masterchain.restore_state()?;
         }
@@ -124,35 +81,20 @@ impl TonNodeEngine {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub fn stop(self: Arc<Self>) -> NodeResult<()> {
-        log::info!(target: "node","TONNodeEngine stopped.");
-        Ok(())
-    }
-
     /// Construct new engine for selected shard
     /// with given time to generate block candidate
     pub fn with_params(
         global_id: i32,
         workchain_shard: ShardIdent,
-        receivers: Vec<Box<dyn MessagesReceiver>>,
-        live_control_receiver: Option<Box<dyn LiveControlReceiver>>,
         blockchain_config: Arc<BlockchainConfig>,
         documents_db: Arc<dyn DocumentsDb>,
         storage_path: PathBuf,
     ) -> NodeResult<Self> {
-        let message_queue = Arc::new(InMessagesQueue::with_db(10000, documents_db.clone()));
-        let live_properties = Arc::new(EngineLiveProperties::new());
-
-        let receivers = receivers
-            .into_iter()
-            .map(|r| Mutex::new(r))
-            .collect::<Vec<_>>();
+        let message_queue = Arc::new(InMessagesQueue::new(10000));
         Ok(TonNodeEngine {
+            time_delta: AtomicU32::new(0),
+            seq_mode: AtomicBool::new(false),
             message_queue: message_queue.clone(),
-            receivers,
-            live_properties,
-            live_control_receiver,
             masterchain: Masterchain::with_params(
                 global_id,
                 blockchain_config.clone(),
@@ -171,24 +113,29 @@ impl TonNodeEngine {
         })
     }
 
-    fn generate_blocks(&self, debug: bool) -> NodeResult<()> {
-        let mut continue_generating = true;
-        while continue_generating {
-            continue_generating = false;
-            let time_delta = self.live_properties.get_time_delta();
+    pub(crate) fn generate_blocks(&self, debug: bool) -> NodeResult<()> {
+        self.process_messages(debug)?;
+        self.message_queue.wait_new_message();
+        Ok(())
+    }
+
+    pub(crate) fn process_messages(&self, debug: bool) -> NodeResult<()> {
+        let mut continue_processing = true;
+        while continue_processing {
+            continue_processing = false;
+            let time_delta = self.time_delta();
             while let Some(block) = self.workchain.generate_block(time_delta, debug)? {
                 self.masterchain.register_new_shard_block(&block)?;
-                continue_generating = true;
+                continue_processing = true;
             }
             if self
                 .masterchain
                 .generate_block(time_delta, debug)?
                 .is_some()
             {
-                continue_generating = true;
+                continue_processing = true;
             }
         }
-        self.message_queue.wait_new_message();
         Ok(())
     }
 }

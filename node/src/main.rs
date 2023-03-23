@@ -14,36 +14,24 @@
 * under the License.
 */
 
-use crate::api::{ControlApi, MessageReceiverApi};
 use crate::config::NodeConfig;
-use crate::data::ArangoHelper;
-use crate::engine::engine::TonNodeEngine;
-use crate::engine::MessagesReceiver;
 use crate::error::{NodeError, NodeResult};
+use crate::service::{TonNodeService, TonNodeServiceConfig};
 use clap::{Arg, ArgMatches, Command};
-use iron::Iron;
-use parking_lot::Mutex;
-use router::Router;
 use serde_json::Value;
-use std::{
-    env, fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-    thread,
-    time::Duration,
-};
+use std::{env, fs, path::Path};
 use ton_executor::BlockchainConfig;
 
 pub mod error;
 
-mod api;
 mod block;
 mod config;
 mod data;
 mod engine;
+mod service;
+pub use data::MemDocumentsDb;
 
 #[cfg(test)]
-#[path = "../../../tonos-se-tests/unit/test_node_se.rs"]
 mod tests;
 
 fn main() {
@@ -55,28 +43,20 @@ fn read_str(path: &str) -> NodeResult<String> {
         .map_err(|err| NodeError::PathError(format!("Failed to read {}: {}", path, err)))?)
 }
 
-struct StartNodeConfig {
-    node: NodeConfig,
-    blockchain: BlockchainConfig,
-}
-
-impl StartNodeConfig {
-    fn from_args(args: ArgMatches) -> NodeResult<Self> {
-        if args.is_present("workdir") {
-            if let Some(ref workdir) = args.value_of("workdir") {
-                env::set_current_dir(Path::new(workdir)).unwrap()
-            }
+fn config_from_args(args: ArgMatches) -> NodeResult<TonNodeServiceConfig> {
+    if args.is_present("workdir") {
+        if let Some(ref workdir) = args.value_of("workdir") {
+            env::set_current_dir(Path::new(workdir)).unwrap()
         }
-
-        let config_json = read_str(args.value_of("config").unwrap_or_default())?;
-        let node = parse_config(&config_json);
-
-        let blockchain_config_json =
-            read_str(args.value_of("blockchain-config").unwrap_or_default())?;
-        let blockchain = blockchain_config_from_json(&blockchain_config_json)?;
-
-        Ok(Self { node, blockchain })
     }
+
+    let config_json = read_str(args.value_of("config").unwrap_or_default())?;
+    let node = parse_config(&config_json);
+
+    let blockchain_config_json = read_str(args.value_of("blockchain-config").unwrap_or_default())?;
+    let blockchain = blockchain_config_from_json(&blockchain_config_json)?;
+
+    Ok(TonNodeServiceConfig { node, blockchain })
 }
 
 fn run() -> NodeResult<()> {
@@ -132,7 +112,7 @@ fn run() -> NodeResult<()> {
     //         .help("Localhost connectivity only")
     //         .long("localhost"),
     // );
-    let config = StartNodeConfig::from_args(app.get_matches())?;
+    let config = config_from_args(app.get_matches())?;
 
     log4rs::init_file(config.node.log_path.clone(), Default::default()).expect(&format!(
         "Error initialize logging configuration. config: {}",
@@ -146,52 +126,11 @@ fn run() -> NodeResult<()> {
         env!("BUILD_GIT_DATE"),
         env!("BUILD_GIT_BRANCH"));
 
-    let err = start_node(config);
+    let service = TonNodeService::new(config)?;
+    let err = service.run();
     log::error!(target: "node", "{:?}", err);
 
     Ok(())
-}
-
-fn start_node(config: StartNodeConfig) -> NodeResult<()> {
-    let db = Arc::new(ArangoHelper::from_config(
-        &config.node.document_db_config(),
-    )?);
-
-    let router = Arc::new(Mutex::new(Some(Router::new())));
-
-    let receivers: Vec<Box<dyn MessagesReceiver>> = vec![Box::new(MessageReceiverApi::new(
-        config.node.api.messages.clone(),
-        router.clone(),
-    ))];
-
-    let control_api = Box::new(ControlApi::new(
-        config.node.api.live_control.clone(),
-        router.clone(),
-    )?);
-
-    let ton = TonNodeEngine::with_params(
-        config.node.global_id,
-        config.node.shard_id_config().shard_ident(),
-        receivers,
-        Some(control_api),
-        Arc::new(config.blockchain),
-        db,
-        PathBuf::from("./"),
-    )?;
-
-    let ton = Arc::new(ton);
-    TonNodeEngine::start(ton.clone())?;
-    let addr = format!("{}:{}", config.node.api.address, config.node.api.port);
-
-    if let Some(router) = router.lock().take() {
-        thread::spawn(move || {
-            Iron::new(router).http(addr).expect("error starting api");
-        });
-    }
-
-    loop {
-        thread::sleep(Duration::from_secs(1));
-    }
 }
 
 fn parse_config(json: &str) -> NodeConfig {

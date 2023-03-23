@@ -10,14 +10,20 @@ use ton_types::{AccountId, Cell, UInt256};
 mod arango;
 mod documents_db_mock;
 mod file_based_storage;
+mod mem_documents_db;
 #[cfg(test)]
 mod test_storage;
+
 #[cfg(test)]
 pub use test_storage::TestStorage;
 
 pub use arango::ArangoHelper;
+
+#[cfg(test)]
 pub use documents_db_mock::DocumentsDbMock;
+
 pub use file_based_storage::FileBasedStorage;
+pub use mem_documents_db::MemDocumentsDb;
 ///
 /// Information about last block in shard
 ///

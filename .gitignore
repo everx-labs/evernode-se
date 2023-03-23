@@ -33,3 +33,4 @@ readme.html
 /dev/package-lock.json
 /node/target/
 /target/
+/.secret/

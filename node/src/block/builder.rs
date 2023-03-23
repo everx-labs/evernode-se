@@ -34,10 +34,6 @@ use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, Sli
 use crate::engine::InMessagesQueue;
 use crate::error::NodeResult;
 
-#[cfg(test)]
-#[path = "../../../../tonos-se-tests/unit/test_block_builder.rs"]
-mod tests;
-
 ///
 /// BlockBuilder structure
 ///
@@ -160,7 +156,7 @@ impl BlockBuilder {
                 let old_hash = acc_root.repr_hash();
                 let mut account = Account::construct_from_cell(acc_root.clone())?;
                 let lt = std::cmp::max(
-                    account.last_tr_time().unwrap_or(0), 
+                    account.last_tr_time().unwrap_or(0),
                     std::cmp::max(last_lt, msg.lt().unwrap_or(0) + 1)
                 );
                 account.set_last_tr_time(lt);

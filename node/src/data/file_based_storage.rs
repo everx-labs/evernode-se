@@ -32,10 +32,6 @@ use ton_block::{
 use ton_types::cells_serialization::{deserialize_tree_of_cells, serialize_tree_of_cells};
 use ton_types::{types::UInt256, AccountId, Cell};
 
-#[cfg(test)]
-#[path = "../../../../tonos-se-tests/unit/test_file_based_storage.rs"]
-mod tests;
-
 ///
 /// Hash of ShardState with block sequence number
 ///

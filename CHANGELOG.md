@@ -1,6 +1,16 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.38.0 Mar 9, 2023
+
+### New
+
+- Sequential mode.
+- Internal structure was simplified.
+- TonNodeEngine was isolated from API services.
+- Added MemDocumentsDb – to use TonNodeEngine without ArangoDB but with access to produced 
+  parsed artefacts. 
+
 ## 0.37.1 Mar 9, 2023
 
 ### Fixed

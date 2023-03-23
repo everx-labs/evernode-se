@@ -31,10 +31,6 @@ use std::{
 use ton_block::*;
 use ton_types::*;
 
-#[cfg(test)]
-#[path = "../../../../tonos-se-tests/unit/test_block_finality.rs"]
-mod tests;
-
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
     pub static ref MINTER_ADDRESS: MsgAddressInt =
@@ -66,9 +62,9 @@ where
     db: Option<Arc<dyn DocumentsDb>>,
 
     current_block: Box<ShardBlock>,
-    blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
+    pub(crate) blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
     // need to remove
-    blocks_by_no: HashMap<u64, Box<FinalityBlock>>,
+    pub(crate) blocks_by_no: HashMap<u64, Box<FinalityBlock>>,
     // need to remove
     pub(crate) last_finalized_block: Box<ShardBlock>,
 }
@@ -269,7 +265,7 @@ where
 
     ///
     /// Write data BlockFinality to file
-    fn serialize(&self, writer: &mut dyn Write) -> NodeResult<()> {
+    pub(crate) fn serialize(&self, writer: &mut dyn Write) -> NodeResult<()> {
         // serialize struct:
         // 32bit - length of structure ShardBlock
         // structure ShardBlock
@@ -959,13 +955,14 @@ impl ShardBlock {
     }
 }
 
-// runs 10 thread to generate 5000 accounts with 1 input and two output messages per every block
+// runs 10 thread to generate N accounts with 1 input and two output messages per every block
 // finalizes block and return
 #[cfg(test)]
 pub fn generate_block_with_seq_no(
     shard_ident: ShardIdent,
     seq_no: u32,
     prev_info: BlkPrevInfo,
+    account_count: usize,
 ) -> Block {
     let mut block_builder = crate::block::builder::BlockBuilder::with_shard_ident(
         shard_ident,
@@ -975,7 +972,7 @@ pub fn generate_block_with_seq_no(
     );
 
     //println!("Thread write start.");
-    for _ in 0..5000 {
+    for _ in 0..account_count {
         let acc = AccountId::from_raw(
             (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>(),
             256,

@@ -14,28 +14,11 @@
 * under the License.
 */
 
-use super::error::NodeResult;
-use std::sync::Arc;
-
 pub mod messages;
 pub use self::messages::*;
 pub mod engine;
-pub mod shardchain;
 mod masterchain;
-
-pub trait MessagesReceiver: Send {
-    fn run(&mut self, queue: Arc<InMessagesQueue>) -> NodeResult<()>;
-}
-
-pub trait LiveControl: Send + Sync {
-    fn increase_time(&self, delta: u32) -> NodeResult<()>;
-    fn reset_time(&self) -> NodeResult<()>;
-    fn time_delta(&self) -> NodeResult<u32>;
-}
-
-pub trait LiveControlReceiver: Send + Sync {
-    fn run(&self, control: Box<dyn LiveControl>) -> NodeResult<()>;
-}
+pub mod shardchain;
 
 #[cfg(test)]
 pub fn hexdump(d: &[u8]) {
