@@ -113,6 +113,7 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
      -v /home/user/blockchain.conf.json:/ton-node/blockchain.conf.json \
      tonlabs/local-node
 ```
+4. All the subsequent config changes will require only restart of the created container. 
 
 ## How to work with logs
 
