@@ -2,7 +2,15 @@
 
 Local Node with GraphQL API for DApp development and testing in TVM compatible blockchains (Everscale, Venom, TON, Gosh, etc.).
 
-![](./vf-dev-program.png)
+<p align="center">
+  <a href="https://docs.everscale.network/">
+    <img src="https://4031793516-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2FCmimRVYKp3FChIIdVQ51%2Fuploads%2Fg8DCzYhXFbskTt0odAR4%2FEverscale%20Logo.png?alt=media&token=9484b624-6456-47b4-9757-c0fa43f4caa7" alt="Logo"   height="100">
+  </a>
+  <a href="https://github.com/venom-blockchain/developer-program">
+    <img src="https://raw.githubusercontent.com/venom-blockchain/developer-program/main/vf-dev-program.png" alt="Logo" height="100">
+  </a>
+</p>
+
 
 **Have a question? Get quick help in our channel:**
 
@@ -105,6 +113,7 @@ $ docker run -d --name local-node -e USER_AGREEMENT=yes -p80:80 \
      -v /home/user/blockchain.conf.json:/ton-node/blockchain.conf.json \
      tonlabs/local-node
 ```
+4. All the subsequent config changes will require only restart of the created container. 
 
 ## How to work with logs
 
