@@ -41,10 +41,12 @@ fn test_node_time_control() {
         .unwrap(),
     );
     node.clone().start().unwrap();
+    sleep(Duration::from_secs(5));
+    dump_documents_db(&db);
 
     let giver = Acc::new(GIVER_V3_ADDRESS, GIVER_V3_ABI_JSON, GIVER_V3_KEYS_JSON);
-    let send_msg = giver.encode_ext_in_msg(
-        node.get_next_time(),
+    let send_msg = giver.process_ext_in_msg(
+        &node,
         "sendTransaction",
         json!({
             "dest": GIVER_V3_ADDRESS,
@@ -55,9 +57,12 @@ fn test_node_time_control() {
     );
 
     println!("{}", send_msg.hash().unwrap().to_hex_string());
+    dump_documents_db(&db);
+
     // node.time.write().set_mode(BlockTimeMode::Seq);
-    node.message_queue.queue(send_msg).unwrap();
-    sleep(Duration::from_secs(5));
+}
+
+fn dump_documents_db(db: &MemDocumentsDb) {
     println!("blocks:");
     for block in db.blocks() {
         println!(
@@ -78,6 +83,7 @@ fn test_node_time_control() {
             tr["out_msgs"]
         );
     }
+
 }
 
 struct Acc {
@@ -119,6 +125,13 @@ impl Acc {
             ExternalInboundMessageHeader::new(MsgAddressExt::AddrNone, self.address.clone()),
             body,
         )
+    }
+
+    pub fn process_ext_in_msg(&self, node: &TonNodeEngine, function: &str, params: Value) -> Message {
+        let msg = self.encode_ext_in_msg(node.get_next_time(), function, params);
+        node.message_queue.queue(msg.clone()).unwrap();
+        sleep(Duration::from_secs(5));
+        msg
     }
 }
 
