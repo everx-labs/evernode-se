@@ -1,0 +1,40 @@
+{
+	"ABI version": 2,
+	"header": ["time"],
+	"functions": [
+		{
+			"name": "constructor",
+			"inputs": [
+			],
+			"outputs": [
+			]
+		},
+		{
+			"name": "reset",
+			"inputs": [
+			],
+			"outputs": [
+			]
+		},
+		{
+			"name": "acceptMessage",
+			"inputs": [
+				{"name":"value","type":"uint32"}
+			],
+			"outputs": [
+			]
+		},
+		{
+			"name": "getLastAccepted",
+			"inputs": [
+			],
+			"outputs": [
+				{"name":"result","type":"uint32"}
+			]
+		}
+	],
+	"data": [
+	],
+	"events": [
+	]
+}

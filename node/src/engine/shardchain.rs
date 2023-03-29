@@ -1,23 +1,18 @@
-use crate::block::{BlockBuilder, OrdinaryBlockFinality};
-use crate::data::{DocumentsDb, FileBasedStorage};
+use crate::block::{BlockBuilder, BlockFinality};
+use crate::data::{DocumentsDb, NodeStorage, ShardStorage};
 use crate::engine::InMessagesQueue;
-use crate::error::{NodeError, NodeResult};
+use crate::error::NodeResult;
 use parking_lot::Mutex;
-use std::io::ErrorKind;
-use std::path::PathBuf;
 use std::sync::Arc;
-use ton_block::{Block, ShardIdent, ShardStateUnsplit, UnixTime32};
+use ton_block::{Block, ShardIdent, ShardStateUnsplit};
 use ton_executor::BlockchainConfig;
 use ton_types::HashmapType;
 
-type Storage = FileBasedStorage;
-type ArcBlockFinality = Arc<Mutex<OrdinaryBlockFinality<Storage, Storage, Storage, Storage>>>;
-
 pub struct Shardchain {
     pub(crate) finality_was_loaded: bool,
-    pub(crate) blockchain_config: Arc<BlockchainConfig>,
+    blockchain_config: Arc<BlockchainConfig>,
     message_queue: Arc<InMessagesQueue>,
-    pub(crate) finalizer: ArcBlockFinality,
+    block_finality: Arc<Mutex<BlockFinality>>,
 }
 
 impl Shardchain {
@@ -27,62 +22,44 @@ impl Shardchain {
         blockchain_config: Arc<BlockchainConfig>,
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
-        storage_path: PathBuf,
+        storage: &dyn NodeStorage,
     ) -> NodeResult<Self> {
-        let storage = Arc::new(Storage::with_path(shard.clone(), storage_path.clone())?);
-        let block_finality = Arc::new(Mutex::new(OrdinaryBlockFinality::with_params(
+        let block_finality = Arc::new(Mutex::new(BlockFinality::with_params(
             global_id,
             shard.clone(),
-            storage_path,
-            storage.clone(),
-            storage.clone(),
-            storage.clone(),
-            storage.clone(),
+            ShardStorage::new(storage.shard_storage(shard.clone())?),
             Some(documents_db.clone()),
-            Vec::new(),
         )));
-        let finality_was_loaded = match block_finality.lock().load() {
-            Ok(_) => {
-                log::info!(target: "node", "load block finality successfully");
-                true
-            }
-            Err(NodeError::Io(err)) => {
-                if err.kind() != ErrorKind::NotFound {
-                    return Err(NodeError::Io(err));
-                }
-                false
-            }
-            Err(err) => {
-                return Err(err);
-            }
+        let finality_was_loaded = block_finality.lock().load()?;
+        if finality_was_loaded {
+            log::info!(target: "node", "load block finality successfully");
         };
 
         Ok(Self {
             finality_was_loaded,
             blockchain_config,
             message_queue,
-            finalizer: block_finality.clone(),
+            block_finality: block_finality.clone(),
         })
     }
 
     pub(crate) fn build_block(
         &self,
-        time_delta: u32,
+        time: u32,
         debug: bool,
     ) -> NodeResult<(Block, ShardStateUnsplit, bool)> {
-        let timestamp = UnixTime32::now().as_u32() + time_delta;
-        let (shard_state, blk_prev_info) = self.finalizer.lock().get_last_info()?;
+        let (shard_state, blk_prev_info) = self.block_finality.lock().get_last_info()?;
         log::debug ! (target: "node", "PARENT block: {:?}", blk_prev_info);
 
-        let collator = BlockBuilder::with_params(shard_state, blk_prev_info, timestamp)?;
+        let collator = BlockBuilder::with_params(shard_state, blk_prev_info, time)?;
         collator.build_block(&self.message_queue, &self.blockchain_config, debug)
     }
 
     ///
     /// Generate new block if possible
     ///
-    pub fn generate_block(&self, time_delta: u32, debug: bool) -> NodeResult<Option<Block>> {
-        let (block, new_shard_state, is_empty) = self.build_block(time_delta, debug)?;
+    pub fn generate_block(&self, gen_utime: u32, debug: bool) -> NodeResult<Option<Block>> {
+        let (block, new_shard_state, is_empty) = self.build_block(gen_utime, debug)?;
         Ok(if !is_empty {
             log::trace!(target: "node", "block generated successfully");
             Self::print_block_info(&block);
@@ -112,7 +89,7 @@ impl Shardchain {
     ) -> NodeResult<Arc<ShardStateUnsplit>> {
         log::info!(target: "node", "Apply block seq_no = {}", block.read_info()?.seq_no());
         let new_state = Arc::new(applied_shard);
-        self.finalizer
+        self.block_finality
             .lock()
             .put_block_with_info(block, new_state.clone())?;
         Ok(new_state)
@@ -120,6 +97,6 @@ impl Shardchain {
 
     /// get last finalized block
     pub fn get_last_finalized_block(&self) -> NodeResult<Block> {
-        Ok(self.finalizer.lock().last_finalized_block.block.clone())
+        Ok(self.block_finality.lock().last_finalized_block.block.clone())
     }
 }

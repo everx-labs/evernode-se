@@ -2,7 +2,7 @@ use rand::Rng;
 use std::{io::Cursor, thread, time::{Duration, Instant}};
 use ton_block::*;
 use ton_types::*;
-use crate::block::BlockBuilder;
+use crate::tests::{builder_add_test_transaction, builder_is_empty, builder_with_shard_ident};
 
 macro_rules! println_elapsed{
     ( $msg: expr, $time: expr ) => {
@@ -12,7 +12,7 @@ macro_rules! println_elapsed{
 
 #[test]
 fn test_blockbuilder_empty() {
-    let bb = BlockBuilder::with_shard_ident(ShardIdent::masterchain(), 1, BlkPrevInfo::default(), 0);
+    let bb = builder_with_shard_ident(ShardIdent::masterchain(), 1, BlkPrevInfo::default(), 0);
     let (block, _) = bb.finalize_block().unwrap();
     println!("{:?}", block);
 }
@@ -90,7 +90,7 @@ fn test_blockbuilder_generate_blocks() {
     let total = Instant::now();
     let now = Instant::now();
 
-    let mut block_builder = BlockBuilder::with_shard_ident(ShardIdent::masterchain(), 1, BlkPrevInfo::default(), 0);
+    let mut block_builder = builder_with_shard_ident(ShardIdent::masterchain(), 1, BlkPrevInfo::default(), 0);
     println!("<--- Run without threads");
     let mut generate = Duration::new(0, 0);
     let mut append = generate;
@@ -99,13 +99,13 @@ fn test_blockbuilder_generate_blocks() {
         let now = Instant::now();
         let (in_msg, out_msg1, out_msg2) = build_transaction(acc.clone());
         generate += now.elapsed();
-        block_builder.add_test_transaction(in_msg, &[out_msg1, out_msg2]).unwrap();
+        builder_add_test_transaction(&mut block_builder, in_msg, &[out_msg1, out_msg2]).unwrap();
         append += now.elapsed();
     }
     append -= generate;
     println_elapsed!("generate", generate);
     println_elapsed!("append", append);
-    if !block_builder.is_empty() {
+    if !builder_is_empty(&block_builder) {
         let d = now.elapsed();
         println_elapsed!("generate_block", d);
 

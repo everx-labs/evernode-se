@@ -5,11 +5,14 @@ All notable changes to this project will be documented in this file.
 
 ### New
 
-- Sequential mode.
 - Internal structure was simplified.
-- TonNodeEngine was isolated from API services.
-- Added MemDocumentsDb – to use TonNodeEngine without ArangoDB but with access to produced 
+- `TonNodeEngine` was isolated from API services.
+- Added `MemDocumentsDb` – to use `TonNodeEngine` without ArangoDB but with access to produced 
   parsed artefacts. 
+- Added `ShardStorage` based on the single and simple `KVStorage` as a shardstate internal storage 
+  instead of four independent storages.
+- Added `MemStorage` and `FSStorage` as two main shard storage implementations.
+- Added `TonEngine.time` with responsibility for a block time management. 
 
 ## 0.37.1 Mar 21, 2023
 

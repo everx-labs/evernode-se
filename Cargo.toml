@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "node",
+    "integration-tests"
 ]
 
 exclude = [

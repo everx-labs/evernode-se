@@ -1,8 +1,8 @@
 use std::{thread, time, sync::Arc};
 use ton_block::*;
 use ton_types::*;
-use crate::data::ShardStateInfo;
 use crate::engine::InMessagesQueue;
+use crate::tests::{shard_state_info_deserialize, shard_state_info_with_params};
 
 fn get_message(n: u8) -> Message {
 
@@ -112,11 +112,11 @@ fn test_in_messages_queue_multi_thread() {
 
 #[test]
 fn test_shard_chain_inf0_serialization() {
-    let ssi = ShardStateInfo::with_params(121, 234123, UInt256::from([56;32]));
+    let ssi = shard_state_info_with_params(121, 234123, UInt256::from([56;32]));
 
     let data = ssi.serialize();
 
-    let ssi2 = ShardStateInfo::deserialize(&mut std::io::Cursor::new(data)).unwrap();
+    let ssi2 = shard_state_info_deserialize(&mut std::io::Cursor::new(data)).unwrap();
 
     assert_eq!(ssi, ssi2);
 }

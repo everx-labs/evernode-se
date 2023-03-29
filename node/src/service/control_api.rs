@@ -15,6 +15,7 @@
 */
 
 use crate::engine::engine::TonNodeEngine;
+use crate::engine::BlockTimeMode;
 use crate::NodeError;
 use iron::{
     prelude::{IronError, IronResult, Request, Response},
@@ -39,19 +40,21 @@ impl ControlApi {
         let command = ControlCommand::from_req(req)?;
         let response = match command {
             ControlCommand::IncreaseTime(delta) => {
-                node.increase_time(delta);
+                node.time.write().increase_delta(delta);
                 Response::with(status::Ok)
             }
             ControlCommand::ResetTime => {
-                node.reset_time();
+                node.time.write().reset_delta();
                 Response::with(status::Ok)
             }
             ControlCommand::TimeDelta => {
-                Response::with((status::Ok, format!("{}", node.time_delta())))
+                Response::with((status::Ok, format!("{}", node.time.read().delta)))
             }
-            ControlCommand::SeqMode => Response::with((status::Ok, format!("{}", node.seq_mode()))),
-            ControlCommand::SetSeqMode(mode) => {
-                node.set_seq_mode(mode);
+            ControlCommand::TimeMode => {
+                Response::with((status::Ok, format!("{}", node.time.read().mode as u8)))
+            }
+            ControlCommand::SetTimeMode(mode) => {
+                node.time.write().set_mode(mode);
                 Response::with(status::Ok)
             }
         };
@@ -69,8 +72,8 @@ enum ControlCommand {
     IncreaseTime(u32),
     ResetTime,
     TimeDelta,
-    SeqMode,
-    SetSeqMode(bool),
+    TimeMode,
+    SetTimeMode(BlockTimeMode),
 }
 
 impl ControlCommand {
@@ -80,9 +83,8 @@ impl ControlCommand {
                 "increase-time" => Ok(Self::IncreaseTime(required_u32(req, "delta")?)),
                 "reset-time" => Ok(Self::ResetTime),
                 "time-delta" => Ok(Self::TimeDelta),
-                "seq-mode" => Ok(Self::SeqMode),
-                "seq-mode-on" => Ok(Self::SetSeqMode(true)),
-                "seq-mode-off" => Ok(Self::SetSeqMode(false)),
+                "time-mode" => Ok(Self::TimeMode),
+                "set-time-mode" => Ok(Self::SetTimeMode(required_time_mode(req)?)),
                 _ => Err(bad_request(format!(
                     "Unknown live control command \"{}\".",
                     cmd
@@ -91,6 +93,17 @@ impl ControlCommand {
         } else {
             Err(bad_request("Missing live control command".to_string()))
         }
+    }
+}
+
+fn required_time_mode(req: &Request) -> IronResult<BlockTimeMode> {
+    match required_u32(req, "mode")? {
+        0 => Ok(BlockTimeMode::System),
+        1 => Ok(BlockTimeMode::Seq),
+        mode => Err(bad_request(format!(
+            "Invalid time mode: {}. Expected 0 (System), 1 (Seq)",
+            mode
+        ))),
     }
 }
 

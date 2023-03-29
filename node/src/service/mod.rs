@@ -2,7 +2,7 @@ mod control_api;
 mod message_api;
 
 use crate::config::NodeConfig;
-use crate::data::ArangoHelper;
+use crate::data::{ArangoHelper, FSStorage};
 use crate::engine::engine::TonNodeEngine;
 use crate::error::NodeResult;
 use crate::service::control_api::ControlApi;
@@ -27,6 +27,7 @@ pub struct TonNodeService {
 
 impl TonNodeService {
     pub fn new(config: TonNodeServiceConfig) -> NodeResult<Self> {
+        let storage = Arc::new(FSStorage::new(PathBuf::from("./"))?);
         let node = Arc::new(TonNodeEngine::with_params(
             config.node.global_id,
             config.node.shard_id_config().shard_ident(),
@@ -34,7 +35,7 @@ impl TonNodeService {
             Arc::new(ArangoHelper::from_config(
                 &config.node.document_db_config(),
             )?),
-            PathBuf::from("./"),
+            storage,
         )?);
         Ok(Self { config, node })
     }

@@ -50,6 +50,14 @@ impl MemDocumentsDb {
             data: RwLock::new(Data::new()),
         }
     }
+
+    pub fn blocks(&self) -> Vec<Value> {
+        self.data.read().unwrap().blocks.clone()
+    }
+
+    pub fn transactions(&self) -> Vec<Value> {
+        self.data.read().unwrap().transactions.clone()
+    }
 }
 
 impl DocumentsDb for MemDocumentsDb {

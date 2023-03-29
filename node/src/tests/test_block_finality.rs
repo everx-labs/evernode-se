@@ -1,11 +1,13 @@
+use crate::block::{BlockFinality, ShardBlock};
+use crate::data::{NodeStorage, ShardStorage};
+use crate::tests::{
+    find_block_by_hash, generate_block_with_seq_no, hexdump, mem_storage, rollback_to,
+};
 use std::io::Cursor;
-use std::path::{PathBuf};
 use std::sync::Arc;
-use ton_block::{BlkPrevInfo, Block, ExtBlkRef, GetRepresentationHash, ShardIdent, ShardStateUnsplit};
-use crate::block::finality::generate_block_with_seq_no;
-use crate::block::{OrdinaryBlockFinality, ShardBlock};
-use crate::data::TestStorage;
-use crate::engine::hexdump;
+use ton_block::{
+    BlkPrevInfo, Block, ExtBlkRef, GetRepresentationHash, ShardIdent, ShardStateUnsplit,
+};
 
 #[test]
 fn test_serialize_shard_block_empty_with_default_signedblock() {
@@ -13,10 +15,7 @@ fn test_serialize_shard_block_empty_with_default_signedblock() {
 
     let ss = ShardStateUnsplit::default();
 
-    let sb = ShardBlock::with_block_and_state(
-        block,
-        Arc::new(ss)
-    );
+    let sb = ShardBlock::with_block_and_state(block, Arc::new(ss));
 
     let data = sb.serialize().unwrap();
 
@@ -24,7 +23,6 @@ fn test_serialize_shard_block_empty_with_default_signedblock() {
 
     let sb_restored = ShardBlock::deserialize(&mut Cursor::new(data)).unwrap();
     assert_eq!(sb, sb_restored);
-
 }
 
 #[test]
@@ -33,10 +31,7 @@ fn test_serialize_shard_block_empty() {
 
     let ss = ShardStateUnsplit::default();
 
-    let sb = ShardBlock::with_block_and_state(
-        block,
-        Arc::new(ss)
-    );
+    let sb = ShardBlock::with_block_and_state(block, Arc::new(ss));
 
     let data = sb.serialize().unwrap();
 
@@ -44,7 +39,6 @@ fn test_serialize_shard_block_empty() {
 
     let sb_restored = ShardBlock::deserialize(&mut Cursor::new(data)).unwrap();
     assert_eq!(sb, sb_restored);
-
 }
 
 #[test]
@@ -55,16 +49,12 @@ fn test_serialize_shard_block() {
     let block = generate_block_with_seq_no(shard_ident.clone(), 1, prev_info, 500);
     let ss = ShardStateUnsplit::default();
 
-    let sb = ShardBlock::with_block_and_state(
-        block,
-        Arc::new(ss)
-    );
+    let sb = ShardBlock::with_block_and_state(block, Arc::new(ss));
 
     let data = sb.serialize().unwrap();
 
     let sb_restored = ShardBlock::deserialize(&mut Cursor::new(data)).unwrap();
     assert_eq!(sb, sb_restored);
-
 }
 
 #[test]
@@ -84,7 +74,7 @@ fn test_block_finality() {
         let block = generate_block_with_seq_no(shard_ident.clone(), n + 1, prev_info, 500);
         let block_hash = block.hash().unwrap();
         prev_info = BlkPrevInfo::Block {
-            prev: ExtBlkRef{
+            prev: ExtBlkRef {
                 end_lt: block.read_info().unwrap().end_lt(),
                 seq_no: block.read_info().unwrap().seq_no(),
                 root_hash: block_hash.clone(),
@@ -95,70 +85,73 @@ fn test_block_finality() {
         blocks_hashes.push(block_hash);
     }
 
-    let test_storage = Arc::new(TestStorage::new(shard_ident.clone()));
-    let mut block_finality =
-        OrdinaryBlockFinality::<TestStorage, TestStorage, TestStorage, TestStorage>::with_params(
-            0,
-            shard_ident.clone(),
-            PathBuf::from("../target"),
-            test_storage.clone(),
-            test_storage.clone(),
-            test_storage.clone(),
-            test_storage.clone(),
-            None,
-            vec![]
-        );
+    let test_storage = mem_storage();
+    let mut block_finality = BlockFinality::with_params(
+        0,
+        shard_ident.clone(),
+        ShardStorage::new(test_storage.shard_storage(shard_ident.clone()).unwrap()),
+        None,
+    );
 
     // after 5 blocks set finaliti hash from 1
     for n in 0..10 {
         println!("round: {}", n);
         println!("block hash: {:?}", blocks_hashes[n].clone());
         let ss = ShardStateUnsplit::default();
-        let fin_hash = if n >= 5 { Some(blocks_hashes[n-5].clone()) } else { None };
+        let fin_hash = if n >= 5 {
+            Some(blocks_hashes[n - 5].clone())
+        } else {
+            None
+        };
         println!("finality block hash: {:?}", fin_hash);
 
-        block_finality.put_block_with_info(
-            &blocks[n].clone(),
-            Arc::new(ss),
-        ).unwrap();
+        block_finality
+            .put_block_with_info(&blocks[n].clone(), Arc::new(ss))
+            .unwrap();
 
-        let expected_count = (if n >= 5 && n <= 8 { 4 } else if n > 8 { n - 7 } else { n }) + 1;
+        let expected_count = (if n >= 5 && n <= 8 {
+            4
+        } else if n > 8 {
+            n - 7
+        } else {
+            n
+        }) + 1;
 
-        println!("count: {} - expected count: {}",block_finality.blocks_by_hash.len(), expected_count);
+        println!(
+            "count: {} - expected count: {}",
+            block_finality.blocks_by_hash.len(),
+            expected_count
+        );
 
         assert_eq!(block_finality.blocks_by_hash.len(), expected_count);
         assert_eq!(block_finality.blocks_by_no.len(), expected_count);
 
         if n == 7 {
-            assert_eq!(block_finality.find_block_by_hash(&blocks_hashes[4]), 5);
-            assert_eq!(block_finality.find_block_by_hash(&blocks_hashes[1]), 0xFFFFFFFF);
+            assert_eq!(find_block_by_hash(&block_finality, &blocks_hashes[4]), 5);
+            assert_eq!(
+                find_block_by_hash(&block_finality, &blocks_hashes[1]),
+                0xFFFFFFFF
+            );
         }
 
         if n == 8 {
-            block_finality.rollback_to(&blocks_hashes[7]).unwrap();
+            rollback_to(&mut block_finality, &blocks_hashes[7]).unwrap();
         }
 
         let mut to_write = vec![];
         block_finality.serialize(&mut to_write).unwrap();
 
-        let mut res_block_finality =
-            OrdinaryBlockFinality::<TestStorage, TestStorage, TestStorage, TestStorage>::with_params(
-                0,
-                shard_ident.clone(),
-                PathBuf::from("../target"),
-                test_storage.clone(),
-                test_storage.clone(),
-                test_storage.clone(),
-                test_storage.clone(),
-                None,
-                vec![]
-            );
+        let mut res_block_finality = BlockFinality::with_params(
+            0,
+            shard_ident.clone(),
+            ShardStorage::new(test_storage.shard_storage(shard_ident.clone()).unwrap()),
+            None,
+        );
 
-println!("BBB");
-        res_block_finality.deserialize(&mut Cursor::new(to_write)).unwrap();
-println!("CCC");
-
-
+        println!("BBB");
+        res_block_finality
+            .deserialize(&mut Cursor::new(to_write))
+            .unwrap();
+        println!("CCC");
     }
-
 }

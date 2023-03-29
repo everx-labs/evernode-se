@@ -14,6 +14,8 @@
 * under the License.
 */
 
+extern crate core;
+
 use crate::config::NodeConfig;
 use crate::error::{NodeError, NodeResult};
 use crate::service::{TonNodeService, TonNodeServiceConfig};
@@ -30,6 +32,7 @@ mod data;
 mod engine;
 mod service;
 pub use data::MemDocumentsDb;
+pub use data::MemStorage;
 
 #[cfg(test)]
 mod tests;
