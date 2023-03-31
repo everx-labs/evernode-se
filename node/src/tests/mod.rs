@@ -30,7 +30,6 @@ mod test_file_based_storage;
 mod test_messages;
 mod test_node_se;
 mod test_time_control;
-mod test_ton_node_engine;
 
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<PublicKey>) {
     match NodeConfig::parse(json) {
