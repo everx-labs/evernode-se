@@ -3,13 +3,13 @@
 TON_NODE="tonlabs/ton-node"
 TONOS_SE="${TONOS_SE:-tonlabs/evernode-se}"
 
-BIN_TARGET="ton_node_startup"
+BIN_TARGET="evernode_se"
 
 Q_SERVER_GITHUB_REPO="https://github.com/tonlabs/ton-q-server"
 Q_SERVER_GITHUB_REV="${Q_SERVER_GITHUB_REV:-master}"
 
 echo
-echo "*** Building TON Node SE ***"
+echo "*** Building Evernode SE ***"
 echo
 docker build \
     --platform linux/amd64 \
@@ -20,7 +20,7 @@ docker build \
     ./node
 
 echo
-echo "*** Building TONOS SE image ***"
+echo "*** Building Evernode SE image ***"
 echo
 docker build \
     --platform linux/amd64 \
