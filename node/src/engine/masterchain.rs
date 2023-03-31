@@ -137,9 +137,9 @@ impl Masterchain {
                     BinTree<ShardDescr>,
                 >| {
                     tree.iterate(&mut |shard: SliceData, descr: ShardDescr| {
-                        let shard = ShardIdent::with_tagged_prefix(
+                        let shard = ShardIdent::with_prefix_slice(
                             workchain_id,
-                            shard_ident_to_u64(shard.cell().data()),
+                            shard,
                         )
                         .unwrap();
                         shards.insert(shard, descr);
@@ -156,11 +156,4 @@ impl Masterchain {
         }
         Ok(())
     }
-}
-
-fn shard_ident_to_u64(shard: &[u8]) -> u64 {
-    let mut shard_key = [0; 8];
-    let len = std::cmp::min(shard.len(), 8);
-    shard_key[..len].copy_from_slice(&shard[..len]);
-    u64::from_be_bytes(shard_key)
 }
