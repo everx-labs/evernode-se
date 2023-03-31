@@ -1,10 +1,9 @@
-use crate::data::DocumentsDb;
+use crate::data::{DocumentsDb, NodeStorage};
 use crate::engine::shardchain::Shardchain;
 use crate::engine::InMessagesQueue;
 use crate::error::NodeResult;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use ton_block::{
@@ -14,6 +13,7 @@ use ton_executor::BlockchainConfig;
 use ton_types::{SliceData, UInt256};
 
 pub struct Masterchain {
+    blockchain_config: Arc<BlockchainConfig>,
     shardchain: Shardchain,
     shards: RwLock<HashMap<ShardIdent, ShardDescr>>,
     shards_has_been_changed: AtomicBool,
@@ -25,17 +25,18 @@ impl Masterchain {
         blockchain_config: Arc<BlockchainConfig>,
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
-        storage_path: PathBuf,
+        storage: &dyn NodeStorage,
     ) -> NodeResult<Self> {
         let shardchain = Shardchain::with_params(
             ShardIdent::masterchain(),
             global_id,
-            blockchain_config,
+            blockchain_config.clone(),
             message_queue,
             documents_db,
-            storage_path,
+            storage,
         )?;
         Ok(Self {
+            blockchain_config,
             shardchain,
             shards: RwLock::new(HashMap::new()),
             shards_has_been_changed: AtomicBool::new(false),
@@ -79,9 +80,9 @@ impl Masterchain {
     ///
     /// Generate new block
     ///
-    pub fn generate_block(&self, time_delta: u32, debug: bool) -> NodeResult<Option<Block>> {
+    pub fn generate_block(&self, gen_utime: u32, debug: bool) -> NodeResult<Option<Block>> {
         let (mut master_block, new_shard_state, is_empty) =
-            self.shardchain.build_block(time_delta, debug)?;
+            self.shardchain.build_block(gen_utime, debug)?;
 
         if is_empty && !self.shards_has_been_changed.load(Ordering::Relaxed) {
             return Ok(None);
@@ -92,7 +93,7 @@ impl Masterchain {
         master_block.info.write_struct(&info)?;
         let mut extra = master_block.extra.read_struct()?;
         let mut mc_extra = McBlockExtra::default();
-        mc_extra.set_config(self.shardchain.blockchain_config.raw_config().clone());
+        mc_extra.set_config(self.blockchain_config.raw_config().clone());
         let shards = mc_extra.shards_mut();
         for (shard, descr) in &*self.shards.read() {
             shards.set(
@@ -142,7 +143,7 @@ impl Masterchain {
                 self.shards_has_been_changed.store(true, Ordering::Relaxed);
             }
             if let Some(last_config) = mc.config() {
-                if last_config != self.shardchain.blockchain_config.raw_config() {
+                if last_config != self.blockchain_config.raw_config() {
                     self.generate_block(0, false)?;
                 }
             }

@@ -238,7 +238,9 @@ While the Evernode SE is running it has several properties that effect node beha
 
 - `gen_time_delta` – each time the node issues new block it sets the block's `gen_utime`
   to `now() + gen_time_delta`. When the node starts it sets the `gen_time_delta` to `0`.
-
+- `seq_mode` – if this mode is on then evernode SE produces separate block for each transaction
+  and each block has unique `gen_utime`, equals to the `gen_utime` of the previous block + 1. 
+  
 SE control commands (must be sent using POST HTTP method):
 
 - `/se/increase-time?delta=<seconds>` – increase `gen_time_delta` by
@@ -247,6 +249,9 @@ SE control commands (must be sent using POST HTTP method):
 - `/se/reset-time` – resets `gen_time_delta` to `0`.
 
 - `/se/time-delta` – returns current `gen_time_delta` value.
+
+- `/se/seq-mode-on` – turns on the sequential mode.
+- `/se/seq-mode-off` – turns off the sequential mode.
 
 # Note for SE Developers
 

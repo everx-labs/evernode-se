@@ -14,52 +14,48 @@
 * under the License.
 */
 
-use crate::{
-    engine::{LiveControl, LiveControlReceiver},
-    NodeError, NodeResult,
-};
+use crate::engine::engine::TonNodeEngine;
+use crate::engine::BlockTimeMode;
+use crate::NodeError;
 use iron::{
     prelude::{IronError, IronResult, Request, Response},
     status,
 };
-use parking_lot::Mutex;
 use router::Router;
 use std::sync::Arc;
 
-pub struct ControlApi {
-    path: String,
-    router: Arc<Mutex<Option<Router>>>,
-}
+pub struct ControlApi;
 
 impl ControlApi {
-    pub fn new(path: String, router: Arc<Mutex<Option<Router>>>) -> NodeResult<Self> {
-        Ok(Self { path, router })
+    pub(crate) fn add_route(router: &mut Router, path: String, node: Arc<TonNodeEngine>) {
+        router.post(
+            format!("/{}/:command", path),
+            move |req: &mut Request| Self::process_request(req, node.clone()),
+            "live_control",
+        );
     }
 
-    fn process_request(
-        req: &mut Request,
-        control: &Box<dyn LiveControl>,
-    ) -> Result<Response, IronError> {
+    fn process_request(req: &mut Request, node: Arc<TonNodeEngine>) -> Result<Response, IronError> {
         log::info!(target: "node", "Control API request: {}", req.url.path().last().unwrap_or(&""));
         let command = ControlCommand::from_req(req)?;
         let response = match command {
             ControlCommand::IncreaseTime(delta) => {
-                control.increase_time(delta).map_err(|err| {
-                    internal_server_error(format!("Increase time failed: {}", err))
-                })?;
+                node.time.write().increase_delta(delta);
                 Response::with(status::Ok)
             }
             ControlCommand::ResetTime => {
-                control
-                    .reset_time()
-                    .map_err(|err| internal_server_error(format!("Reset time failed: {}", err)))?;
+                node.time.write().reset_delta();
                 Response::with(status::Ok)
             }
             ControlCommand::TimeDelta => {
-                let time_delta = control
-                    .time_delta()
-                    .map_err(|err| internal_server_error(format!("Time delta failed: {}", err)))?;
-                Response::with((status::Ok, format!("{}", time_delta)))
+                Response::with((status::Ok, format!("{}", node.time.read().delta)))
+            }
+            ControlCommand::TimeMode => {
+                Response::with((status::Ok, format!("{}", node.time.read().mode as u8)))
+            }
+            ControlCommand::SetTimeMode(mode) => {
+                node.time.write().set_mode(mode);
+                Response::with(status::Ok)
             }
         };
         Ok(response)
@@ -72,23 +68,12 @@ impl ControlApi {
     }
 }
 
-impl LiveControlReceiver for ControlApi {
-    fn run(&self, control: Box<dyn LiveControl>) -> NodeResult<()> {
-        if let Some(ref mut router) = *self.router.lock() {
-            router.post(
-                format!("/{}/:command", self.path),
-                move |req: &mut Request| Self::process_request(req, &control),
-                "live_control",
-            );
-        }
-        Ok(())
-    }
-}
-
 enum ControlCommand {
     IncreaseTime(u32),
     ResetTime,
     TimeDelta,
+    TimeMode,
+    SetTimeMode(BlockTimeMode),
 }
 
 impl ControlCommand {
@@ -98,6 +83,8 @@ impl ControlCommand {
                 "increase-time" => Ok(Self::IncreaseTime(required_u32(req, "delta")?)),
                 "reset-time" => Ok(Self::ResetTime),
                 "time-delta" => Ok(Self::TimeDelta),
+                "time-mode" => Ok(Self::TimeMode),
+                "set-time-mode" => Ok(Self::SetTimeMode(required_time_mode(req)?)),
                 _ => Err(bad_request(format!(
                     "Unknown live control command \"{}\".",
                     cmd
@@ -106,6 +93,17 @@ impl ControlCommand {
         } else {
             Err(bad_request("Missing live control command".to_string()))
         }
+    }
+}
+
+fn required_time_mode(req: &Request) -> IronResult<BlockTimeMode> {
+    match required_u32(req, "mode")? {
+        0 => Ok(BlockTimeMode::System),
+        1 => Ok(BlockTimeMode::Seq),
+        mode => Err(bad_request(format!(
+            "Invalid time mode: {}. Expected 0 (System), 1 (Seq)",
+            mode
+        ))),
     }
 }
 
@@ -122,10 +120,6 @@ fn required_u32(req: &Request, name: &str) -> IronResult<u32> {
 
 fn bad_request(msg: String) -> IronError {
     iron_error(status::BadRequest, msg)
-}
-
-fn internal_server_error(msg: String) -> IronError {
-    iron_error(status::InternalServerError, msg)
 }
 
 fn iron_error(status: status::Status, msg: String) -> IronError {

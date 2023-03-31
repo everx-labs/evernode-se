@@ -14,6 +14,7 @@
 * under the License.
 */
 
+use crate::engine::messages::InMessagesQueue;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -31,12 +32,7 @@ use ton_executor::{
 };
 use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, SliceData, UInt256};
 
-use crate::engine::InMessagesQueue;
 use crate::error::NodeResult;
-
-#[cfg(test)]
-#[path = "../../../../tonos-se-tests/unit/test_block_builder.rs"]
-mod tests;
 
 ///
 /// BlockBuilder structure
@@ -49,11 +45,11 @@ pub struct BlockBuilder {
     rand_seed: UInt256,
     new_messages: Vec<(Message, Cell)>, // TODO: BinaryHeap, Cell
     from_prev_blk: CurrencyCollection,
-    in_msg_descr: InMsgDescr,
-    out_msg_descr: OutMsgDescr,
+    pub(crate) in_msg_descr: InMsgDescr,
+    pub(crate) out_msg_descr: OutMsgDescr,
     out_queue_info: OutMsgQueueInfo,
 
-    account_blocks: ShardAccountBlocks,
+    pub(crate) account_blocks: ShardAccountBlocks,
     total_gas_used: u64,
     start_lt: u64,
     end_lt: u64, // biggest logical time of all messages
@@ -96,23 +92,6 @@ impl BlockBuilder {
         })
     }
 
-    ///
-    /// Initialize BlockBuilder with shard identifier
-    ///
-    #[cfg(test)]
-    pub fn with_shard_ident(
-        shard_id: ShardIdent,
-        seq_no: u32,
-        prev_ref: BlkPrevInfo,
-        block_at: u32,
-    ) -> Self {
-        let mut shard_state = ShardStateUnsplit::with_ident(shard_id);
-        if seq_no != 1 {
-            shard_state.set_seq_no(seq_no - 1);
-        }
-        Self::with_params(Arc::new(shard_state), prev_ref, block_at).unwrap()
-    }
-
     /// Shard ident
     fn shard_ident(&self) -> &ShardIdent {
         self.shard_state.shard()
@@ -137,7 +116,7 @@ impl BlockBuilder {
         let (block_unixtime, block_lt) = self.at_and_lt();
         let lt = Arc::new(AtomicU64::new(last_lt));
         let result = executor.execute_with_libs_and_params(
-            Some(&msg),
+            Some(msg),
             acc_root,
             ExecuteParams {
                 block_unixtime,
@@ -160,8 +139,8 @@ impl BlockBuilder {
                 let old_hash = acc_root.repr_hash();
                 let mut account = Account::construct_from_cell(acc_root.clone())?;
                 let lt = std::cmp::max(
-                    account.last_tr_time().unwrap_or(0), 
-                    std::cmp::max(last_lt, msg.lt().unwrap_or(0) + 1)
+                    account.last_tr_time().unwrap_or(0),
+                    std::cmp::max(last_lt, msg.lt().unwrap_or(0) + 1),
                 );
                 account.set_last_tr_time(lt);
                 *acc_root = account.serialize()?;
@@ -177,7 +156,7 @@ impl BlockBuilder {
                         if let Some(item) = arg {
                             vm_phase.exit_arg = match item
                                 .as_integer()
-                                .and_then(|value| value.into(std::i32::MIN..=std::i32::MAX))
+                                .and_then(|value| value.into(i32::MIN..=i32::MAX))
                             {
                                 Err(_) | Ok(0) => None,
                                 Ok(exit_arg) => Some(exit_arg),
@@ -279,7 +258,7 @@ impl BlockBuilder {
             // key is not matter for one shard
             sorted.push((key, OutMsgQueue::value_aug(&mut slice)?));
         }
-        sorted.sort_by(|a, b| a.1.1.cmp(&b.1.1));
+        sorted.sort_by(|a, b| a.1 .1.cmp(&b.1 .1));
         for (key, (enq, _create_lt)) in sorted {
             let env = enq.read_out_msg()?;
             let message = env.read_message()?;
@@ -306,7 +285,7 @@ impl BlockBuilder {
             if let Err(err) = res {
                 log::warn!(target: "node", "Executor execute failed. {}", err);
             } else {
-                log::info!(target: "node", "external msg transaction compleete");
+                log::info!(target: "node", "external msg transaction complete");
             }
             is_empty = false;
             if self.total_gas_used > 1_000_000 {
@@ -401,36 +380,6 @@ impl BlockBuilder {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub fn add_test_transaction(&mut self, in_msg: InMsg, out_msgs: &[OutMsg]) -> Result<()> {
-        log::debug!("Inserting test transaction");
-        let tr_cell = in_msg.transaction_cell().unwrap();
-        let transaction = Transaction::construct_from_cell(tr_cell.clone())?;
-
-        self.account_blocks
-            .add_serialized_transaction(&transaction, &tr_cell)?;
-
-        self.in_msg_descr
-            .set(&in_msg.message_cell()?.repr_hash(), &in_msg, &in_msg.aug()?)?;
-
-        for out_msg in out_msgs {
-            let msg_hash = out_msg.read_message_hash()?;
-            self.out_msg_descr
-                .set(&msg_hash, &out_msg, &out_msg.aug()?)?;
-        }
-        Ok(())
-    }
-
-    ///
-    /// Check if BlockBuilder is Empty
-    ///
-    #[cfg(test)]
-    pub fn is_empty(&self) -> bool {
-        self.in_msg_descr.is_empty()
-            && self.out_msg_descr.is_empty()
-            && self.account_blocks.is_empty()
-    }
-
     ///
     /// Get UNIX time and Logical Time of current block
     ///
@@ -447,6 +396,7 @@ impl BlockBuilder {
         new_shard_state.set_seq_no(self.block_info.seq_no());
         new_shard_state.write_accounts(&self.accounts)?;
         new_shard_state.write_out_msg_queue_info(&self.out_queue_info)?;
+
         let mut block_extra = BlockExtra::default();
         block_extra.write_in_msg_descr(&self.in_msg_descr)?;
         block_extra.write_out_msg_descr(&self.out_msg_descr)?;
@@ -470,7 +420,8 @@ impl BlockBuilder {
         // let old_ss_root = self.shard_state.serialize()?;
         // let state_update = MerkleUpdate::create(&old_ss_root, &new_ss_root)?;
         let state_update = MerkleUpdate::default();
-        self.block_info.set_end_lt(self.end_lt.max(self.start_lt + 1));
+        self.block_info
+            .set_end_lt(self.end_lt.max(self.start_lt + 1));
 
         let block = Block::with_params(
             self.shard_state.global_id(),

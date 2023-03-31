@@ -1,0 +1,37 @@
+{
+	"ABI version": 2,
+	"header": ["time", "expire"],
+	"functions": [
+		{
+			"name": "gasToTon",
+			"inputs": [
+				{"name":"gas","type":"uint128"},
+				{"name":"wid","type":"int8"}
+			],
+			"outputs": [
+				{"name":"price","type":"uint128"}
+			]
+		},
+		{
+			"name": "tonToGas",
+			"inputs": [
+				{"name":"_ton","type":"uint128"},
+				{"name":"wid","type":"int8"}
+			],
+			"outputs": [
+				{"name":"price","type":"uint128"}
+			]
+		},
+		{
+			"name": "constructor",
+			"inputs": [
+			],
+			"outputs": [
+			]
+		}
+	],
+	"data": [
+	],
+	"events": [
+	]
+}

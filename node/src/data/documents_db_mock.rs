@@ -14,8 +14,8 @@
 * under the License.
 */
 
-use crate::error::NodeResult;
 use crate::data::DocumentsDb;
+use crate::error::NodeResult;
 
 use super::SerializedItem;
 
