@@ -1,6 +1,6 @@
 use crate::block::{BlockBuilder, BlockFinality};
 use crate::data::{DocumentsDb, NodeStorage, ShardStorage};
-use crate::engine::InMessagesQueue;
+use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -13,6 +13,7 @@ pub struct Shardchain {
     blockchain_config: Arc<BlockchainConfig>,
     message_queue: Arc<InMessagesQueue>,
     block_finality: Arc<Mutex<BlockFinality>>,
+    debug_mode: bool,
 }
 
 impl Shardchain {
@@ -23,6 +24,7 @@ impl Shardchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
+        debug_mode: bool,
     ) -> NodeResult<Self> {
         let block_finality = Arc::new(Mutex::new(BlockFinality::with_params(
             global_id,
@@ -40,26 +42,35 @@ impl Shardchain {
             blockchain_config,
             message_queue,
             block_finality: block_finality.clone(),
+            debug_mode,
         })
+    }
+
+    pub(crate) fn out_message_queue_is_empty(&self) -> bool {
+        self.block_finality.lock().out_message_queue_is_empty()
     }
 
     pub(crate) fn build_block(
         &self,
         time: u32,
-        debug: bool,
+        time_mode: BlockTimeMode,
     ) -> NodeResult<(Block, ShardStateUnsplit, bool)> {
         let (shard_state, blk_prev_info) = self.block_finality.lock().get_last_info()?;
         log::debug ! (target: "node", "PARENT block: {:?}", blk_prev_info);
 
-        let collator = BlockBuilder::with_params(shard_state, blk_prev_info, time)?;
-        collator.build_block(&self.message_queue, &self.blockchain_config, debug)
+        let collator = BlockBuilder::with_params(shard_state, blk_prev_info, time, time_mode)?;
+        collator.build_block(
+            &self.message_queue,
+            &self.blockchain_config,
+            self.debug_mode,
+        )
     }
 
     ///
     /// Generate new block if possible
     ///
-    pub fn generate_block(&self, gen_utime: u32, debug: bool) -> NodeResult<Option<Block>> {
-        let (block, new_shard_state, is_empty) = self.build_block(gen_utime, debug)?;
+    pub fn generate_block(&self, time: u32, time_mode: BlockTimeMode) -> NodeResult<Option<Block>> {
+        let (block, new_shard_state, is_empty) = self.build_block(time, time_mode)?;
         Ok(if !is_empty {
             log::trace!(target: "node", "block generated successfully");
             Self::print_block_info(&block);
@@ -97,6 +108,11 @@ impl Shardchain {
 
     /// get last finalized block
     pub fn get_last_finalized_block(&self) -> NodeResult<Block> {
-        Ok(self.block_finality.lock().last_finalized_block.block.clone())
+        Ok(self
+            .block_finality
+            .lock()
+            .last_finalized_block
+            .block
+            .clone())
     }
 }

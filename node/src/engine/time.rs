@@ -6,11 +6,27 @@ pub enum BlockTimeMode {
     Seq = 1,
 }
 
+impl BlockTimeMode {
+    pub fn is_seq(&self) -> bool {
+        if let Self::Seq = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Default for BlockTimeMode {
+    fn default() -> Self {
+        Self::System
+    }
+}
+
 pub struct BlockTime {
     pub delta: u32,
+    pub last_time: u32,
     pub mode: BlockTimeMode,
     pub seq_mode_interval: u32,
-    pub seq_mode_last_time: u32,
 }
 
 impl BlockTime {
@@ -18,8 +34,8 @@ impl BlockTime {
         Self {
             delta: 0,
             mode: BlockTimeMode::System,
-            seq_mode_interval: 0,
-            seq_mode_last_time: 0,
+            seq_mode_interval: 1,
+            last_time: 1,
         }
     }
 
@@ -41,16 +57,11 @@ impl BlockTime {
     pub fn get_next(&self) -> u32 {
         match self.mode {
             BlockTimeMode::System => UnixTime32::now().as_u32() + self.delta,
-            BlockTimeMode::Seq => self.seq_mode_last_time + self.seq_mode_interval + self.delta,
+            BlockTimeMode::Seq => self.last_time + self.seq_mode_interval + self.delta,
         }
     }
 
     pub fn set_last(&mut self, time: u32) {
-        match self.mode {
-            BlockTimeMode::System => {}
-            BlockTimeMode::Seq => {
-                self.seq_mode_last_time = time.checked_sub(self.delta).unwrap_or(0)
-            }
-        }
+        self.last_time = time.checked_sub(self.delta).unwrap_or(0);
     }
 }

@@ -1,10 +1,16 @@
+use crate::block::ShardBlock;
 use crate::data::{DocumentsDb, SerializedItem};
+use crate::error::NodeError;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
-use ton_block::{Account, Block, BlockProcessingStatus, Deserializable, Message, MessageProcessingStatus, MsgAddrStd, MsgAddressInt, Serializable, Transaction, TransactionProcessingStatus, AccountBlock, HashmapAugType, AccountStatus};
-use ton_types::{serialize_toc, AccountId, BuilderData, Cell, Result, UInt256, HashmapType, SliceData};
-use crate::block::ShardBlock;
-use crate::error::NodeError;
+use ton_block::{
+    Account, AccountBlock, AccountStatus, Block, BlockProcessingStatus, Deserializable,
+    HashmapAugType, Message, MessageProcessingStatus, MsgAddrStd, MsgAddressInt, Serializable,
+    Transaction, TransactionProcessingStatus,
+};
+use ton_types::{
+    serialize_toc, AccountId, BuilderData, Cell, HashmapType, Result, SliceData, UInt256,
+};
 
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
@@ -118,7 +124,6 @@ pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &ShardBlock) -
         )?;
         doc.insert("chain_order".to_string(), tr_chain_order.into());
         db.put_transaction(doc_to_item(doc))?;
-
         index += 1;
     }
     let msg_count = messages.len(); // is 0 if not process_message

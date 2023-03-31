@@ -1,6 +1,6 @@
 use crate::data::{DocumentsDb, NodeStorage};
 use crate::engine::shardchain::Shardchain;
-use crate::engine::InMessagesQueue;
+use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -26,6 +26,7 @@ impl Masterchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
+        debug_mode: bool,
     ) -> NodeResult<Self> {
         let shardchain = Shardchain::with_params(
             ShardIdent::masterchain(),
@@ -34,6 +35,7 @@ impl Masterchain {
             message_queue,
             documents_db,
             storage,
+            debug_mode,
         )?;
         Ok(Self {
             blockchain_config,
@@ -41,6 +43,10 @@ impl Masterchain {
             shards: RwLock::new(HashMap::new()),
             shards_has_been_changed: AtomicBool::new(false),
         })
+    }
+
+    pub(crate) fn out_message_queue_is_empty(&self) -> bool {
+        self.shardchain.out_message_queue_is_empty()
     }
 
     pub fn register_new_shard_block(&self, block: &Block) -> NodeResult<()> {
@@ -80,9 +86,9 @@ impl Masterchain {
     ///
     /// Generate new block
     ///
-    pub fn generate_block(&self, gen_utime: u32, debug: bool) -> NodeResult<Option<Block>> {
+    pub fn generate_block(&self, time: u32, time_mode: BlockTimeMode) -> NodeResult<Option<Block>> {
         let (mut master_block, new_shard_state, is_empty) =
-            self.shardchain.build_block(gen_utime, debug)?;
+            self.shardchain.build_block(time, time_mode)?;
 
         if is_empty && !self.shards_has_been_changed.load(Ordering::Relaxed) {
             return Ok(None);
@@ -144,7 +150,7 @@ impl Masterchain {
             }
             if let Some(last_config) = mc.config() {
                 if last_config != self.blockchain_config.raw_config() {
-                    self.generate_block(0, false)?;
+                    self.generate_block(0, BlockTimeMode::System)?;
                 }
             }
         }
