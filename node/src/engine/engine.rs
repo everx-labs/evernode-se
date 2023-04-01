@@ -96,35 +96,6 @@ impl TonNodeEngine {
         Ok(())
     }
 
-    fn message_queues_are_empty(&self) -> bool {
-        self.workchain.out_message_queue_is_empty()
-            && self.masterchain.out_message_queue_is_empty()
-            && self.message_queue.is_empty()
-    }
-
-    fn execute_queued_messages(&self) -> NodeResult<()> {
-        let mut continue_processing = true;
-        let mut gen_time = self.get_next_time();
-        while continue_processing {
-            continue_processing = false;
-            while let Some(block) = self.workchain.generate_block(gen_time, self.time_mode())? {
-                self.set_last_time(gen_time);
-                self.masterchain.register_new_shard_block(&block)?;
-                continue_processing = true;
-                gen_time = self.get_next_time();
-            }
-            if self
-                .masterchain
-                .generate_block(gen_time, self.time_mode())?
-                .is_some()
-            {
-                self.set_last_time(gen_time);
-                continue_processing = true;
-            }
-        }
-        Ok(())
-    }
-
     pub fn process_messages(&self) -> NodeResult<()> {
         if self.is_running_in_background.load(Ordering::Relaxed) {
             while !self.message_queues_are_empty() {
@@ -169,6 +140,37 @@ impl TonNodeEngine {
 
     pub fn get_next_time(&self) -> u32 {
         self.time.read().get_next()
+    }
+}
+
+impl TonNodeEngine {
+    fn message_queues_are_empty(&self) -> bool {
+        self.workchain.out_message_queue_is_empty()
+            && self.masterchain.out_message_queue_is_empty()
+            && self.message_queue.is_empty()
+    }
+
+    fn execute_queued_messages(&self) -> NodeResult<()> {
+        let mut continue_processing = true;
+        let mut gen_time = self.get_next_time();
+        while continue_processing {
+            continue_processing = false;
+            while let Some(block) = self.workchain.generate_block(gen_time, self.time_mode())? {
+                self.set_last_time(gen_time);
+                self.masterchain.register_new_shard_block(&block)?;
+                continue_processing = true;
+                gen_time = self.get_next_time();
+            }
+            if self
+                .masterchain
+                .generate_block(gen_time, self.time_mode())?
+                .is_some()
+            {
+                self.set_last_time(gen_time);
+                continue_processing = true;
+            }
+        }
+        Ok(())
     }
 
     fn set_last_time(&self, time: u32) {

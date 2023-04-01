@@ -240,6 +240,7 @@ pub fn builder_with_shard_ident(
         prev_ref,
         block_at,
         BlockTimeMode::System,
+        1_000_000,
     )
     .unwrap()
 }

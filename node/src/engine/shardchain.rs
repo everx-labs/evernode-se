@@ -14,6 +14,7 @@ pub struct Shardchain {
     message_queue: Arc<InMessagesQueue>,
     block_finality: Arc<Mutex<BlockFinality>>,
     debug_mode: bool,
+    block_gas_limit: u64,
 }
 
 impl Shardchain {
@@ -36,13 +37,16 @@ impl Shardchain {
         if finality_was_loaded {
             log::info!(target: "node", "load block finality successfully");
         };
-
+        let block_gas_limit = blockchain_config
+            .get_gas_config(shard.is_masterchain())
+            .block_gas_limit;
         Ok(Self {
             finality_was_loaded,
             blockchain_config,
             message_queue,
             block_finality: block_finality.clone(),
             debug_mode,
+            block_gas_limit,
         })
     }
 
@@ -58,7 +62,13 @@ impl Shardchain {
         let (shard_state, blk_prev_info) = self.block_finality.lock().get_last_info()?;
         log::debug ! (target: "node", "PARENT block: {:?}", blk_prev_info);
 
-        let collator = BlockBuilder::with_params(shard_state, blk_prev_info, time, time_mode)?;
+        let collator = BlockBuilder::with_params(
+            shard_state,
+            blk_prev_info,
+            time,
+            time_mode,
+            self.block_gas_limit,
+        )?;
         collator.build_block(
             &self.message_queue,
             &self.blockchain_config,

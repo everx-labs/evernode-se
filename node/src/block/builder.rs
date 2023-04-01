@@ -49,7 +49,7 @@ pub struct BlockBuilder {
     pub(crate) in_msg_descr: InMsgDescr,
     pub(crate) out_msg_descr: OutMsgDescr,
     out_queue_info: OutMsgQueueInfo,
-
+    block_gas_limit: u64,
     pub(crate) account_blocks: ShardAccountBlocks,
     total_gas_used: u64,
     total_message_processed: usize,
@@ -69,6 +69,7 @@ impl BlockBuilder {
         prev_ref: BlkPrevInfo,
         time: u32,
         time_mode: BlockTimeMode,
+        block_gas_limit: u64,
     ) -> Result<Self> {
         let accounts = shard_state.read_accounts()?;
         let out_queue_info = shard_state.read_out_msg_queue_info()?;
@@ -94,6 +95,7 @@ impl BlockBuilder {
             start_lt,
             end_lt: start_lt + 1,
             time_mode,
+            block_gas_limit,
             ..Default::default()
         })
     }
@@ -246,7 +248,7 @@ impl BlockBuilder {
     }
 
     fn is_limits_reached(&self) -> bool {
-        self.total_gas_used > 1_000_000
+        self.total_gas_used > self.block_gas_limit
             || (self.time_mode.is_seq() && self.total_message_processed > 0)
     }
 
