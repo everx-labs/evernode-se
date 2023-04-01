@@ -40,21 +40,21 @@ impl ControlApi {
         let command = ControlCommand::from_req(req)?;
         let response = match command {
             ControlCommand::IncreaseTime(delta) => {
-                node.time.write().increase_delta(delta);
+                node.increase_time_delta(delta);
                 Response::with(status::Ok)
             }
             ControlCommand::ResetTime => {
-                node.time.write().reset_delta();
+                node.reset_time_delta();
                 Response::with(status::Ok)
             }
             ControlCommand::TimeDelta => {
-                Response::with((status::Ok, format!("{}", node.time.read().delta)))
+                Response::with((status::Ok, format!("{}", node.time_delta())))
             }
             ControlCommand::TimeMode => {
-                Response::with((status::Ok, format!("{}", node.time.read().mode as u8)))
+                Response::with((status::Ok, format!("{}", node.time_mode() as u8)))
             }
             ControlCommand::SetTimeMode(mode) => {
-                node.time.write().set_mode(mode);
+                node.set_time_mode(mode);
                 Response::with(status::Ok)
             }
         };

@@ -31,8 +31,10 @@ mod config;
 mod data;
 mod engine;
 mod service;
+
 pub use data::MemDocumentsDb;
 pub use data::MemStorage;
+pub use engine::engine::TonNodeEngine;
 
 #[cfg(test)]
 mod tests;

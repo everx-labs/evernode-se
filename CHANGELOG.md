@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file.
   instead of four independent storages.
 - Added `MemStorage` and `FSStorage` as two main shard storage implementations.
 - Added `TonEngine.time` with responsibility for a block time management. 
+- Added node time mode `seq` – sequential. In this mode node produces single block for
+  each transaction. All blocks have `gen_utime` equals to the `gen_utime` of the previous
+  block + 1 sec.
+- `TonNodeEngine` can be used as an in-memory blockchain emulator. It is useful for example 
+  for smart contract testing.  
 
 ## 0.37.1 Mar 21, 2023
 

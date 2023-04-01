@@ -49,7 +49,7 @@ RUN apk update; \
 # ton-node
 COPY --from=build-kit \
     /ton-node/target/release/${BIN_TARGET} \
-    /node/ton-node
+    /node/${BIN_TARGET}
 COPY --from=build-kit \
     /ton-node/config/log_cfg.yml \
     /ton-node/config/cfg_startup \

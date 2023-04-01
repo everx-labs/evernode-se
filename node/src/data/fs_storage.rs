@@ -15,7 +15,7 @@
 */
 
 use crate::data::{KVStorage, NodeStorage};
-use crate::error::NodeResult;
+use crate::error::{NodeError, NodeResult};
 use std;
 use std::clone::Clone;
 use std::fs::{create_dir_all, File};
@@ -65,10 +65,7 @@ impl FSKVStorage {
     ///                 blocks
     ///                     block_(seq_no)_(ver_no)
     ///
-    pub fn with_path(
-        shard: ShardIdent,
-        workchains_path: PathBuf,
-    ) -> NodeResult<FSKVStorage> {
+    pub fn with_path(shard: ShardIdent, workchains_path: PathBuf) -> NodeResult<FSKVStorage> {
         let workchain_name = if shard.is_masterchain() {
             "MC".to_string()
         } else {
@@ -92,6 +89,9 @@ impl KVStorage for FSKVStorage {
     fn get(&self, key: &str) -> NodeResult<Vec<u8>> {
         log::info!(target: "node", "load {}", key);
         let path = self.root_path.join(key);
+        if !path.exists() {
+            return Err(NodeError::NotFound);
+        }
         let mut file = File::open(path)?;
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;

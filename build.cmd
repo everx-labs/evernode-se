@@ -3,13 +3,13 @@
 set TON_NODE="tonlabs/ton-node"
 set TONOS_SE="tonlabs/evernode-se"
 
-set BIN_TARGET="ton_node_startup"
+set BIN_TARGET="evernode_se"
 
 set Q_SERVER_GITHUB_REPO="https://github.com/tonlabs/ton-q-server"
 set Q_SERVER_GITHUB_REV="master"
 
 echo.
-echo *** Building TON Node SE ***
+echo *** Building Evernode SE ***
 echo.
 docker build ^
     --no-cache ^

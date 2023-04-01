@@ -1,12 +1,15 @@
 use crate::block::{BlockBuilder, BlockFinality, FinalityBlock};
 use crate::config::NodeConfig;
 use crate::data::{shard_storage_key, ShardStateInfo, ShardStorage};
+use crate::engine::BlockTimeMode;
 use crate::error::{NodeError, NodeResult};
-use crate::{blockchain_config_from_json, MemStorage};
+use crate::{blockchain_config_from_json, MemDocumentsDb, MemStorage};
 use ed25519_dalek::PublicKey;
+use serde_json::Value;
 use std::fs;
 use std::io::{Cursor, Read};
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use ton_block::{
     AccountStatus, Augmentation, BlkPrevInfo, Block, CurrencyCollection, Deserializable,
@@ -20,13 +23,13 @@ use ton_types::{
     HashmapType, SliceData, UInt256,
 };
 
+mod abi_account;
 mod test_block_builder;
 mod test_block_finality;
 mod test_file_based_storage;
 mod test_messages;
 mod test_node_se;
 mod test_time_control;
-mod test_ton_node_engine;
 
 pub fn get_config_params(json: &str) -> (NodeConfig, Vec<PublicKey>) {
     match NodeConfig::parse(json) {
@@ -232,7 +235,14 @@ pub fn builder_with_shard_ident(
     if seq_no != 1 {
         shard_state.set_seq_no(seq_no - 1);
     }
-    BlockBuilder::with_params(Arc::new(shard_state), prev_ref, block_at).unwrap()
+    BlockBuilder::with_params(
+        Arc::new(shard_state),
+        prev_ref,
+        block_at,
+        BlockTimeMode::System,
+        1_000_000,
+    )
+    .unwrap()
 }
 
 pub fn builder_add_test_transaction(
@@ -331,11 +341,106 @@ pub fn mem_storage() -> MemStorage {
     MemStorage::new(ZEROSTATE.to_vec())
 }
 
-
-const BLOCKCHAIN_CONFIG_JSON: &str =
-    include_str!("../../../docker/ton-node/blockchain.conf.json");
-
+const BLOCKCHAIN_CONFIG_JSON: &str = include_str!("../../../docker/ton-node/blockchain.conf.json");
 
 pub fn blockchain_config() -> BlockchainConfig {
     blockchain_config_from_json(BLOCKCHAIN_CONFIG_JSON).unwrap()
+}
+
+struct DocsReader {
+    db: Arc<MemDocumentsDb>,
+    blocks_passed: usize,
+    transactions_passed: usize,
+}
+
+impl DocsReader {
+    pub fn new(db: Arc<MemDocumentsDb>) -> Self {
+        Self {
+            db,
+            blocks_passed: 0,
+            transactions_passed: 0,
+        }
+    }
+
+    pub fn next_blocks(&mut self) -> Vec<Value> {
+        let blocks = self.db.blocks().split_off(self.blocks_passed);
+        self.blocks_passed += blocks.len();
+        blocks
+    }
+
+    pub fn next_transactions(&mut self) -> Vec<Value> {
+        let transactions = self.db.transactions().split_off(self.transactions_passed);
+        self.transactions_passed += transactions.len();
+        transactions
+    }
+
+    pub fn dump_next(&mut self) {
+        Self::dump(
+            self.next_blocks(),
+            "blocks",
+            "gen_utime,workchain_id,seq_no,id",
+        );
+        Self::dump(
+            self.next_transactions(),
+            "transactions",
+            "now,account_addr,lt,id,aborted,in_msg,out_msgs",
+        );
+    }
+
+    pub fn dump(items: Vec<Value>, title: &str, fields: &str) {
+        println!("{}:", title);
+        for item in items {
+            let mut s = String::new();
+            for field in fields.split(',') {
+                let value = item.get(field);
+                if !s.is_empty() {
+                    s.push_str(", ");
+                }
+                s.push_str(&value.map_or_else(|| String::new(), |x| x.to_string()))
+            }
+            println!("{}", s);
+        }
+    }
+}
+
+fn parse_address(string: &str) -> NodeResult<MsgAddressInt> {
+    match MsgAddressInt::from_str(string) {
+        Ok(address) => Ok(address),
+        Err(err) => Err(NodeError::InvalidData(format!(
+            "Invalid address [{}]: {}",
+            string, err
+        ))),
+    }
+}
+
+fn init_logger() {
+    log::set_logger(&LOGGER).unwrap();
+    // log::set_max_level(LevelFilter::Trace);
+}
+
+struct SimpleLogger;
+
+const LOGGER: SimpleLogger = SimpleLogger;
+
+impl log::Log for SimpleLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
+        if record.target() == "tvm" {
+            return;
+        }
+        println!(
+            "{}:{} -- {}",
+            record.level(),
+            record.target(),
+            record.args()
+        );
+    }
+    fn flush(&self) {}
 }

@@ -15,6 +15,7 @@
 */
 
 use crate::engine::messages::InMessagesQueue;
+use crate::engine::BlockTimeMode;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -48,12 +49,15 @@ pub struct BlockBuilder {
     pub(crate) in_msg_descr: InMsgDescr,
     pub(crate) out_msg_descr: OutMsgDescr,
     out_queue_info: OutMsgQueueInfo,
-
+    block_gas_limit: u64,
     pub(crate) account_blocks: ShardAccountBlocks,
     total_gas_used: u64,
+    total_message_processed: usize,
     start_lt: u64,
     end_lt: u64, // biggest logical time of all messages
     copyleft_rewards: CopyleftRewards,
+
+    time_mode: BlockTimeMode,
 }
 
 impl BlockBuilder {
@@ -63,7 +67,9 @@ impl BlockBuilder {
     pub fn with_params(
         shard_state: Arc<ShardStateUnsplit>,
         prev_ref: BlkPrevInfo,
-        block_at: u32,
+        time: u32,
+        time_mode: BlockTimeMode,
+        block_gas_limit: u64,
     ) -> Result<Self> {
         let accounts = shard_state.read_accounts()?;
         let out_queue_info = shard_state.read_out_msg_queue_info()?;
@@ -76,7 +82,7 @@ impl BlockBuilder {
         block_info.set_shard(shard_state.shard().clone());
         block_info.set_seq_no(seq_no).unwrap();
         block_info.set_prev_stuff(false, &prev_ref).unwrap();
-        block_info.set_gen_utime(UnixTime32::new(block_at));
+        block_info.set_gen_utime(UnixTime32::new(time));
         block_info.set_start_lt(start_lt);
 
         Ok(BlockBuilder {
@@ -88,6 +94,8 @@ impl BlockBuilder {
             rand_seed,
             start_lt,
             end_lt: start_lt + 1,
+            time_mode,
+            block_gas_limit,
             ..Default::default()
         })
     }
@@ -191,6 +199,7 @@ impl BlockBuilder {
         acc_id: &AccountId,
         debug: bool,
     ) -> NodeResult<()> {
+        self.total_message_processed += 1;
         let shard_acc = self.accounts.account(acc_id)?.unwrap_or_default();
         let mut acc_root = shard_acc.account_cell();
         let executor = OrdinaryTransactionExecutor::new((*blockchain_config).clone());
@@ -238,6 +247,11 @@ impl BlockBuilder {
         Ok(())
     }
 
+    fn is_limits_reached(&self) -> bool {
+        self.total_gas_used > self.block_gas_limit
+            || (self.time_mode.is_seq() && self.total_message_processed > 0)
+    }
+
     pub fn build_block(
         mut self,
         queue: &InMessagesQueue,
@@ -245,12 +259,12 @@ impl BlockBuilder {
         debug: bool,
     ) -> NodeResult<(Block, ShardStateUnsplit, bool)> {
         let mut is_empty = true;
+        let mut block_full = false;
 
         // first import internal messages
-        let mut block_full = false;
         let out_queue = self.out_queue_info.out_queue().clone();
         let msg_count = out_queue.len()?;
-        log::debug!(target: "node", "out queue len={}", msg_count);
+        log::debug!(target: "node", "out_queue.len={}, queue.len={}", msg_count, queue.len());
         let mut sorted = Vec::with_capacity(msg_count);
         for out in out_queue.iter() {
             let (key, mut slice) = out?;
@@ -270,27 +284,29 @@ impl BlockBuilder {
                 .remove(SliceData::load_cell(key)?)?;
             // TODO: check block full
             is_empty = false;
-            if self.total_gas_used > 1_000_000 {
+            if self.is_limits_reached() {
                 block_full = true;
                 break;
             }
         }
         let workchain_id = self.shard_state.shard().workchain_id();
         // second import external messages
-        while let Some(msg) = queue.dequeue(workchain_id) {
-            let acc_id = msg.int_dst_account_id().unwrap();
+        if !block_full {
+            while let Some(msg) = queue.dequeue(workchain_id) {
+                let acc_id = msg.int_dst_account_id().unwrap();
 
-            // lock account in queue
-            let res = self.execute(msg, blockchain_config, &acc_id, debug);
-            if let Err(err) = res {
-                log::warn!(target: "node", "Executor execute failed. {}", err);
-            } else {
-                log::info!(target: "node", "external msg transaction complete");
-            }
-            is_empty = false;
-            if self.total_gas_used > 1_000_000 {
-                block_full = true;
-                break;
+                // lock account in queue
+                let res = self.execute(msg, blockchain_config, &acc_id, debug);
+                if let Err(err) = res {
+                    log::warn!(target: "node", "Executor execute failed. {}", err);
+                } else {
+                    log::info!(target: "node", "external msg transaction complete");
+                }
+                is_empty = false;
+                if self.is_limits_reached() {
+                    block_full = true;
+                    break;
+                }
             }
         }
 
@@ -319,7 +335,7 @@ impl BlockBuilder {
                         .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
                 } else {
                     self.execute(message, blockchain_config, &acc_id, debug)?;
-                    if self.total_gas_used > 1_000_000 {
+                    if self.is_limits_reached() {
                         block_full = true;
                     }
                 };

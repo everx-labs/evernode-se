@@ -26,7 +26,7 @@ use ton_block::{
     Account, BlkPrevInfo, Block, Deserializable, ExtBlkRef, Serializable, ShardIdent,
     ShardStateUnsplit,
 };
-use ton_types::{ByteOrderRead, UInt256};
+use ton_types::{ByteOrderRead, HashmapType, UInt256};
 
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
@@ -70,6 +70,13 @@ impl BlockFinality {
             blocks_by_hash: HashMap::new(),
             blocks_by_no: HashMap::new(),
             last_finalized_block: Box::new(ShardBlock::new(global_id, shard_ident.clone())),
+        }
+    }
+
+    pub(crate) fn out_message_queue_is_empty(&self) -> bool {
+        match self.get_last_shard_state().read_out_msg_queue_info() {
+            Ok(queue_info) => queue_info.out_queue().is_empty(),
+            Err(_) => true,
         }
     }
 
