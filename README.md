@@ -34,6 +34,9 @@ Local Node with GraphQL API for DApp development and testing in TVM compatible b
   - [Memory limits](#memory-limits)
 - [SE live control (REST API)](#se-live-control-rest-api)
 - [Note for SE Developers](#note-for-se-developers)
+- [Troubleshooting](#troubleshooting)
+  - [Error: connect ENOENT /var/run/docker.sock](#error-connect-enoent-varrundockersock)
+  - [Ever.live at localhost isn't available](#everlive-at-localhost-isnt-available)
 
 ## What is Evernode Simple Emulator?
 
@@ -281,3 +284,16 @@ components:
     cargo run --release --bin ton_node_startup -- --workdir ./docker/ton-node --config ton-node.conf.json --blockchain-config blockchain.conf.json
     ```
 
+# Troubleshooting
+
+## Error: connect ENOENT /var/run/docker.sock
+
+Getting this error means docker service is not running or missing due to incorrect Docker installation, partiularly in the case of Docker Desktop. Try reinstalling Docker and making sure the [daemon](https://docs.docker.com/config/daemon/start/) is running.
+
+## Ever.live at localhost isn't available
+
+If you use certain adblockers, after you have started Evernode SE the Ever Live explorer at http://127.0.0.1/landing might fail to load (you get a rotating icon and varous warnings and errors in the console).
+
+![](troubleshooting.jpg)
+
+Try disabling the adblockers for the SE Ever Live explorer.
