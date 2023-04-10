@@ -252,6 +252,8 @@ SE control commands (must be sent using POST HTTP method):
 
 - `/se/seq-mode-on` – turns on the sequential mode.
 - `/se/seq-mode-off` – turns off the sequential mode.
+- `/se/time` – returns current node time with included time delta. If seq mode is on then returned 
+  time is a time of the next block.
 
 # Note for SE Developers
 
