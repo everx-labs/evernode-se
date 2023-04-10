@@ -57,6 +57,9 @@ impl ControlApi {
                 node.set_time_mode(mode);
                 Response::with(status::Ok)
             }
+            ControlCommand::Time => {
+                Response::with((status::Ok, format!("{}", node.get_next_time())))
+            }
         };
         Ok(response)
 
@@ -74,6 +77,7 @@ enum ControlCommand {
     TimeDelta,
     TimeMode,
     SetTimeMode(BlockTimeMode),
+    Time,
 }
 
 impl ControlCommand {
@@ -85,6 +89,7 @@ impl ControlCommand {
                 "time-delta" => Ok(Self::TimeDelta),
                 "time-mode" => Ok(Self::TimeMode),
                 "set-time-mode" => Ok(Self::SetTimeMode(required_time_mode(req)?)),
+                "time" => Ok(Self::Time),
                 _ => Err(bad_request(format!(
                     "Unknown live control command \"{}\".",
                     cmd
