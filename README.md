@@ -58,7 +58,7 @@ But you can access non-docker builds of SE in community repos:
 
 - Latest [Docker](https://www.docker.com/get-started) installed
 
-**Attention!** [Docker daemon](https://www.docker.com/get-started) must be running.
+**Attention!** [Docker daemon](https://docs.docker.com/config/daemon/start/) must be running.
 
 ### Install via EVERDEV Development Environment
 
@@ -69,10 +69,7 @@ this command
 $ everdev se start
 ```
 
-[Checkout other Evernode SE commands accessible from EVERDEV](https://docs.ton.dev/86757ecb2/p/54722f-tonos-se)
-.
-You can also access these commands
-from [EVERDEV VS Code Extension](https://github.com/tonlabs/tondev-vscode).
+[Checkout other Evernode SE commands accessible from EVERDEV](https://docs.everos.dev/everdev/command-line-interface/evernode-platform-startup-edition-se).
 
 ### Install via docker command
 
@@ -86,9 +83,9 @@ To check that SE has been installed successfully check its local playground
 at http://0.0.0.0/graphql.
 For Windows, use http://127.0.0.1/graphql or http://localhost/graphql.
 
-If you specified another port then add it to the local url http://0.0.0.0:port/graphql
+If you specified another port then add it to the local url `http://0.0.0.0:port/graphql`
 
-[Find out more about GraphQL API](https://docs.ton.dev/86757ecb2/p/793337-graphql-api).
+[Find out more about GraphQL API](https://docs.evercloud.dev/reference/graphql-api).
 
 ## How to change the blockchain configuration
 
@@ -174,26 +171,25 @@ configuration [in the log4rs documentation](https://docs.rs/log4rs/1.0.0/log4rs/
 ## How to connect to Evernode SE Graphql API from SDK
 
 **Attention** at the moment there are a
-few [differences in SE behaviour comparing with a real TON blockchain](https://docs.everos.dev/evernode-platform/products/simple-emulator-se#23854b)
+few [differences in SE behaviour comparing with a real TON blockchain](https://docs.evercloud.dev/products/simple-emulator-se#23854b)
 . Read about them before you start implemennting. Please note that we plan to upgrade the SE
 behaviour in the next releases so that it will work the same way as a real network.
 
 To connect to local blockchain from your
-application specify [SE endpoints](https://docs.everos.dev/evernode-platform/products/simple-emulator-se/endpoint) in SDK Client [network config](https://docs.everos.dev/ever-sdk/guides/installation/configure_sdk#local-node)
+application specify [SE endpoints](https://docs.evercloud.dev/products/simple-emulator-se/endpoint) in SDK Client [network config](https://docs.everos.dev/ever-sdk/guides/installation/configure_sdk).
 .
 
 ## Evernode SE components
 
-* [EverX implementation of TON VM written in Rust](https://github.com/tonlabs/ton-labs-vm)
+* [EverX implementation of TON VM written in Rust](https://github.com/tonlabs/ever-vm)
 * [ArangoDB database](https://www.arangodb.com/)
-* [GraphQL endpoint with web playground](https://docs.everos.dev/ever-sdk/reference/ever-os-api)
-* [Ever-live explorer](https://ton.live)
+* [GraphQL endpoint with web playground](https://docs.evercloud.dev/reference/graphql-api)
+* [Ever.live blockchain explorer](https://ever.live)
 * [Pre-deployed high-performance Giver, ABI v2](contracts)
 
 ## Ever Live explorer
 
-Ever Live explorer runs on the same IP and port as Evernode SE, just open http://ip_address:port (
-e.g. http://127.0.0.1)
+Ever Live explorer runs on the same IP and port as Evernode SE, just open `http://ip_address:port` (e.g. http://127.0.0.1)
 
 ## How to build docker image locally
 
