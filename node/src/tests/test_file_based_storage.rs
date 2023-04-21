@@ -1,14 +1,16 @@
 use std::{path::PathBuf, time::Instant};
 
-use crate::data::{FSKVStorage, ShardStorage};
-use crate::tests::{generate_block_with_seq_no, get_block, save_block, save_shard_state, shard_state};
+use crate::data::{FSKVStorage, FSStorage, ShardStorage};
+use crate::tests::{
+    generate_block_with_seq_no, get_block, save_block, save_shard_state, shard_state,
+};
 use ton_block::{BlkPrevInfo, HashmapAugType, Serializable, ShardIdent, ShardStateUnsplit};
 use ton_types::UInt256;
 
 #[test]
 fn test_create_directory_tree() {
     let mut path = PathBuf::from("../target");
-    let _fbs = FSKVStorage::with_path(ShardIdent::default(), path.clone()).unwrap();
+    let _fbs = FSStorage::new(path.clone()).unwrap();
     path.push("workchains");
 
     assert!(path.as_path().exists());
