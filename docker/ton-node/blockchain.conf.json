@@ -207,9 +207,9 @@
     "next_frac": 21845
   },
   "p25": {
-    "lump_price": "1000000",
-    "bit_price": "65536000",
-    "cell_price": "6553600000",
+    "lump_price": "500000",
+    "bit_price": "32768000",
+    "cell_price": "3276800000",
     "ihr_price_factor": 98304,
     "first_frac": 21845,
     "next_frac": 21845
