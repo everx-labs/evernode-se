@@ -7,8 +7,9 @@ All notable changes to this project will be documented in this file.
 
 - Added node time mode `seq` – sequential. In this mode node produces single block for
   each transaction. All blocks have `gen_utime` equals to the `gen_utime` of the previous
-  block + 1 sec.
-  Use `/se/seq-mode-on` endpoint to turn the mode on. Read more in [SE live control (REST API)](./README.md#se-live-control-rest-api) section
+  block + 1 sec.  
+  Use `/se/seq-mode-on` endpoint to turn the mode on.   
+  Read more in [SE live control (REST API)](./README.md#se-live-control-rest-api) section
 - New forward fee config from Everscale mainnet.
 
 ## Improved
