@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 
 ### New
 
+- Added node time mode `seq` – sequential. In this mode node produces single block for
+  each transaction. All blocks have `gen_utime` equals to the `gen_utime` of the previous
+  block + 1 sec.
+  Use `/se/seq-mode-on` endpoint to turn the mode on. Read more in [SE live control (REST API)](./README.md#se-live-control-rest-api) section
+- New forward fee config from Everscale mainnet.
+
+## Improved
+
 - Internal structure was simplified.
 - `TonNodeEngine` was isolated from API services.
 - Added `MemDocumentsDb` – to use `TonNodeEngine` without ArangoDB but with access to produced 
@@ -13,12 +21,9 @@ All notable changes to this project will be documented in this file.
   instead of four independent storages.
 - Added `MemStorage` and `FSStorage` as two main shard storage implementations.
 - Added `TonEngine.time` with responsibility for a block time management. 
-- Added node time mode `seq` – sequential. In this mode node produces single block for
-  each transaction. All blocks have `gen_utime` equals to the `gen_utime` of the previous
-  block + 1 sec.
 - `TonNodeEngine` can be used as an in-memory blockchain emulator. It is useful for example 
   for smart contract testing.
-- New forward fee config from Everscale mainnet.
+
 
 ## 0.37.1 Mar 21, 2023
 
