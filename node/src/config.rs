@@ -14,13 +14,7 @@
 * under the License.
 */
 
-#[cfg(test)]
-use ed25519_dalek::PublicKey;
 use serde::Deserialize;
-#[cfg(test)]
-use std::fs;
-#[cfg(test)]
-use std::path::Path;
 
 #[derive(Deserialize, Default)]
 pub struct ShardIdConfig {
@@ -108,21 +102,6 @@ impl NodeConfig {
     }
     pub fn parse(json: &str) -> Result<Self, String> {
         serde_json::from_str(json).map_err(|e| e.to_string())
-    }
-
-    /// Import key values from list of files
-    #[cfg(test)]
-    pub fn import_keys(&self) -> Result<Vec<PublicKey>, String> {
-        let mut ret = Vec::new();
-        for path in self.keys.iter() {
-            let data = fs::read(Path::new(path))
-                .map_err(|e| format!("Error reading key file {}, {}", path, e))?;
-            ret.push(
-                PublicKey::from_bytes(&data)
-                    .map_err(|e| format!("Cannot import key from {}, {}", path, e))?,
-            );
-        }
-        Ok(ret)
     }
 
     pub fn shard_id_config(&self) -> &ShardIdConfig {

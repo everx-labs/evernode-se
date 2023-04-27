@@ -14,22 +14,16 @@
 * under the License.
 */
 
-use crate::data::DocumentsDb;
 use parking_lot::{Condvar, Mutex};
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 use ton_block::{Message, Serializable};
 use ton_types::serialize_toc;
-
-#[cfg(test)]
-#[path = "../../../../tonos-se-tests/unit/test_messages.rs"]
-mod tests;
 
 /// This FIFO accumulates inbound messages from all types of receivers.
 /// The struct might be used from many threads. It provides internal mutability.
 pub struct InMessagesQueue {
     present: Condvar,
     storage: Mutex<VecDeque<Message>>,
-    db: Option<Arc<dyn DocumentsDb>>,
     capacity: usize,
 }
 
@@ -40,33 +34,12 @@ impl InMessagesQueue {
         InMessagesQueue {
             present: Condvar::new(),
             storage: Mutex::new(Default::default()),
-            db: None,
             capacity,
         }
-    }
-
-    pub fn with_db(capacity: usize, db: Arc<dyn DocumentsDb>) -> Self {
-        InMessagesQueue {
-            present: Condvar::new(),
-            storage: Mutex::new(Default::default()),
-            db: Some(db),
-            capacity,
-        }
-    }
-
-    pub fn has_delivery_problems(&self) -> bool {
-        self.db
-            .as_ref()
-            .map_or(false, |db| db.has_delivery_problems())
     }
 
     /// Include message into end queue.
-    pub fn queue(&self, msg: Message) -> std::result::Result<(), Message> {
-        if self.has_delivery_problems() {
-            log::debug!(target: "node", "Has delivery problems");
-            return Err(msg);
-        }
-
+    pub fn queue(&self, msg: Message) -> Result<(), Message> {
         let mut storage = self.storage.lock();
         if storage.len() >= self.capacity {
             return Err(msg);

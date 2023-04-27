@@ -1,10 +1,9 @@
-use crate::data::DocumentsDb;
+use crate::data::{DocumentsDb, NodeStorage};
 use crate::engine::shardchain::Shardchain;
-use crate::engine::InMessagesQueue;
+use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use ton_block::{
@@ -14,6 +13,7 @@ use ton_executor::BlockchainConfig;
 use ton_types::{SliceData, UInt256};
 
 pub struct Masterchain {
+    blockchain_config: Arc<BlockchainConfig>,
     shardchain: Shardchain,
     shards: RwLock<HashMap<ShardIdent, ShardDescr>>,
     shards_has_been_changed: AtomicBool,
@@ -25,21 +25,28 @@ impl Masterchain {
         blockchain_config: Arc<BlockchainConfig>,
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
-        storage_path: PathBuf,
+        storage: &dyn NodeStorage,
+        debug_mode: bool,
     ) -> NodeResult<Self> {
         let shardchain = Shardchain::with_params(
             ShardIdent::masterchain(),
             global_id,
-            blockchain_config,
+            blockchain_config.clone(),
             message_queue,
             documents_db,
-            storage_path,
+            storage,
+            debug_mode,
         )?;
         Ok(Self {
+            blockchain_config,
             shardchain,
             shards: RwLock::new(HashMap::new()),
             shards_has_been_changed: AtomicBool::new(false),
         })
+    }
+
+    pub(crate) fn out_message_queue_is_empty(&self) -> bool {
+        self.shardchain.out_message_queue_is_empty()
     }
 
     pub fn register_new_shard_block(&self, block: &Block) -> NodeResult<()> {
@@ -79,9 +86,9 @@ impl Masterchain {
     ///
     /// Generate new block
     ///
-    pub fn generate_block(&self, time_delta: u32, debug: bool) -> NodeResult<Option<Block>> {
+    pub fn generate_block(&self, time: u32, time_mode: BlockTimeMode) -> NodeResult<Option<Block>> {
         let (mut master_block, new_shard_state, is_empty) =
-            self.shardchain.build_block(time_delta, debug)?;
+            self.shardchain.build_block(time, time_mode)?;
 
         if is_empty && !self.shards_has_been_changed.load(Ordering::Relaxed) {
             return Ok(None);
@@ -92,7 +99,7 @@ impl Masterchain {
         master_block.info.write_struct(&info)?;
         let mut extra = master_block.extra.read_struct()?;
         let mut mc_extra = McBlockExtra::default();
-        mc_extra.set_config(self.shardchain.blockchain_config.raw_config().clone());
+        mc_extra.set_config(self.blockchain_config.raw_config().clone());
         let shards = mc_extra.shards_mut();
         for (shard, descr) in &*self.shards.read() {
             shards.set(
@@ -130,9 +137,9 @@ impl Masterchain {
                     BinTree<ShardDescr>,
                 >| {
                     tree.iterate(&mut |shard: SliceData, descr: ShardDescr| {
-                        let shard = ShardIdent::with_tagged_prefix(
+                        let shard = ShardIdent::with_prefix_slice(
                             workchain_id,
-                            shard_ident_to_u64(shard.cell().data()),
+                            shard,
                         )
                         .unwrap();
                         shards.insert(shard, descr);
@@ -142,18 +149,11 @@ impl Masterchain {
                 self.shards_has_been_changed.store(true, Ordering::Relaxed);
             }
             if let Some(last_config) = mc.config() {
-                if last_config != self.shardchain.blockchain_config.raw_config() {
-                    self.generate_block(0, false)?;
+                if last_config != self.blockchain_config.raw_config() {
+                    self.generate_block(0, BlockTimeMode::System)?;
                 }
             }
         }
         Ok(())
     }
-}
-
-fn shard_ident_to_u64(shard: &[u8]) -> u64 {
-    let mut shard_key = [0; 8];
-    let len = std::cmp::min(shard.len(), 8);
-    shard_key[..len].copy_from_slice(&shard[..len]);
-    u64::from_be_bytes(shard_key)
 }
