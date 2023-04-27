@@ -3,5 +3,5 @@ set -x
 set -e
 sed -ri'' 's/"127\.0\.0\.1"/"0.0.0.0"/' /ton-node/ton-node.conf.json
 sed -ri'' "s/127\.0\.0\.1:8529/${DOCUMENT_DB}/" /ton-node/ton-node.conf.json
-exec /ton_node_startup --workdir /ton-node --config ton-node.conf.json --blockchain-config blockchain.conf.json
+exec /evernode_se --workdir /ton-node --config ton-node.conf.json --blockchain-config blockchain.conf.json
 

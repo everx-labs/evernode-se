@@ -39,6 +39,7 @@ WORKDIR /ton-node
 COPY Cargo.toml .
 COPY Cargo.lock .
 COPY ./node ./node
+COPY ./integration-tests ./integration-tests
 
 RUN cargo build --release
 
@@ -50,7 +51,7 @@ RUN apk update; \
     apk add libgcc libstdc++;
 
 # ton-node
-COPY --from=build-kit /ton-node/target/release/ton_node_startup /
+COPY --from=build-kit /ton-node/target/release/evernode_se /
 COPY ./docker/custom/entrypoint /
 COPY ./docker/ton-node .
 
