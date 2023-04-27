@@ -1,7 +1,7 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.38.0 Apr 21, 2023
+## 0.38.0 Apr 27, 2023
 
 ### New
 
@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
   Read more in [SE live control (REST API)](./README.md#se-live-control-rest-api) section
 - New forward fee config from Everscale mainnet.
 
-## Improved
+### Improved
 
 - Internal structure was simplified.
 - `TonNodeEngine` was isolated from API services.
