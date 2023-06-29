@@ -2,7 +2,7 @@
 edition = '2021'
 build = 'build.rs'
 name = 'evernode_se'
-version = '0.38.0'
+version = '0.39.0'
 
 [dependencies]
 # External
@@ -28,6 +28,8 @@ serde = '1.0'
 serde_derive = '1.0'
 serde_json = { features = ['preserve_order'], version = '1.0' }
 thiserror = '1.0'
+
+lockfree = { git = 'https://github.com/tonlabs/lockfree.git', package = 'lockfree' }
 
 # Domestic
 ton_block = { git = 'https://github.com/tonlabs/ever-block', tag = '1.9.28' }

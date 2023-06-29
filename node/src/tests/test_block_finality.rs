@@ -106,7 +106,7 @@ fn test_block_finality() {
         println!("finality block hash: {:?}", fin_hash);
 
         block_finality
-            .put_block_with_info(&blocks[n].clone(), Arc::new(ss))
+            .put_block_with_info(blocks[n].clone(), Arc::new(ss), Default::default())
             .unwrap();
 
         let expected_count = (if n >= 5 && n <= 8 {

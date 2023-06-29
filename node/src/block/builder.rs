@@ -16,6 +16,7 @@
 
 use crate::engine::messages::InMessagesQueue;
 use crate::engine::BlockTimeMode;
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -34,6 +35,13 @@ use ton_executor::{
 use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, SliceData, UInt256};
 
 use crate::error::NodeResult;
+
+pub struct PreparedBlock {
+    pub block: Block,
+    pub state: ShardStateUnsplit,
+    pub is_empty: bool,
+    pub transaction_traces: HashMap<UInt256, String>,
+}
 
 ///
 /// BlockBuilder structure
@@ -56,6 +64,7 @@ pub struct BlockBuilder {
     start_lt: u64,
     end_lt: u64, // biggest logical time of all messages
     copyleft_rewards: CopyleftRewards,
+    transaction_traces: HashMap<UInt256, String>,
 
     time_mode: BlockTimeMode,
 }
@@ -113,6 +122,27 @@ impl BlockBuilder {
         )
     }
 
+    fn trace_info(engine: &ton_vm::executor::Engine, info: &ton_vm::executor::EngineTraceInfo) -> String {
+        let mut trace = String::new();
+        if info.has_cmd() {
+            trace = format!(
+                "{trace}\n{}: {}\n",
+                info.step,
+                info.cmd_str,
+            );
+        }
+        trace = format!(
+            "{trace}\nGas: {} ({})\n",
+            info.gas_used,
+            info.gas_cmd
+        );
+        trace = format!("{trace}\n{}\n{}", engine.dump_stack("Stack trace", false), engine.dump_ctrls(true));
+        if info.info_type == ton_vm::executor::EngineTraceInfoType::Dump {
+            trace = format!("{trace}\n{}", info.cmd_str);
+        }
+        trace
+    }
+
     fn try_prepare_transaction(
         &mut self,
         executor: &OrdinaryTransactionExecutor,
@@ -120,9 +150,15 @@ impl BlockBuilder {
         msg: &Message,
         last_lt: u64,
         debug: bool,
-    ) -> NodeResult<(Transaction, u64)> {
+    ) -> NodeResult<(Transaction, u64, Option<String>)> {
         let (block_unixtime, block_lt) = self.at_and_lt();
         let lt = Arc::new(AtomicU64::new(last_lt));
+        let trace = Arc::new(lockfree::queue::Queue::new());
+        let trace_copy = trace.clone();
+        let callback = move |engine: &ton_vm::executor::Engine, info: &ton_vm::executor::EngineTraceInfo| {
+            trace.push(Self::trace_info(engine, info));
+        };
+        let start = std::time::Instant::now();
         let result = executor.execute_with_libs_and_params(
             Some(msg),
             acc_root,
@@ -133,15 +169,17 @@ impl BlockBuilder {
                 seed_block: self.rand_seed.clone(),
                 debug,
                 signature_id: self.shard_state.global_id(),
+                trace_callback: Some(Arc::new(callback)),
                 ..Default::default()
             },
         );
+        log::trace!("Execution time {} ms", start.elapsed().as_millis());
         match result {
             Ok(transaction) => {
                 if let Some(gas_used) = transaction.gas_used() {
                     self.total_gas_used += gas_used;
                 }
-                Ok((transaction, lt.load(Ordering::Relaxed)))
+                Ok((transaction, lt.load(Ordering::Relaxed), None))
             }
             Err(err) => {
                 let old_hash = acc_root.repr_hash();
@@ -187,7 +225,8 @@ impl BlockBuilder {
                 transaction.write_description(&TransactionDescr::Ordinary(description))?;
                 let state_update = HashUpdate::with_hashes(old_hash, acc_root.repr_hash());
                 transaction.write_state_update(&state_update)?;
-                Ok((transaction, lt))
+                let trace = trace_copy.pop_iter().collect::<String>();
+                Ok((transaction, lt, Some(trace)))
             }
         }
     }
@@ -208,7 +247,7 @@ impl BlockBuilder {
             "Executing message {:x}",
             message.serialize().unwrap_or_default().repr_hash()
         );
-        let (mut transaction, max_lt) = self.try_prepare_transaction(
+        let (mut transaction, max_lt, trace) = self.try_prepare_transaction(
             &executor,
             &mut acc_root,
             &message,
@@ -219,6 +258,10 @@ impl BlockBuilder {
         transaction.set_prev_trans_hash(shard_acc.last_trans_hash().clone());
         transaction.set_prev_trans_lt(shard_acc.last_trans_lt());
         let tr_cell = transaction.serialize()?;
+
+        if let Some(trace) = trace {
+            self.transaction_traces.insert(tr_cell.repr_hash(), trace);
+        }
 
         log::debug!("Transaction ID {:x}", tr_cell.repr_hash());
         log::debug!(
@@ -257,7 +300,7 @@ impl BlockBuilder {
         queue: &InMessagesQueue,
         blockchain_config: &BlockchainConfig,
         debug: bool,
-    ) -> NodeResult<(Block, ShardStateUnsplit, bool)> {
+    ) -> NodeResult<PreparedBlock> {
         let mut is_empty = true;
         let mut block_full = false;
 
@@ -347,8 +390,14 @@ impl BlockBuilder {
         } else {
             log::debug!(target: "node", "block is empty in messages queue len={}", queue.len());
         }
+        let transaction_traces = std::mem::take(&mut self.transaction_traces);
         let (block, new_shard_state) = self.finalize_block()?;
-        Ok((block, new_shard_state, is_empty))
+        Ok(PreparedBlock {
+            block,
+            state: new_shard_state,
+            is_empty,
+            transaction_traces,
+        })
     }
 
     ///
