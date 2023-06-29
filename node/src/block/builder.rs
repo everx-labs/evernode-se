@@ -179,7 +179,13 @@ impl BlockBuilder {
                 if let Some(gas_used) = transaction.gas_used() {
                     self.total_gas_used += gas_used;
                 }
-                Ok((transaction, lt.load(Ordering::Relaxed), None))
+                let trace = if transaction.read_description()?.is_aborted() {
+                    let trace = trace_copy.pop_iter().collect::<String>();
+                    if trace.is_empty() { None } else { Some(trace) }
+                } else {
+                    None
+                };
+                Ok((transaction, lt.load(Ordering::Relaxed), trace))
             }
             Err(err) => {
                 let old_hash = acc_root.repr_hash();
