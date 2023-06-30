@@ -18,7 +18,7 @@ lazy_static::lazy_static!(
         MsgAddressInt::AddrStd(MsgAddrStd::with_address(None, 0, [0; 32].into()));
 );
 
-pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &ShardBlock) -> Result<()> {
+pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &mut ShardBlock) -> Result<()> {
     let add_proof = false;
     let block_id = &shard_block.root_hash;
     log::trace!("Processor block_stuff.id {}", block_id.to_hex_string());
@@ -113,6 +113,7 @@ pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &ShardBlock) -
 
         let account_id = transaction.account_id().clone();
         acc_last_trans_chain_order.insert(account_id, tr_chain_order.clone());
+        let trace = shard_block.transaction_traces.remove(&cell.repr_hash());
 
         let mut doc = prepare_transaction_json(
             cell,
@@ -121,6 +122,7 @@ pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &ShardBlock) -
             block_root.repr_hash(),
             workchain_id,
             add_proof,
+            trace,
         )?;
         doc.insert("chain_order".to_string(), tr_chain_order.into());
         db.put_transaction(doc_to_item(doc))?;
@@ -299,6 +301,7 @@ pub(crate) fn prepare_transaction_json(
     block_id: UInt256,
     workchain_id: i32,
     add_proof: bool,
+    trace: Option<String>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
     let boc = serialize_toc(&tr_cell).unwrap();
     let proof = if add_proof {
@@ -316,7 +319,10 @@ pub(crate) fn prepare_transaction_json(
         proof,
         ..Default::default()
     };
-    let doc = ton_block_json::db_serialize_transaction("id", &set)?;
+    let mut doc = ton_block_json::db_serialize_transaction("id", &set)?;
+    if let Some(trace) = trace {
+        doc.insert("trace".to_owned(), trace.into());
+    }
     Ok(doc)
 }
 

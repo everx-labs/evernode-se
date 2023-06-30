@@ -1,12 +1,14 @@
+use crate::block::builder::PreparedBlock;
 use crate::block::{BlockBuilder, BlockFinality};
 use crate::data::{DocumentsDb, NodeStorage, ShardStorage};
 use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
 use parking_lot::Mutex;
+use std::collections::HashMap;
 use std::sync::Arc;
 use ton_block::{Block, ShardIdent, ShardStateUnsplit};
 use ton_executor::BlockchainConfig;
-use ton_types::HashmapType;
+use ton_types::{HashmapType, UInt256};
 
 pub struct Shardchain {
     pub(crate) finality_was_loaded: bool,
@@ -58,7 +60,7 @@ impl Shardchain {
         &self,
         time: u32,
         time_mode: BlockTimeMode,
-    ) -> NodeResult<(Block, ShardStateUnsplit, bool)> {
+    ) -> NodeResult<PreparedBlock> {
         let (shard_state, blk_prev_info) = self.block_finality.lock().get_last_info()?;
         log::debug ! (target: "node", "PARENT block: {:?}", blk_prev_info);
 
@@ -80,12 +82,12 @@ impl Shardchain {
     /// Generate new block if possible
     ///
     pub fn generate_block(&self, time: u32, time_mode: BlockTimeMode) -> NodeResult<Option<Block>> {
-        let (block, new_shard_state, is_empty) = self.build_block(time, time_mode)?;
-        Ok(if !is_empty {
+        let block = self.build_block(time, time_mode)?;
+        Ok(if !block.is_empty {
             log::trace!(target: "node", "block generated successfully");
-            Self::print_block_info(&block);
-            self.finality_and_apply_block(&block, new_shard_state)?;
-            Some(block)
+            Self::print_block_info(&block.block);
+            self.finality_and_apply_block(block.block.clone(), block.state, block.transaction_traces)?;
+            Some(block.block)
         } else {
             log::trace!(target: "node", "empty block was not generated");
             None
@@ -105,14 +107,15 @@ impl Shardchain {
     /// finality and apply block
     pub(crate) fn finality_and_apply_block(
         &self,
-        block: &Block,
+        block: Block,
         applied_shard: ShardStateUnsplit,
+        transaction_traces: HashMap<UInt256, String>,
     ) -> NodeResult<Arc<ShardStateUnsplit>> {
         log::info!(target: "node", "Apply block seq_no = {}", block.read_info()?.seq_no());
         let new_state = Arc::new(applied_shard);
         self.block_finality
             .lock()
-            .put_block_with_info(block, new_state.clone())?;
+            .put_block_with_info(block, new_state.clone(), transaction_traces)?;
         Ok(new_state)
     }
 

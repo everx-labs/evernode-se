@@ -7,6 +7,9 @@
 		"mode": "rest",
 		"server": "http://127.0.0.1:3000"
 	},
+	"queries": {
+		"waitForPeriod": 10
+	},
 	"blockchain": {
 		"accounts": [
 			"http://root@127.0.0.1:8529"

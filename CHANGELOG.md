@@ -1,6 +1,12 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.39.0 Jun 29, 2023
+
+### New
+
+- Aborted transaction VM trace is put into transaction JSON field `trace`
+
 ## 0.38.0 Apr 27, 2023
 
 ### New

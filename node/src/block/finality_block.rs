@@ -1,4 +1,5 @@
 use crate::error::NodeResult;
+use std::collections::HashMap;
 use std::io::{Read, Seek};
 use std::sync::Arc;
 use ton_block::{Block, Deserializable, Serializable, ShardIdent, ShardStateUnsplit};
@@ -43,6 +44,7 @@ pub struct ShardBlock {
     pub(crate) file_hash: UInt256,
     pub(crate) block: Block,
     pub(crate) shard_state: Arc<ShardStateUnsplit>,
+    pub(crate) transaction_traces: HashMap<UInt256, String>,
 }
 
 impl ShardBlock {
@@ -59,6 +61,7 @@ impl ShardBlock {
             file_hash: UInt256::ZERO,
             block,
             shard_state: Arc::new(shard_state),
+            transaction_traces: HashMap::new(),
         }
     }
 
@@ -83,6 +86,7 @@ impl ShardBlock {
             file_hash,
             block,
             shard_state,
+            transaction_traces: HashMap::new(),
         }
     }
 
