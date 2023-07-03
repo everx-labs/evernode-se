@@ -23,7 +23,7 @@ use router::Router;
 use serde_json::Value;
 use std::str::FromStr;
 use std::{
-    io::{Cursor, Read},
+    io::Read,
     sync::Arc,
     thread,
     time::Duration,
@@ -114,8 +114,8 @@ impl MessageReceiverApi {
             }
         };
 
-        let message_cell = match ton_types::cells_serialization::deserialize_tree_of_cells(
-            &mut Cursor::new(message_bytes),
+        let message_cell = match ton_types::boc::read_single_root_boc(
+            &message_bytes,
         ) {
             Err(err) => {
                 log::error!(target: "node", "Error deserializing message: {}", err);

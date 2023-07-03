@@ -1,5 +1,5 @@
 use rand::Rng;
-use std::{io::Cursor, thread, time::{Duration, Instant}};
+use std::{thread, time::{Duration, Instant}};
 use ton_block::*;
 use ton_types::*;
 use crate::tests::{builder_add_test_transaction, builder_is_empty, builder_with_shard_ident};
@@ -119,7 +119,6 @@ fn test_blockbuilder_generate_blocks() {
 
         // serialize block
         let now = Instant::now();
-        let mut buffer = vec![];
         let mut builder = BuilderData::new();
         block.write_to(&mut builder).unwrap();
 
@@ -127,8 +126,7 @@ fn test_blockbuilder_generate_blocks() {
         println_elapsed!("write block to builder", d);
 
         let now = Instant::now();
-        BagOfCells::with_root(&builder.into_cell().unwrap())
-            .write_to(&mut buffer, false).unwrap();
+        let buffer = ton_types::write_boc(&builder.into_cell().unwrap()).unwrap();
 
         let d = now.elapsed();
         println_elapsed!("serialize block to bag", d);
@@ -136,14 +134,14 @@ fn test_blockbuilder_generate_blocks() {
         // deserialize block
 
         let now = Instant::now();
-        let block_cells_restored = deserialize_cells_tree(&mut Cursor::new(buffer)).unwrap();
+        let block_cells_restored = ton_types::boc::read_single_root_boc(&buffer).unwrap();
 
         let d = now.elapsed();
         println_elapsed!("deserialize block from bag", d);
 
         let now = Instant::now();
         let mut block_restored = Block::default();
-        block_restored.read_from(&mut SliceData::load_cell(block_cells_restored[0].clone()).unwrap()).unwrap();
+        block_restored.read_from(&mut SliceData::load_cell(block_cells_restored).unwrap()).unwrap();
 
         let d = now.elapsed();
         println_elapsed!("deserialize block", d);

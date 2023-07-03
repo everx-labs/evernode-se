@@ -9,7 +9,7 @@ use ton_block::{
     Transaction, TransactionProcessingStatus,
 };
 use ton_types::{
-    serialize_toc, AccountId, BuilderData, Cell, HashmapType, Result, SliceData, UInt256,
+    AccountId, BuilderData, Cell, HashmapType, Result, SliceData, UInt256, write_boc,
 };
 
 lazy_static::lazy_static!(
@@ -266,9 +266,9 @@ pub(crate) fn prepare_message_json(
     block_id: UInt256,
     transaction_now: Option<u32>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
-    let boc = serialize_toc(&message_cell)?;
+    let boc = write_boc(&message_cell)?;
     let proof = block_root_for_proof
-        .map(|cell| serialize_toc(&message.prepare_proof(true, cell)?))
+        .map(|cell| write_boc(&message.prepare_proof(true, cell)?))
         .transpose()?;
 
     let set = ton_block_json::MessageSerializationSet {
@@ -303,9 +303,9 @@ pub(crate) fn prepare_transaction_json(
     add_proof: bool,
     trace: Option<String>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
-    let boc = serialize_toc(&tr_cell).unwrap();
+    let boc = write_boc(&tr_cell)?;
     let proof = if add_proof {
-        Some(serialize_toc(&transaction.prepare_proof(&block_root)?)?)
+        Some(write_boc(&transaction.prepare_proof(&block_root)?)?)
     } else {
         None
     };
@@ -336,9 +336,9 @@ pub(crate) fn prepare_account_record(
         // new format
         let mut builder = BuilderData::new();
         account.write_original_format(&mut builder)?;
-        boc1 = Some(serialize_toc(&builder.into_cell()?)?);
+        boc1 = Some(write_boc(&builder.into_cell()?)?);
     }
-    let boc = serialize_toc(&account.serialize()?.into())?;
+    let boc = account.write_to_bytes()?;
 
     let set = ton_block_json::AccountSerializationSet {
         account,

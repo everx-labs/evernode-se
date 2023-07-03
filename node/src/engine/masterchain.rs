@@ -10,7 +10,7 @@ use ton_block::{
     BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent,
 };
 use ton_executor::BlockchainConfig;
-use ton_types::{SliceData, UInt256};
+use ton_types::{SliceData, UInt256, write_boc};
 
 pub struct Masterchain {
     blockchain_config: Arc<BlockchainConfig>,
@@ -52,7 +52,7 @@ impl Masterchain {
     pub fn register_new_shard_block(&self, block: &Block) -> NodeResult<()> {
         let info = block.info.read_struct()?;
         let block_cell = block.serialize().unwrap();
-        let block_boc = ton_types::cells_serialization::serialize_toc(&block_cell)?;
+        let block_boc = write_boc(&block_cell)?;
         let descr = ShardDescr {
             seq_no: info.seq_no(),
             reg_mc_seqno: 1,

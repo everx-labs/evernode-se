@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::{Read, Seek};
 use std::sync::Arc;
 use ton_block::{Block, Deserializable, Serializable, ShardIdent, ShardStateUnsplit};
-use ton_types::{deserialize_tree_of_cells, serialize_toc, ByteOrderRead, SliceData, UInt256};
+use ton_types::{ByteOrderRead, SliceData, UInt256};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FinalityBlock {
@@ -75,7 +75,7 @@ impl ShardBlock {
         let cell = block.serialize().unwrap();
         let root_hash = cell.repr_hash();
 
-        let serialized_block = serialize_toc(&cell).unwrap();
+        let serialized_block = ton_types::write_boc(&cell).unwrap();
         let file_hash = UInt256::calc_file_hash(&serialized_block);
         let info = block.read_info().unwrap();
 
@@ -121,11 +121,12 @@ impl ShardBlock {
         let hash = rdr.read_u256()?;
         sb.file_hash = UInt256::from(hash);
 
-        let mut shard_slice = SliceData::load_cell(deserialize_tree_of_cells(rdr)?)?;
+        let boc_reader = ton_types::BocReader::new();
+        let mut shard_slice = SliceData::load_cell(boc_reader.read(rdr)?.withdraw_single_root()?)?;
         sb.shard_state.read_from(&mut shard_slice)?;
 
-        let cell = deserialize_tree_of_cells(rdr)?;
-        sb.block = Block::construct_from_cell(cell)?;
+        let boc_reader = ton_types::BocReader::new();
+        sb.block = Block::construct_from_cell(boc_reader.read(rdr)?.withdraw_single_root()?)?;
         Ok(sb)
     }
 }
