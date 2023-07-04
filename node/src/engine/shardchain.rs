@@ -1,5 +1,6 @@
 use crate::block::builder::PreparedBlock;
 use crate::block::{BlockBuilder, BlockFinality};
+use crate::config::NodeTraceConfig;
 use crate::data::{DocumentsDb, NodeStorage, ShardStorage};
 use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
@@ -15,7 +16,7 @@ pub struct Shardchain {
     blockchain_config: Arc<BlockchainConfig>,
     message_queue: Arc<InMessagesQueue>,
     block_finality: Arc<Mutex<BlockFinality>>,
-    debug_mode: bool,
+    trace_config: NodeTraceConfig,
     block_gas_limit: u64,
 }
 
@@ -27,7 +28,7 @@ impl Shardchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
-        debug_mode: bool,
+        trace_config: NodeTraceConfig,
     ) -> NodeResult<Self> {
         let block_finality = Arc::new(Mutex::new(BlockFinality::with_params(
             global_id,
@@ -47,7 +48,7 @@ impl Shardchain {
             blockchain_config,
             message_queue,
             block_finality: block_finality.clone(),
-            debug_mode,
+            trace_config,
             block_gas_limit,
         })
     }
@@ -74,7 +75,7 @@ impl Shardchain {
         collator.build_block(
             &self.message_queue,
             &self.blockchain_config,
-            self.debug_mode,
+            &self.trace_config,
         )
     }
 

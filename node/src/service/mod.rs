@@ -36,7 +36,7 @@ impl TonNodeService {
                 &config.node.document_db_config(),
             )?),
             storage,
-            false,
+            config.node.trace.clone(),
         )?);
         Ok(Self { config, node })
     }

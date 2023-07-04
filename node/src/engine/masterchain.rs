@@ -1,3 +1,4 @@
+use crate::config::NodeTraceConfig;
 use crate::data::{DocumentsDb, NodeStorage};
 use crate::engine::shardchain::Shardchain;
 use crate::engine::{BlockTimeMode, InMessagesQueue};
@@ -26,7 +27,7 @@ impl Masterchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
-        debug_mode: bool,
+        trace_config: NodeTraceConfig,
     ) -> NodeResult<Self> {
         let shardchain = Shardchain::with_params(
             ShardIdent::masterchain(),
@@ -35,7 +36,7 @@ impl Masterchain {
             message_queue,
             documents_db,
             storage,
-            debug_mode,
+            trace_config,
         )?;
         Ok(Self {
             blockchain_config,
