@@ -14,6 +14,7 @@
 * under the License.
 */
 
+use crate::config::NodeTraceConfig;
 use crate::data::DocumentsDb;
 use crate::data::NodeStorage;
 use crate::engine::masterchain::Masterchain;
@@ -49,7 +50,7 @@ impl TonNodeEngine {
         blockchain_config: Arc<BlockchainConfig>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: Arc<dyn NodeStorage>,
-        debug_mode: bool,
+        trace_config: NodeTraceConfig,
     ) -> NodeResult<Self> {
         let message_queue = Arc::new(InMessagesQueue::new(10000));
         let masterchain = Masterchain::with_params(
@@ -58,7 +59,7 @@ impl TonNodeEngine {
             message_queue.clone(),
             documents_db.clone(),
             &*storage,
-            debug_mode,
+            trace_config.clone(),
         )?;
         let workchain = Shardchain::with_params(
             workchain_shard,
@@ -67,7 +68,7 @@ impl TonNodeEngine {
             message_queue.clone(),
             documents_db.clone(),
             &*storage,
-            debug_mode,
+            trace_config,
         )?;
         if workchain.finality_was_loaded {
             masterchain.restore_state()?;

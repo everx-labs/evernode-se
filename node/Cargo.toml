@@ -32,9 +32,11 @@ thiserror = '1.0'
 lockfree = { git = 'https://github.com/tonlabs/lockfree.git', package = 'lockfree' }
 
 # Domestic
-ton_block = { git = 'https://github.com/tonlabs/ever-block', tag = '1.9.28' }
-ton_block_json = { git = 'https://github.com/tonlabs/ever-block-json', tag = '0.7.95' }
-ton_executor = { git = 'https://github.com/tonlabs/ever-executor', tag = '1.15.175', features = ['signature_with_id'] }
-ton_types = { git = 'https://github.com/tonlabs/ever-types', tag = '1.12.7' }
-ton_vm = { git = 'https://github.com/tonlabs/ever-vm', tag = '1.8.116', features = ['gosh'] }
-ton_abi = { git = 'https://github.com/tonlabs/ever-abi.git', tag = '2.3.65' }
+ton_block = { git = 'https://github.com/tonlabs/ever-block', tag = '1.9.84' }
+ton_block_json = { git = 'https://github.com/tonlabs/ever-block-json', tag = '0.7.163' }
+ton_executor = { git = 'https://github.com/tonlabs/ever-executor', tag = '1.16.53', features = ['signature_with_id'] }
+ton_types = { git = 'https://github.com/tonlabs/ever-types', tag = '2.0.15' }
+ton_vm = { git = 'https://github.com/tonlabs/ever-vm', tag = '1.8.184', features = ['gosh'] }
+
+[dev-dependencies]
+ton_abi = { git = 'https://github.com/tonlabs/ever-abi.git', tag = '2.3.126' }

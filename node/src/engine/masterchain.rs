@@ -1,3 +1,4 @@
+use crate::config::NodeTraceConfig;
 use crate::data::{DocumentsDb, NodeStorage};
 use crate::engine::shardchain::Shardchain;
 use crate::engine::{BlockTimeMode, InMessagesQueue};
@@ -10,7 +11,7 @@ use ton_block::{
     BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent,
 };
 use ton_executor::BlockchainConfig;
-use ton_types::{SliceData, UInt256};
+use ton_types::{SliceData, UInt256, write_boc};
 
 pub struct Masterchain {
     blockchain_config: Arc<BlockchainConfig>,
@@ -26,7 +27,7 @@ impl Masterchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
-        debug_mode: bool,
+        trace_config: NodeTraceConfig,
     ) -> NodeResult<Self> {
         let shardchain = Shardchain::with_params(
             ShardIdent::masterchain(),
@@ -35,7 +36,7 @@ impl Masterchain {
             message_queue,
             documents_db,
             storage,
-            debug_mode,
+            trace_config,
         )?;
         Ok(Self {
             blockchain_config,
@@ -52,7 +53,7 @@ impl Masterchain {
     pub fn register_new_shard_block(&self, block: &Block) -> NodeResult<()> {
         let info = block.info.read_struct()?;
         let block_cell = block.serialize().unwrap();
-        let block_boc = ton_types::cells_serialization::serialize_toc(&block_cell)?;
+        let block_boc = write_boc(&block_cell)?;
         let descr = ShardDescr {
             seq_no: info.seq_no(),
             reg_mc_seqno: 1,

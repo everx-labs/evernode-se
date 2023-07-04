@@ -25,7 +25,7 @@ fn test_node_time_control() {
             Arc::new(blockchain_config()),
             db.clone(),
             storage,
-            true,
+            Default::default(),
         )
         .unwrap(),
     );

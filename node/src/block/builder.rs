@@ -14,6 +14,7 @@
 * under the License.
 */
 
+use crate::config::NodeTraceConfig;
 use crate::engine::messages::InMessagesQueue;
 use crate::engine::BlockTimeMode;
 use std::collections::HashMap;
@@ -33,6 +34,7 @@ use ton_executor::{
     TransactionExecutor,
 };
 use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, SliceData, UInt256};
+use ton_vm::executor::TraceCallback;
 
 use crate::error::NodeResult;
 
@@ -124,7 +126,15 @@ impl BlockBuilder {
 
     fn trace_info(engine: &ton_vm::executor::Engine, info: &ton_vm::executor::EngineTraceInfo) -> String {
         let mut trace = String::new();
-        if info.has_cmd() {
+        if info.info_type == ton_vm::executor::EngineTraceInfoType::Exception {
+            trace = format!(
+                "{trace}\n{}: BAD_CODE: {}\n",
+                info.step,
+                info.cmd_str,
+            );
+        } else if info.info_type == ton_vm::executor::EngineTraceInfoType::Dump {
+            trace = format!("{trace}\n{}", info.cmd_str);
+        } else if info.has_cmd() {
             trace = format!(
                 "{trace}\n{}: {}\n",
                 info.step,
@@ -137,9 +147,7 @@ impl BlockBuilder {
             info.gas_cmd
         );
         trace = format!("{trace}\n{}\n{}", engine.dump_stack("Stack trace", false), engine.dump_ctrls(true));
-        if info.info_type == ton_vm::executor::EngineTraceInfoType::Dump {
-            trace = format!("{trace}\n{}", info.cmd_str);
-        }
+
         trace
     }
 
@@ -149,14 +157,20 @@ impl BlockBuilder {
         acc_root: &mut Cell,
         msg: &Message,
         last_lt: u64,
-        debug: bool,
+        trace_config: &NodeTraceConfig,
     ) -> NodeResult<(Transaction, u64, Option<String>)> {
         let (block_unixtime, block_lt) = self.at_and_lt();
         let lt = Arc::new(AtomicU64::new(last_lt));
-        let trace = Arc::new(lockfree::queue::Queue::new());
-        let trace_copy = trace.clone();
-        let callback = move |engine: &ton_vm::executor::Engine, info: &ton_vm::executor::EngineTraceInfo| {
-            trace.push(Self::trace_info(engine, info));
+        let (callback, trace) = if trace_config.transaction_json {
+            let trace = Arc::new(lockfree::queue::Queue::new());
+            let trace_copy = trace.clone();
+            let callback = move |engine: &ton_vm::executor::Engine, info: &ton_vm::executor::EngineTraceInfo| {
+                trace_copy.push(Self::trace_info(engine, info));
+                ton_vm::executor::Engine::simple_trace_callback(engine, info);
+            };
+            (Some(Arc::new(callback) as Arc<TraceCallback>), Some(trace))
+        } else {
+            (None, None)
         };
         let start = std::time::Instant::now();
         let result = executor.execute_with_libs_and_params(
@@ -167,9 +181,9 @@ impl BlockBuilder {
                 block_lt,
                 last_tr_lt: Arc::clone(&lt),
                 seed_block: self.rand_seed.clone(),
-                debug,
+                debug: true,
                 signature_id: self.shard_state.global_id(),
-                trace_callback: Some(Arc::new(callback)),
+                trace_callback: callback,
                 ..Default::default()
             },
         );
@@ -180,8 +194,9 @@ impl BlockBuilder {
                     self.total_gas_used += gas_used;
                 }
                 let trace = if transaction.read_description()?.is_aborted() {
-                    let trace = trace_copy.pop_iter().collect::<String>();
-                    if trace.is_empty() { None } else { Some(trace) }
+                    trace
+                        .map(|trace| trace.pop_iter().collect::<String>())
+                        .filter(|trace| !trace.is_empty())
                 } else {
                     None
                 };
@@ -231,8 +246,10 @@ impl BlockBuilder {
                 transaction.write_description(&TransactionDescr::Ordinary(description))?;
                 let state_update = HashUpdate::with_hashes(old_hash, acc_root.repr_hash());
                 transaction.write_state_update(&state_update)?;
-                let trace = trace_copy.pop_iter().collect::<String>();
-                Ok((transaction, lt, Some(trace)))
+                let trace = trace
+                    .map(|trace| trace.pop_iter().collect::<String>())
+                    .filter(|trace| !trace.is_empty());
+                Ok((transaction, lt, trace))
             }
         }
     }
@@ -242,7 +259,7 @@ impl BlockBuilder {
         message: Message,
         blockchain_config: &BlockchainConfig,
         acc_id: &AccountId,
-        debug: bool,
+        trace_config: &NodeTraceConfig,
     ) -> NodeResult<()> {
         self.total_message_processed += 1;
         let shard_acc = self.accounts.account(acc_id)?.unwrap_or_default();
@@ -258,7 +275,7 @@ impl BlockBuilder {
             &mut acc_root,
             &message,
             std::cmp::max(self.start_lt, shard_acc.last_trans_lt() + 1),
-            debug,
+            trace_config,
         )?;
         self.end_lt = std::cmp::max(self.end_lt, max_lt);
         transaction.set_prev_trans_hash(shard_acc.last_trans_hash().clone());
@@ -305,7 +322,7 @@ impl BlockBuilder {
         mut self,
         queue: &InMessagesQueue,
         blockchain_config: &BlockchainConfig,
-        debug: bool,
+        trace_config: &NodeTraceConfig,
     ) -> NodeResult<PreparedBlock> {
         let mut is_empty = true;
         let mut block_full = false;
@@ -326,7 +343,7 @@ impl BlockBuilder {
             let env = enq.read_out_msg()?;
             let message = env.read_message()?;
             if let Some(acc_id) = message.int_dst_account_id() {
-                self.execute(message, blockchain_config, &acc_id, debug)?;
+                self.execute(message, blockchain_config, &acc_id, trace_config)?;
             }
             self.out_queue_info
                 .out_queue_mut()
@@ -345,7 +362,7 @@ impl BlockBuilder {
                 let acc_id = msg.int_dst_account_id().unwrap();
 
                 // lock account in queue
-                let res = self.execute(msg, blockchain_config, &acc_id, debug);
+                let res = self.execute(msg, blockchain_config, &acc_id, trace_config);
                 if let Err(err) = res {
                     log::warn!(target: "node", "Executor execute failed. {}", err);
                 } else {
@@ -383,7 +400,7 @@ impl BlockBuilder {
                     self.out_msg_descr
                         .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
                 } else {
-                    self.execute(message, blockchain_config, &acc_id, debug)?;
+                    self.execute(message, blockchain_config, &acc_id, trace_config)?;
                     if self.is_limits_reached() {
                         block_full = true;
                     }

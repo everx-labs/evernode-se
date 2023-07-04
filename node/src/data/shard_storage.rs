@@ -3,7 +3,7 @@ use crate::error::NodeResult;
 use std::cmp::Ordering;
 use std::sync::Mutex;
 use ton_block::{Block, Serializable, ShardStateUnsplit};
-use ton_types::{serialize_tree_of_cells, UInt256};
+use ton_types::UInt256;
 
 ///
 /// Hash of ShardState with block sequence number
@@ -110,9 +110,7 @@ impl ShardStorage {
         let data = if let Some(shard_data) = shard_data {
             shard_data
         } else {
-            let mut data = Vec::new();
-            serialize_tree_of_cells(&shard_state.serialize()?, &mut data)?;
-            data
+            shard_state.write_to_bytes()?
         };
         self.set(shard_storage_key::SHARD_STATE_BLOCK_KEY, data, true)?;
         self.set(
