@@ -12,6 +12,8 @@ use ton_types::{
     AccountId, BuilderData, Cell, HashmapType, Result, SliceData, UInt256, write_boc,
 };
 
+use super::builder::EngineTraceInfoData;
+
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
     pub static ref MINTER_ADDRESS: MsgAddressInt =
@@ -301,7 +303,7 @@ pub(crate) fn prepare_transaction_json(
     block_id: UInt256,
     workchain_id: i32,
     add_proof: bool,
-    trace: Option<String>,
+    trace: Option<Vec<EngineTraceInfoData>>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
     let boc = write_boc(&tr_cell)?;
     let proof = if add_proof {
@@ -321,7 +323,7 @@ pub(crate) fn prepare_transaction_json(
     };
     let mut doc = ton_block_json::db_serialize_transaction("id", &set)?;
     if let Some(trace) = trace {
-        doc.insert("trace".to_owned(), trace.into());
+        doc.insert("trace".to_owned(), serde_json::to_value(trace)?);
     }
     Ok(doc)
 }

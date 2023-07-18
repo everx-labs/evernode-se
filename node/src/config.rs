@@ -76,26 +76,6 @@ impl NodeApiConfig {
     }
 }
 
-#[derive(Deserialize, Clone)]
-pub struct NodeTraceConfig {
-    #[serde(default = "NodeTraceConfig::default_transaction_json")]
-    pub transaction_json: bool,
-}
-
-impl Default for NodeTraceConfig {
-    fn default() -> Self {
-        Self {
-            transaction_json: NodeTraceConfig::default_transaction_json(),
-        }
-    }
-}
-
-impl NodeTraceConfig {
-    fn default_transaction_json() -> bool {
-        false
-    }
-}
-
 #[derive(Deserialize)]
 pub struct NodeConfig {
     pub node_index: u8,
@@ -111,8 +91,6 @@ pub struct NodeConfig {
     pub log_path: String,
     #[serde(default)]
     pub api: NodeApiConfig,
-    #[serde(default)]
-    pub trace: NodeTraceConfig,
 }
 
 impl NodeConfig {

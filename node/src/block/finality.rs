@@ -28,6 +28,8 @@ use ton_block::{
 };
 use ton_types::{ByteOrderRead, HashmapType, UInt256};
 
+use super::builder::EngineTraceInfoData;
+
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
 );
@@ -287,7 +289,7 @@ impl BlockFinality {
         &mut self,
         block: Block,
         shard_state: Arc<ShardStateUnsplit>,
-        transaction_traces: HashMap<UInt256, String>,
+        transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
     ) -> NodeResult<()> {
         log::info!(target: "node", "FINALITY:    block seq_no: {:?}", block.read_info()?.seq_no());
 
