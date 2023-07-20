@@ -5,7 +5,9 @@ use std::sync::Arc;
 use ton_block::{Block, Deserializable, Serializable, ShardIdent, ShardStateUnsplit};
 use ton_types::{ByteOrderRead, SliceData, UInt256};
 
-#[derive(Clone, Debug, PartialEq)]
+use super::builder::EngineTraceInfoData;
+
+#[derive(Clone, Debug)]
 pub enum FinalityBlock {
     Loaded(Box<ShardBlock>),
     Stored(Box<ShardBlockHash>),
@@ -36,7 +38,7 @@ impl ShardBlockHash {
 }
 
 /// Structure for store one block and his ShardState
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ShardBlock {
     pub(crate) seq_no: u64,
     pub(crate) serialized_block: Vec<u8>,
@@ -44,7 +46,19 @@ pub struct ShardBlock {
     pub(crate) file_hash: UInt256,
     pub(crate) block: Block,
     pub(crate) shard_state: Arc<ShardStateUnsplit>,
-    pub(crate) transaction_traces: HashMap<UInt256, String>,
+    pub(crate) transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
+}
+
+#[cfg(test)]
+impl PartialEq for ShardBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.seq_no == other.seq_no &&
+        self.serialized_block == other.serialized_block &&
+        self.root_hash == other.root_hash &&
+        self.file_hash == other.file_hash &&
+        self.block == other.block &&
+        self.shard_state == other.shard_state
+    }
 }
 
 impl ShardBlock {
