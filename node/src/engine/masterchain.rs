@@ -10,7 +10,7 @@ use ton_block::{
     BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent,
 };
 use ton_executor::BlockchainConfig;
-use ton_types::{SliceData, UInt256};
+use ton_types::{SliceData, UInt256, write_boc};
 
 pub struct Masterchain {
     blockchain_config: Arc<BlockchainConfig>,
@@ -26,7 +26,6 @@ impl Masterchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
-        debug_mode: bool,
     ) -> NodeResult<Self> {
         let shardchain = Shardchain::with_params(
             ShardIdent::masterchain(),
@@ -35,7 +34,6 @@ impl Masterchain {
             message_queue,
             documents_db,
             storage,
-            debug_mode,
         )?;
         Ok(Self {
             blockchain_config,
@@ -52,7 +50,7 @@ impl Masterchain {
     pub fn register_new_shard_block(&self, block: &Block) -> NodeResult<()> {
         let info = block.info.read_struct()?;
         let block_cell = block.serialize().unwrap();
-        let block_boc = ton_types::cells_serialization::serialize_toc(&block_cell)?;
+        let block_boc = write_boc(&block_cell)?;
         let descr = ShardDescr {
             seq_no: info.seq_no(),
             reg_mc_seqno: 1,
@@ -87,17 +85,17 @@ impl Masterchain {
     /// Generate new block
     ///
     pub fn generate_block(&self, time: u32, time_mode: BlockTimeMode) -> NodeResult<Option<Block>> {
-        let (mut master_block, new_shard_state, is_empty) =
+        let mut master_block =
             self.shardchain.build_block(time, time_mode)?;
 
-        if is_empty && !self.shards_has_been_changed.load(Ordering::Relaxed) {
+        if master_block.is_empty && !self.shards_has_been_changed.load(Ordering::Relaxed) {
             return Ok(None);
         }
 
-        let mut info = master_block.info.read_struct()?;
+        let mut info = master_block.block.info.read_struct()?;
         info.set_key_block(true);
-        master_block.info.write_struct(&info)?;
-        let mut extra = master_block.extra.read_struct()?;
+        master_block.block.info.write_struct(&info)?;
+        let mut extra = master_block.block.extra.read_struct()?;
         let mut mc_extra = McBlockExtra::default();
         mc_extra.set_config(self.blockchain_config.raw_config().clone());
         let shards = mc_extra.shards_mut();
@@ -109,12 +107,12 @@ impl Masterchain {
         }
 
         extra.write_custom(Some(&mc_extra))?;
-        master_block.write_extra(&extra)?;
+        master_block.block.write_extra(&extra)?;
         self.shardchain
-            .finality_and_apply_block(&master_block, new_shard_state)?;
+            .finality_and_apply_block(master_block.block.clone(), master_block.state, master_block.transaction_traces)?;
         self.shards_has_been_changed.store(false, Ordering::Relaxed);
         log::trace!(target: "node", "master block generated successfully");
-        Ok(Some(master_block))
+        Ok(Some(master_block.block))
     }
 
     fn get_last_finalized_mc_extra(&self) -> Option<McBlockExtra> {

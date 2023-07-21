@@ -49,7 +49,6 @@ impl TonNodeEngine {
         blockchain_config: Arc<BlockchainConfig>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: Arc<dyn NodeStorage>,
-        debug_mode: bool,
     ) -> NodeResult<Self> {
         let message_queue = Arc::new(InMessagesQueue::new(10000));
         let masterchain = Masterchain::with_params(
@@ -58,7 +57,6 @@ impl TonNodeEngine {
             message_queue.clone(),
             documents_db.clone(),
             &*storage,
-            debug_mode,
         )?;
         let workchain = Shardchain::with_params(
             workchain_shard,
@@ -67,7 +65,6 @@ impl TonNodeEngine {
             message_queue.clone(),
             documents_db.clone(),
             &*storage,
-            debug_mode,
         )?;
         if workchain.finality_was_loaded {
             masterchain.restore_state()?;

@@ -16,9 +16,11 @@
 
 use crate::engine::messages::InMessagesQueue;
 use crate::engine::BlockTimeMode;
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use serde_derive::Serialize;
 use ton_block::{
     Account, AddSub, Augmentation, BlkPrevInfo, Block, BlockExtra, BlockInfo, ComputeSkipReason,
     CopyleftRewards, CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType,
@@ -34,6 +36,50 @@ use ton_executor::{
 use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, SliceData, UInt256};
 
 use crate::error::NodeResult;
+
+pub struct PreparedBlock {
+    pub block: Block,
+    pub state: ShardStateUnsplit,
+    pub is_empty: bool,
+    pub transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
+}
+
+
+#[derive(Clone, Default, Debug, Serialize)]
+pub struct EngineTraceInfoData {
+    pub info_type: String,
+    pub step: u32, // number of executable command
+    pub cmd_str: String,
+    pub stack: Vec<String>,
+    pub gas_used: String,
+    pub gas_cmd: String,
+    pub cmd_code_rem_bits: u32,
+    pub cmd_code_hex: String,
+    pub cmd_code_cell_hash: String,
+    pub cmd_code_offset: u32,
+}
+
+impl From<&ton_vm::executor::EngineTraceInfo<'_>> for EngineTraceInfoData {
+    fn from(info: &ton_vm::executor::EngineTraceInfo) -> Self {
+        let cmd_code_rem_bits = info.cmd_code.remaining_bits() as u32;
+        let cmd_code_hex = info.cmd_code.to_hex_string();
+        let cmd_code_cell_hash = info.cmd_code.cell().repr_hash().to_hex_string();
+        let cmd_code_offset = info.cmd_code.pos() as u32;
+
+        Self {
+            info_type: format!("{:#?}", info.info_type),
+            step: info.step,
+            cmd_str: info.cmd_str.clone(),
+            stack: info.stack.storage.iter().map(|s| s.to_string()).collect(),
+            gas_used: info.gas_used.to_string(),
+            gas_cmd: info.gas_cmd.to_string(),
+            cmd_code_rem_bits,
+            cmd_code_hex,
+            cmd_code_cell_hash,
+            cmd_code_offset,
+        }
+    }
+}
 
 ///
 /// BlockBuilder structure
@@ -56,6 +102,7 @@ pub struct BlockBuilder {
     start_lt: u64,
     end_lt: u64, // biggest logical time of all messages
     copyleft_rewards: CopyleftRewards,
+    transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
 
     time_mode: BlockTimeMode,
 }
@@ -119,10 +166,18 @@ impl BlockBuilder {
         acc_root: &mut Cell,
         msg: &Message,
         last_lt: u64,
-        debug: bool,
-    ) -> NodeResult<(Transaction, u64)> {
+    ) -> NodeResult<(Transaction, u64, Option<Vec<EngineTraceInfoData>>)> {
         let (block_unixtime, block_lt) = self.at_and_lt();
         let lt = Arc::new(AtomicU64::new(last_lt));
+
+        let trace = Arc::new(lockfree::queue::Queue::new());
+        let trace_copy = trace.clone();
+        let callback = move |engine: &ton_vm::executor::Engine, info: &ton_vm::executor::EngineTraceInfo| {
+            trace_copy.push(EngineTraceInfoData::from(info));
+            ton_vm::executor::Engine::simple_trace_callback(engine, info);
+        };
+
+        let start = std::time::Instant::now();
         let result = executor.execute_with_libs_and_params(
             Some(msg),
             acc_root,
@@ -131,17 +186,27 @@ impl BlockBuilder {
                 block_lt,
                 last_tr_lt: Arc::clone(&lt),
                 seed_block: self.rand_seed.clone(),
-                debug,
+                debug: true,
                 signature_id: self.shard_state.global_id(),
+                trace_callback: Some(Arc::new(callback)),
                 ..Default::default()
             },
         );
+        log::trace!("Execution time {} ms", start.elapsed().as_millis());
         match result {
             Ok(transaction) => {
                 if let Some(gas_used) = transaction.gas_used() {
                     self.total_gas_used += gas_used;
                 }
-                Ok((transaction, lt.load(Ordering::Relaxed)))
+                let trace = if transaction.read_description()?.is_aborted() {
+                    Some(trace
+                        .pop_iter()
+                        .collect::<Vec<EngineTraceInfoData>>())
+                        .filter(|trace| !trace.is_empty())
+                } else {
+                    None
+                };
+                Ok((transaction, lt.load(Ordering::Relaxed), trace))
             }
             Err(err) => {
                 let old_hash = acc_root.repr_hash();
@@ -187,7 +252,9 @@ impl BlockBuilder {
                 transaction.write_description(&TransactionDescr::Ordinary(description))?;
                 let state_update = HashUpdate::with_hashes(old_hash, acc_root.repr_hash());
                 transaction.write_state_update(&state_update)?;
-                Ok((transaction, lt))
+                let trace = Some(trace.pop_iter().collect::<Vec<EngineTraceInfoData>>())
+                    .filter(|trace| !trace.is_empty());
+                Ok((transaction, lt, trace))
             }
         }
     }
@@ -197,7 +264,6 @@ impl BlockBuilder {
         message: Message,
         blockchain_config: &BlockchainConfig,
         acc_id: &AccountId,
-        debug: bool,
     ) -> NodeResult<()> {
         self.total_message_processed += 1;
         let shard_acc = self.accounts.account(acc_id)?.unwrap_or_default();
@@ -208,17 +274,20 @@ impl BlockBuilder {
             "Executing message {:x}",
             message.serialize().unwrap_or_default().repr_hash()
         );
-        let (mut transaction, max_lt) = self.try_prepare_transaction(
+        let (mut transaction, max_lt, trace) = self.try_prepare_transaction(
             &executor,
             &mut acc_root,
             &message,
             std::cmp::max(self.start_lt, shard_acc.last_trans_lt() + 1),
-            debug,
         )?;
         self.end_lt = std::cmp::max(self.end_lt, max_lt);
         transaction.set_prev_trans_hash(shard_acc.last_trans_hash().clone());
         transaction.set_prev_trans_lt(shard_acc.last_trans_lt());
         let tr_cell = transaction.serialize()?;
+
+        if let Some(trace) = trace {
+            self.transaction_traces.insert(tr_cell.repr_hash(), trace);
+        }
 
         log::debug!("Transaction ID {:x}", tr_cell.repr_hash());
         log::debug!(
@@ -256,8 +325,7 @@ impl BlockBuilder {
         mut self,
         queue: &InMessagesQueue,
         blockchain_config: &BlockchainConfig,
-        debug: bool,
-    ) -> NodeResult<(Block, ShardStateUnsplit, bool)> {
+    ) -> NodeResult<PreparedBlock> {
         let mut is_empty = true;
         let mut block_full = false;
 
@@ -277,7 +345,7 @@ impl BlockBuilder {
             let env = enq.read_out_msg()?;
             let message = env.read_message()?;
             if let Some(acc_id) = message.int_dst_account_id() {
-                self.execute(message, blockchain_config, &acc_id, debug)?;
+                self.execute(message, blockchain_config, &acc_id)?;
             }
             self.out_queue_info
                 .out_queue_mut()
@@ -296,7 +364,7 @@ impl BlockBuilder {
                 let acc_id = msg.int_dst_account_id().unwrap();
 
                 // lock account in queue
-                let res = self.execute(msg, blockchain_config, &acc_id, debug);
+                let res = self.execute(msg, blockchain_config, &acc_id);
                 if let Err(err) = res {
                     log::warn!(target: "node", "Executor execute failed. {}", err);
                 } else {
@@ -334,7 +402,7 @@ impl BlockBuilder {
                     self.out_msg_descr
                         .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
                 } else {
-                    self.execute(message, blockchain_config, &acc_id, debug)?;
+                    self.execute(message, blockchain_config, &acc_id)?;
                     if self.is_limits_reached() {
                         block_full = true;
                     }
@@ -347,8 +415,14 @@ impl BlockBuilder {
         } else {
             log::debug!(target: "node", "block is empty in messages queue len={}", queue.len());
         }
+        let transaction_traces = std::mem::take(&mut self.transaction_traces);
         let (block, new_shard_state) = self.finalize_block()?;
-        Ok((block, new_shard_state, is_empty))
+        Ok(PreparedBlock {
+            block,
+            state: new_shard_state,
+            is_empty,
+            transaction_traces,
+        })
     }
 
     ///

@@ -403,7 +403,7 @@ impl TestUtils {
                 abi.clone(),
                 None,
                 Some(DeploySet {
-                    tvc,
+                    tvc: Some(tvc),
                     workchain_id: Some(workchain_id),
                     ..Default::default()
                 }),
@@ -970,7 +970,7 @@ async fn test_non_sponsored_deploy() {
         abi.clone(),
         None,
         Some(DeploySet {
-            tvc: tvc.clone(),
+            tvc: Some(tvc.clone()),
             ..Default::default()
         }),
         CallSet::some_with_function("constructor"),
@@ -984,7 +984,7 @@ async fn test_non_sponsored_deploy() {
         .await
         .unwrap_err();
 
-    assert!(err.to_string().contains("\"code\": 409"));
+    assert!(err.to_string().contains("\"code\": 406"));
 }
 
 #[tokio::test(flavor = "multi_thread")]

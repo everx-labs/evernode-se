@@ -36,7 +36,6 @@ impl TonNodeService {
                 &config.node.document_db_config(),
             )?),
             storage,
-            false,
         )?);
         Ok(Self { config, node })
     }

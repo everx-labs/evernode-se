@@ -28,6 +28,8 @@ use ton_block::{
 };
 use ton_types::{ByteOrderRead, HashmapType, UInt256};
 
+use super::builder::EngineTraceInfoData;
+
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
 );
@@ -87,7 +89,7 @@ impl BlockFinality {
     fn finality_blocks(&mut self, root_hash: UInt256) -> NodeResult<()> {
         log::debug!("FIN-BLK {:x}", root_hash);
         if let Some(fin_sb) = self.blocks_by_hash.remove(&root_hash) {
-            let sb = self.stored_to_loaded(fin_sb)?;
+            let mut sb = self.stored_to_loaded(fin_sb)?;
 
             // create shard state info
             let info = sb.block.read_info()?;
@@ -113,7 +115,7 @@ impl BlockFinality {
                 .expect("block by number remove error");
 
             if let Some(db) = &self.db {
-                if let Err(err) = reflect_block_in_db(db.clone(), &sb) {
+                if let Err(err) = reflect_block_in_db(db.clone(), &mut sb) {
                     log::warn!(target: "node", "reflect_block_in_db(Finalized) error: {}", err);
                 }
             }
@@ -285,12 +287,14 @@ impl BlockFinality {
     /// Save block until finality comes
     pub(crate) fn put_block_with_info(
         &mut self,
-        block: &Block,
+        block: Block,
         shard_state: Arc<ShardStateUnsplit>,
+        transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
     ) -> NodeResult<()> {
         log::info!(target: "node", "FINALITY:    block seq_no: {:?}", block.read_info()?.seq_no());
 
-        let sb = Box::new(ShardBlock::with_block_and_state(block.clone(), shard_state));
+        let mut sb = Box::new(ShardBlock::with_block_and_state(block, shard_state));
+        sb.transaction_traces = transaction_traces;
         log::debug!(target: "node", "PUT-BLOCK-HASH {:?}", sb.root_hash);
 
         self.current_block = sb.clone();

@@ -9,8 +9,10 @@ use ton_block::{
     Transaction, TransactionProcessingStatus,
 };
 use ton_types::{
-    serialize_toc, AccountId, BuilderData, Cell, HashmapType, Result, SliceData, UInt256,
+    AccountId, BuilderData, Cell, HashmapType, Result, SliceData, UInt256, write_boc,
 };
+
+use super::builder::EngineTraceInfoData;
 
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();
@@ -18,7 +20,7 @@ lazy_static::lazy_static!(
         MsgAddressInt::AddrStd(MsgAddrStd::with_address(None, 0, [0; 32].into()));
 );
 
-pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &ShardBlock) -> Result<()> {
+pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &mut ShardBlock) -> Result<()> {
     let add_proof = false;
     let block_id = &shard_block.root_hash;
     log::trace!("Processor block_stuff.id {}", block_id.to_hex_string());
@@ -113,6 +115,7 @@ pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &ShardBlock) -
 
         let account_id = transaction.account_id().clone();
         acc_last_trans_chain_order.insert(account_id, tr_chain_order.clone());
+        let trace = shard_block.transaction_traces.remove(&cell.repr_hash());
 
         let mut doc = prepare_transaction_json(
             cell,
@@ -121,6 +124,7 @@ pub fn reflect_block_in_db(db: Arc<dyn DocumentsDb>, shard_block: &ShardBlock) -
             block_root.repr_hash(),
             workchain_id,
             add_proof,
+            trace,
         )?;
         doc.insert("chain_order".to_string(), tr_chain_order.into());
         db.put_transaction(doc_to_item(doc))?;
@@ -264,9 +268,9 @@ pub(crate) fn prepare_message_json(
     block_id: UInt256,
     transaction_now: Option<u32>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
-    let boc = serialize_toc(&message_cell)?;
+    let boc = write_boc(&message_cell)?;
     let proof = block_root_for_proof
-        .map(|cell| serialize_toc(&message.prepare_proof(true, cell)?))
+        .map(|cell| write_boc(&message.prepare_proof(true, cell)?))
         .transpose()?;
 
     let set = ton_block_json::MessageSerializationSet {
@@ -299,10 +303,11 @@ pub(crate) fn prepare_transaction_json(
     block_id: UInt256,
     workchain_id: i32,
     add_proof: bool,
+    trace: Option<Vec<EngineTraceInfoData>>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
-    let boc = serialize_toc(&tr_cell).unwrap();
+    let boc = write_boc(&tr_cell)?;
     let proof = if add_proof {
-        Some(serialize_toc(&transaction.prepare_proof(&block_root)?)?)
+        Some(write_boc(&transaction.prepare_proof(&block_root)?)?)
     } else {
         None
     };
@@ -316,7 +321,10 @@ pub(crate) fn prepare_transaction_json(
         proof,
         ..Default::default()
     };
-    let doc = ton_block_json::db_serialize_transaction("id", &set)?;
+    let mut doc = ton_block_json::db_serialize_transaction("id", &set)?;
+    if let Some(trace) = trace {
+        doc.insert("trace".to_owned(), serde_json::to_value(trace)?);
+    }
     Ok(doc)
 }
 
@@ -330,9 +338,9 @@ pub(crate) fn prepare_account_record(
         // new format
         let mut builder = BuilderData::new();
         account.write_original_format(&mut builder)?;
-        boc1 = Some(serialize_toc(&builder.into_cell()?)?);
+        boc1 = Some(write_boc(&builder.into_cell()?)?);
     }
-    let boc = serialize_toc(&account.serialize()?.into())?;
+    let boc = account.write_to_bytes()?;
 
     let set = ton_block_json::AccountSerializationSet {
         account,

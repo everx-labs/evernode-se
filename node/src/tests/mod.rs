@@ -7,7 +7,7 @@ use crate::{blockchain_config_from_json, MemDocumentsDb, MemStorage};
 use ed25519_dalek::PublicKey;
 use serde_json::Value;
 use std::fs;
-use std::io::{Cursor, Read};
+use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -19,8 +19,7 @@ use ton_block::{
 };
 use ton_executor::BlockchainConfig;
 use ton_types::{
-    deserialize_tree_of_cells, serialize_tree_of_cells, AccountId, ByteOrderRead, Cell,
-    HashmapType, SliceData, UInt256,
+    AccountId, ByteOrderRead, Cell, HashmapType, SliceData, UInt256,
 };
 
 mod abi_account;
@@ -140,7 +139,7 @@ pub(crate) fn shard_state(storage: &ShardStorage) -> NodeResult<ShardStateUnspli
 fn shard_bag(storage: &ShardStorage) -> NodeResult<Cell> {
     let data = storage.get(shard_storage_key::SHARD_STATE_BLOCK_KEY)?;
     // TODO: BOC from file
-    Ok(deserialize_tree_of_cells(&mut Cursor::new(data))?)
+    Ok(ton_types::boc::read_single_root_boc(&data)?)
 }
 
 ///
@@ -150,8 +149,7 @@ pub(crate) fn save_shard_state(
     storage: &ShardStorage,
     shard_state: &ShardStateUnsplit,
 ) -> NodeResult<()> {
-    let mut data = Vec::new();
-    serialize_tree_of_cells(&shard_state.serialize()?, &mut data)?;
+    let data = shard_state.write_to_bytes()?;
     storage.set(shard_storage_key::SHARD_STATE_BLOCK_KEY, data, true)?;
     Ok(())
 }

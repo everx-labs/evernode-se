@@ -1,10 +1,13 @@
 use crate::error::NodeResult;
+use std::collections::HashMap;
 use std::io::{Read, Seek};
 use std::sync::Arc;
 use ton_block::{Block, Deserializable, Serializable, ShardIdent, ShardStateUnsplit};
-use ton_types::{deserialize_tree_of_cells, serialize_toc, ByteOrderRead, SliceData, UInt256};
+use ton_types::{ByteOrderRead, SliceData, UInt256};
 
-#[derive(Clone, Debug, PartialEq)]
+use super::builder::EngineTraceInfoData;
+
+#[derive(Clone, Debug)]
 pub enum FinalityBlock {
     Loaded(Box<ShardBlock>),
     Stored(Box<ShardBlockHash>),
@@ -35,7 +38,7 @@ impl ShardBlockHash {
 }
 
 /// Structure for store one block and his ShardState
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ShardBlock {
     pub(crate) seq_no: u64,
     pub(crate) serialized_block: Vec<u8>,
@@ -43,6 +46,19 @@ pub struct ShardBlock {
     pub(crate) file_hash: UInt256,
     pub(crate) block: Block,
     pub(crate) shard_state: Arc<ShardStateUnsplit>,
+    pub(crate) transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
+}
+
+#[cfg(test)]
+impl PartialEq for ShardBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.seq_no == other.seq_no &&
+        self.serialized_block == other.serialized_block &&
+        self.root_hash == other.root_hash &&
+        self.file_hash == other.file_hash &&
+        self.block == other.block &&
+        self.shard_state == other.shard_state
+    }
 }
 
 impl ShardBlock {
@@ -59,6 +75,7 @@ impl ShardBlock {
             file_hash: UInt256::ZERO,
             block,
             shard_state: Arc::new(shard_state),
+            transaction_traces: HashMap::new(),
         }
     }
 
@@ -72,7 +89,7 @@ impl ShardBlock {
         let cell = block.serialize().unwrap();
         let root_hash = cell.repr_hash();
 
-        let serialized_block = serialize_toc(&cell).unwrap();
+        let serialized_block = ton_types::write_boc(&cell).unwrap();
         let file_hash = UInt256::calc_file_hash(&serialized_block);
         let info = block.read_info().unwrap();
 
@@ -83,6 +100,7 @@ impl ShardBlock {
             file_hash,
             block,
             shard_state,
+            transaction_traces: HashMap::new(),
         }
     }
 
@@ -117,11 +135,12 @@ impl ShardBlock {
         let hash = rdr.read_u256()?;
         sb.file_hash = UInt256::from(hash);
 
-        let mut shard_slice = SliceData::load_cell(deserialize_tree_of_cells(rdr)?)?;
+        let boc_reader = ton_types::BocReader::new();
+        let mut shard_slice = SliceData::load_cell(boc_reader.read(rdr)?.withdraw_single_root()?)?;
         sb.shard_state.read_from(&mut shard_slice)?;
 
-        let cell = deserialize_tree_of_cells(rdr)?;
-        sb.block = Block::construct_from_cell(cell)?;
+        let boc_reader = ton_types::BocReader::new();
+        sb.block = Block::construct_from_cell(boc_reader.read(rdr)?.withdraw_single_root()?)?;
         Ok(sb)
     }
 }
