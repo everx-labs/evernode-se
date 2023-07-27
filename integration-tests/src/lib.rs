@@ -980,9 +980,10 @@ async fn test_non_sponsored_deploy() {
     let err = client
         .send_message_and_wait(abi.clone(), message.message.clone())
         .await
-        .unwrap_err();
+        .unwrap_err()
+        .downcast::<ton_client::error::ClientError>().unwrap();
 
-    assert!(err.to_string().contains("\"code\": 406"));
+    assert_eq!(err.code, 406);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1260,6 +1261,6 @@ async fn test_transaction_trace() {
         .await
         .unwrap()
         .result;
-    
+
     assert!(trace[0]["trace"].is_array())
 }
