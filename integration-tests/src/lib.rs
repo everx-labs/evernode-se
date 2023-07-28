@@ -172,10 +172,9 @@ impl Client {
             },
             callback,
         )
-        .await
-        .map_err(|e| err_msg(format!("Failed: {:#}", e)))?;
+        .await?;
 
-        wait_for_transaction(
+        Ok(wait_for_transaction(
             self.context(),
             ParamsOfWaitForTransaction {
                 abi: Some(abi.clone()),
@@ -186,8 +185,7 @@ impl Client {
             },
             callback.clone(),
         )
-        .await
-        .map_err(|e| err_msg(format!("Failed: {:#}", e)))
+        .await?)
     }
 
     pub async fn query_account_boc(&self, addr: &str) -> Result<String> {
@@ -982,9 +980,10 @@ async fn test_non_sponsored_deploy() {
     let err = client
         .send_message_and_wait(abi.clone(), message.message.clone())
         .await
-        .unwrap_err();
+        .unwrap_err()
+        .downcast::<ton_client::error::ClientError>().unwrap();
 
-    assert!(err.to_string().contains("\"code\": 406"));
+    assert_eq!(err.code, 406);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1226,4 +1225,42 @@ async fn advanced_test_msg_order() {
     for tr in result.transactions {
         assert!(!tr.aborted);
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_transaction_trace() {
+    let client = Client::new();
+
+    let keys = Client::generate_keypair();
+    let giver = Giver::new();
+    let result = client
+        .call_contract(
+            Giver::address(),
+            giver.abi().clone(),
+            "sendTransaction",
+            json!({
+                "dest": Giver::address(),
+                "value": 123456,
+                "bounce": false,
+            }),
+            Some(&keys),
+        )
+        .await
+        .unwrap_err()
+        .downcast::<ton_client::error::ClientError>().unwrap();
+
+    let trace = query_collection(
+            client.context(),
+            ParamsOfQueryCollection {
+                collection: "transactions".to_string(),
+                filter: Some(json!({ "id": { "eq": result.data["transaction_id"] } })),
+                result: "trace { step }".to_string(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap()
+        .result;
+
+    assert!(trace[0]["trace"].is_array())
 }
