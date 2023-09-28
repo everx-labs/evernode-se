@@ -23,16 +23,13 @@ Parameters:
 * `allBalance`: `bool` - if true, all wallet's balance will be sent;
 * `payload`: `cell` - payload to send with transaction.
 
-### Using tonos-cli:
+### Using everdev:
 ```commandline
-tonos-cli call 0:d5f5cfc4b52d2eb1bd9d3a8e51707872c7ce0c174facddd0e06ae5ffd17d2fcd \
-    submitTransaction '{"dest":"<raw_address>","value":<nanotokens>,"bounce":false,"allBalance":false,"payload":""}' \
-    --abi SafeMultisigWallet.abi.json \
-    --sign SafeMultisigWallet.keys.json  
+everdev contract run SafeMultisigWallet.abi.json submitTransaction --address 0:d5f5cfc4b52d2eb1bd9d3a8e51707872c7ce0c174facddd0e06ae5ffd17d2fcd --signer SafeMultisigWallet --input dest:recipient_address,value:nanotokens,bounce:false,payload:""
 ```
 
-For more information about `SafeMultisigWallet` contract and `tonos-cli` usage see in 
-[documentation](https://docs.ton.dev/86757ecb2/p/94921e-multisignature-wallet-management-in-tonos-cli).
+For more information about `SafeMultisigWallet` contract and `everdev` usage refer to 
+[documentation](https://docs.everos.dev/everdev/command-line-interface/contract-management).
 
 ## Files
 * ABI: [SafeMultisigWallet.json](SafeMultisigWallet.abi.json)
