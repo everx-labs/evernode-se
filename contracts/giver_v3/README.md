@@ -17,13 +17,12 @@ parameters:
 * `value`: `uint128` - amount to send, in nanotokens;
 * `bounce`: `bool` - bounce flag of the message.
 
-### Using tonos-cli:
+### Using everdev:
 ```commandline
-tonos-cli call 0:cbd3ef42dcc261b9369fdb15fb836b460d4806c5b255e31541c46d6676a2f13d \
-    sendTransaction '{"dest":"<address>","value":<nanotokens>,"bounce":false}' \
-    --abi GiverV3.abi.json \
-    --sign seGiver.keys.json
+everdev contract run GiverV3.abi.json sendTransaction --address 0:cbd3ef42dcc261b9369fdb15fb836b460d4806c5b255e31541c46d6676a2f13d --signer seGiver --input dest:recipient_address,value:nanotokens,bounce:false,payload:""
 ```
+For more information about `everdev` usage refer to 
+[documentation](https://docs.everos.dev/everdev/command-line-interface/contract-management).
 
 ## How to deploy GiverV3 on any network
 
