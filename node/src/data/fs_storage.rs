@@ -39,6 +39,14 @@ impl FSStorage {
         }
         Ok(Self { root_path })
     }
+
+    pub fn clear_db(&self, shard: ShardIdent) -> NodeResult<()> {
+        let mut storage = self.shard_storage(shard)?;
+        storage.remove(super::shard_storage_key::BLOCKS_FINALITY_INFO_KEY)?;
+        storage.remove(super::shard_storage_key::SHARD_INFO_KEY)?;
+        storage.remove(super::shard_storage_key::SHARD_STATE_BLOCK_KEY)?;
+        Ok(())
+    }
 }
 
 impl NodeStorage for FSStorage {

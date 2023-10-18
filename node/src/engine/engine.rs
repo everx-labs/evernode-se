@@ -15,6 +15,7 @@
 */
 
 use crate::data::DocumentsDb;
+use crate::data::ExternalAccountsProvider;
 use crate::data::NodeStorage;
 use crate::engine::masterchain::Masterchain;
 use crate::engine::messages::InMessagesQueue;
@@ -23,10 +24,7 @@ use crate::engine::time::BlockTime;
 use crate::engine::BlockTimeMode;
 use crate::error::{NodeError, NodeResult};
 use parking_lot::RwLock;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::sleep;
-use std::time::Duration;
-use std::{sync::Arc, thread};
+use std::sync::Arc;
 use ton_block::{Message, ShardIdent};
 use ton_executor::BlockchainConfig;
 
@@ -34,7 +32,6 @@ use ton_executor::BlockchainConfig;
 /// Initialises instances of: all messages receivers, InMessagesQueue, MessagesProcessor.
 pub struct TonNodeEngine {
     time: RwLock<BlockTime>,
-    is_running_in_background: AtomicBool,
     pub message_queue: Arc<InMessagesQueue>,
     pub masterchain: Masterchain,
     pub workchain: Shardchain,
@@ -49,6 +46,7 @@ impl TonNodeEngine {
         blockchain_config: Arc<BlockchainConfig>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: Arc<dyn NodeStorage>,
+        accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
     ) -> NodeResult<Self> {
         let message_queue = Arc::new(InMessagesQueue::new(10000));
         let masterchain = Masterchain::with_params(
@@ -57,6 +55,7 @@ impl TonNodeEngine {
             message_queue.clone(),
             documents_db.clone(),
             &*storage,
+            accounts_provider.clone(),
         )?;
         let workchain = Shardchain::with_params(
             workchain_shard,
@@ -65,6 +64,7 @@ impl TonNodeEngine {
             message_queue.clone(),
             documents_db.clone(),
             &*storage,
+            accounts_provider,
         )?;
         if workchain.finality_was_loaded {
             masterchain.restore_state()?;
@@ -74,33 +74,22 @@ impl TonNodeEngine {
             message_queue: message_queue.clone(),
             masterchain,
             workchain,
-            is_running_in_background: AtomicBool::new(false),
         };
         node.execute_queued_messages()?;
         Ok(node)
     }
 
-    pub fn start(self: Arc<Self>) -> NodeResult<()> {
-        self.is_running_in_background.store(true, Ordering::Relaxed);
-        thread::spawn(move || loop {
+    pub fn run(&self) {
+        loop {
             if let Err(err) = self.execute_queued_messages() {
                 log::error!(target: "node", "failed block generation: {}", err);
             }
             if self.message_queues_are_empty() {
-                self.message_queue.wait_new_message();
+                if self.message_queue.wait_new_message().is_err() {
+                    log::info!("Message queue has stoped message receiving. Exit");
+                    return;
+                }
             }
-        });
-        Ok(())
-    }
-
-    pub fn process_messages(&self) -> NodeResult<()> {
-        if self.is_running_in_background.load(Ordering::Relaxed) {
-            while !self.message_queues_are_empty() {
-                sleep(Duration::from_millis(100));
-            }
-            Ok(())
-        } else {
-            self.execute_queued_messages()
         }
     }
 
@@ -112,7 +101,7 @@ impl TonNodeEngine {
 
     pub fn process_message(&self, msg: Message) -> NodeResult<()> {
         self.enqueue_message(msg)?;
-        self.process_messages()
+        self.execute_queued_messages()
     }
 
     pub fn set_time_mode(&self, mode: BlockTimeMode) {

@@ -14,6 +14,7 @@
 * under the License.
 */
 
+use crate::data::ExternalAccountsProvider;
 use crate::engine::messages::InMessagesQueue;
 use crate::engine::BlockTimeMode;
 use std::collections::HashMap;
@@ -105,6 +106,7 @@ pub struct BlockBuilder {
     transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
 
     time_mode: BlockTimeMode,
+    accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
 }
 
 impl BlockBuilder {
@@ -117,6 +119,7 @@ impl BlockBuilder {
         time: u32,
         time_mode: BlockTimeMode,
         block_gas_limit: u64,
+        accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
     ) -> Result<Self> {
         let accounts = shard_state.read_accounts()?;
         let out_queue_info = shard_state.read_out_msg_queue_info()?;
@@ -143,6 +146,7 @@ impl BlockBuilder {
             end_lt: start_lt + 1,
             time_mode,
             block_gas_limit,
+            accounts_provider,
             ..Default::default()
         })
     }
@@ -266,7 +270,18 @@ impl BlockBuilder {
         acc_id: &AccountId,
     ) -> NodeResult<()> {
         self.total_message_processed += 1;
-        let shard_acc = self.accounts.account(acc_id)?.unwrap_or_default();
+        let shard_acc = match self.accounts.account(acc_id)? {
+            Some(acc) => acc,
+            None => self.accounts_provider
+                .as_ref()
+                .map(|provider| provider.get_account(
+                ton_block::MsgAddressInt::with_standart(
+                    None, self.shard_ident().workchain_id() as i8, acc_id.clone()
+                )?))
+                .transpose()?
+                .flatten()
+                .unwrap_or_default()
+        };
         let mut acc_root = shard_acc.account_cell();
         let executor = OrdinaryTransactionExecutor::new((*blockchain_config).clone());
 

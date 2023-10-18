@@ -14,7 +14,7 @@
 * under the License.
 */
 
-use crate::engine::engine::TonNodeEngine;
+use super::TonNodeEngineManager;
 use iron::{
     prelude::{IronError, Request, Response},
     status,
@@ -34,7 +34,7 @@ use ton_types::UInt256;
 pub struct MessageReceiverApi;
 
 impl MessageReceiverApi {
-    pub(crate) fn add_route(router: &mut Router, path: String, node: Arc<TonNodeEngine>) {
+    pub(crate) fn add_route(router: &mut Router, path: String, node: Arc<TonNodeEngineManager>) {
         let path = format!("/{}", path);
         router.post(
             path,
@@ -43,7 +43,7 @@ impl MessageReceiverApi {
         );
     }
 
-    fn process_request(req: &mut Request, node: Arc<TonNodeEngine>) -> Result<Response, IronError> {
+    fn process_request(req: &mut Request, node: Arc<TonNodeEngineManager>) -> Result<Response, IronError> {
         log::info!(target: "node", "Rest service: request got!");
 
         let mut body = String::new();
@@ -78,7 +78,7 @@ impl MessageReceiverApi {
                             };
 
                             let mut message = message;
-                            while let Err(msg) = node.message_queue.queue(message) {
+                            while let Err(msg) = node.node().message_queue.queue(message) {
                                 log::warn!(target: "node", "Error queue message");
                                 message = msg;
                                 thread::sleep(Duration::from_micros(100));

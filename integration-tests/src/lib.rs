@@ -220,8 +220,7 @@ impl Client {
                 ParamsOfParse {
                     boc: message.clone(),
                 },
-            )
-            .await?
+            )?
             .parsed;
             if msg_json["msg_type"] == 0 {
                 wait_for_collection(
@@ -1052,7 +1051,7 @@ async fn test_bounced_body() {
             }),
             ..Default::default()
         },
-    ).await.unwrap().boc;
+    ).unwrap().boc;
 
     let result = multisig.send_grams(
         &client,
@@ -1125,7 +1124,7 @@ async fn test_bounced_body() {
             }),
             ..Default::default()
         },
-    ).await.unwrap().boc;
+    ).unwrap().boc;
 
     assert_eq!(message["body"].as_str().unwrap(), bounced_body);
 }
