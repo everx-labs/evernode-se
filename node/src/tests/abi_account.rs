@@ -1,5 +1,4 @@
 use crate::tests::parse_address;
-use ed25519_dalek::{Keypair, PublicKey, SecretKey};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -7,12 +6,12 @@ use std::sync::Arc;
 use ton_abi::token::Tokenizer;
 use ton_abi::Contract;
 use ton_block::{ExternalInboundMessageHeader, Message, MsgAddressExt, MsgAddressInt};
-use ton_types::SliceData;
+use ton_types::{ed25519_create_private_key, Ed25519PrivateKey, SliceData};
 
 pub struct AbiAccount {
     pub(crate) address: MsgAddressInt,
     contract: Contract,
-    keys: Keypair,
+    keys: Ed25519PrivateKey,
 }
 
 impl AbiAccount {
@@ -58,14 +57,10 @@ impl AbiAccount {
     }
 }
 
-fn parse_keypair(json_str: &str) -> Keypair {
+fn parse_keypair(json_str: &str) -> Ed25519PrivateKey {
     let value = serde_json::from_str::<Value>(json_str).unwrap();
-    let public = hex::decode(value["public"].as_str().unwrap()).unwrap();
     let secret = hex::decode(value["secret"].as_str().unwrap()).unwrap();
-    Keypair {
-        public: PublicKey::from_bytes(&public).unwrap(),
-        secret: SecretKey::from_bytes(&secret).unwrap(),
-    }
+    ed25519_create_private_key(&secret).unwrap()
 }
 
 pub struct GiverV3 {

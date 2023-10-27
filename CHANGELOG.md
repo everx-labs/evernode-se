@@ -1,6 +1,12 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
+## 0.40.0 Jul 21, 2023
+
+### New
+
+- Use common block parser
+
 ## 0.39.0 Jul 21, 2023
 
 ### New

@@ -98,6 +98,7 @@ impl TonNodeEngine {
             while !self.message_queues_are_empty() {
                 sleep(Duration::from_millis(100));
             }
+            sleep(Duration::from_millis(50));
             Ok(())
         } else {
             self.execute_queued_messages()
@@ -152,7 +153,11 @@ impl TonNodeEngine {
         let mut gen_time = self.get_next_time();
         while continue_processing {
             continue_processing = false;
-            while let Some(block) = self.workchain.generate_block(gen_time, self.time_mode())? {
+            let mc_seq_no = self.masterchain.next_seq_no()?;
+            while let Some(block) =
+                self.workchain
+                    .generate_block(mc_seq_no, gen_time, self.time_mode())?
+            {
                 self.set_last_time(gen_time);
                 self.masterchain.register_new_shard_block(&block)?;
                 continue_processing = true;
@@ -160,7 +165,7 @@ impl TonNodeEngine {
             }
             if self
                 .masterchain
-                .generate_block(gen_time, self.time_mode())?
+                .generate_block(mc_seq_no, gen_time, self.time_mode())?
                 .is_some()
             {
                 self.set_last_time(gen_time);
