@@ -73,6 +73,7 @@ struct ArangoHelperContext {
 pub struct ArangoHelper {
     sender: Arc<Mutex<Sender<ArangoRecord>>>,
     has_delivery_problems: Arc<AtomicBool>,
+    config: ArangoHelperConfig,
 }
 
 impl ArangoHelper {
@@ -84,7 +85,7 @@ impl ArangoHelper {
         let (sender, receiver) = channel::<ArangoRecord>();
         let has_delivery_problems = Arc::new(AtomicBool::new(false));
         let context = ArangoHelperContext {
-            config,
+            config: config.clone(),
             has_delivery_problems: has_delivery_problems.clone(),
             client: reqwest::Client::new(),
         };
@@ -96,6 +97,7 @@ impl ArangoHelper {
         Ok(ArangoHelper {
             sender: Arc::new(Mutex::new(sender)),
             has_delivery_problems,
+            config,
         })
     }
 
@@ -210,6 +212,33 @@ impl ArangoHelper {
             thread::sleep(Duration::from_millis(timeout));
             timeout = min(MAX_TIMEOUT, timeout * TIMEOUT_BACKOFF_MULTIPLIER as u64);
         }
+    }
+
+    pub fn clear_db(&self) -> NodeResult<()> {
+        log::info!("Clear Arango DB");
+        let client = reqwest::Client::new();
+        for collection in [
+            &self.config.accounts_collection,
+            &self.config.blocks_collection,
+            &self.config.messages_collection,
+            &self.config.transactions_collection,
+        ] {
+            let url = format!(
+                "http://{}/_db/{}/_api/collection/{}/truncate",
+                self.config.server, self.config.database, collection
+            );
+            let resp = client
+                .put(&url)
+                .header("accept", "application/json")
+                .send()
+                .map_err(|err| NodeError::DocumentDbError(format!("error on {} collection truncate ({})", collection, err)))?;
+            
+            if resp.status().is_server_error() || resp.status().is_client_error() {
+                return Err(NodeError::DocumentDbError(format!("error on {} collection truncate ({:?})", collection, resp.status().canonical_reason())));
+            }
+        }
+        
+        Ok(())
     }
 }
 

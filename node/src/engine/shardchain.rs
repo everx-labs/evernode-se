@@ -1,6 +1,6 @@
 use crate::block::builder::{EngineTraceInfoData, PreparedBlock};
 use crate::block::{BlockBuilder, BlockFinality};
-use crate::data::{DocumentsDb, NodeStorage, ShardStorage};
+use crate::data::{DocumentsDb, NodeStorage, ShardStorage, ExternalAccountsProvider};
 use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
 use parking_lot::Mutex;
@@ -16,6 +16,7 @@ pub struct Shardchain {
     message_queue: Arc<InMessagesQueue>,
     block_finality: Arc<Mutex<BlockFinality>>,
     block_gas_limit: u64,
+    accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
 }
 
 impl Shardchain {
@@ -26,6 +27,7 @@ impl Shardchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
+        accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
     ) -> NodeResult<Self> {
         let block_finality = Arc::new(Mutex::new(BlockFinality::with_params(
             global_id,
@@ -44,8 +46,9 @@ impl Shardchain {
             finality_was_loaded,
             blockchain_config,
             message_queue,
-            block_finality: block_finality.clone(),
+            block_finality,
             block_gas_limit,
+            accounts_provider
         })
     }
 
@@ -71,6 +74,7 @@ impl Shardchain {
             time,
             time_mode,
             self.block_gas_limit,
+            self.accounts_provider.clone(),
         )?;
         collator.build_block(&self.message_queue, &self.blockchain_config)
     }

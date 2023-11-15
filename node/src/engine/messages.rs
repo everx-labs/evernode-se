@@ -24,6 +24,7 @@ pub struct InMessagesQueue {
     present: Condvar,
     storage: Mutex<VecDeque<Message>>,
     capacity: usize,
+    stopped: std::sync::atomic::AtomicBool,
 }
 
 #[allow(dead_code)]
@@ -34,14 +35,19 @@ impl InMessagesQueue {
             present: Condvar::new(),
             storage: Mutex::new(Default::default()),
             capacity,
+            stopped: Default::default(),
         }
     }
 
     /// Include message into end queue.
-    pub fn queue(&self, msg: Message) -> Result<(), Message> {
+    pub fn queue(&self, msg: Message) -> Result<(), Option<Message>> {
+        if self.stopped.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(None);
+        }
+        
         let mut storage = self.storage.lock();
         if storage.len() >= self.capacity {
-            return Err(msg);
+            return Err(Some(msg));
         }
 
         log::debug!(target: "node", "Queued message: {:?}", msg);
@@ -76,9 +82,19 @@ impl InMessagesQueue {
         self.len() >= self.capacity
     }
 
-    pub fn wait_new_message(&self) {
+    pub fn wait_new_message(&self) -> Result<(), ()> {
+        if self.stopped.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(());
+        }
+
         let mut mutex_guard = self.storage.lock();
         self.present.wait(&mut mutex_guard);
+        
+        if self.stopped.load(std::sync::atomic::Ordering::Relaxed) {
+            Err(())
+        } else {
+            Ok(())
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -88,5 +104,14 @@ impl InMessagesQueue {
     /// The length of queue.
     pub fn len(&self) -> usize {
         self.storage.lock().len()
+    }
+
+    pub fn stop(&self) {
+        self.stopped.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.present.notify_one();
+    }
+
+    pub fn start(&self) {
+        self.stopped.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }

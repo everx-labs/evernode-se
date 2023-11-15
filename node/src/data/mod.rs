@@ -1,6 +1,7 @@
 use crate::NodeResult;
 use ton_block::ShardIdent;
 
+mod fork_provider;
 mod arango;
 mod documents_db_mock;
 mod fs_storage;
@@ -12,6 +13,7 @@ pub use arango::ArangoHelper;
 pub use fs_storage::FSStorage;
 pub use mem_storage::MemStorage;
 pub use shard_storage::{shard_storage_key, ShardStorage, ShardStateInfo};
+pub use fork_provider::ForkProvider;
 
 #[cfg(test)]
 pub use documents_db_mock::DocumentsDbMock;
@@ -40,4 +42,9 @@ pub trait DocumentsDb: Send + Sync {
     fn put_message(&self, item: SerializedItem) -> NodeResult<()>;
     fn put_transaction(&self, item: SerializedItem) -> NodeResult<()>;
     fn has_delivery_problems(&self) -> bool;
+}
+
+
+pub trait ExternalAccountsProvider: Send + Sync {
+    fn get_account(&self, address: ton_block::MsgAddressInt) -> NodeResult<Option<ton_block::ShardAccount>>;
 }

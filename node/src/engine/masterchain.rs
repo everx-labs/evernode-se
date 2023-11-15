@@ -1,4 +1,4 @@
-use crate::data::{DocumentsDb, NodeStorage};
+use crate::data::{DocumentsDb, NodeStorage, ExternalAccountsProvider};
 use crate::engine::shardchain::Shardchain;
 use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
@@ -26,6 +26,7 @@ impl Masterchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
+        accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
     ) -> NodeResult<Self> {
         let shardchain = Shardchain::with_params(
             ShardIdent::masterchain(),
@@ -34,6 +35,7 @@ impl Masterchain {
             message_queue,
             documents_db,
             storage,
+            accounts_provider,
         )?;
         Ok(Self {
             blockchain_config,

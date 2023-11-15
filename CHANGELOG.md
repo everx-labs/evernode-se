@@ -1,10 +1,15 @@
 # Release Notes
 All notable changes to this project will be documented in this file.
 
-## 0.40.0 Jul 21, 2023
+## 0.40.0 Nov 15, 2023
 
 ### New
 
+- Added `fork`, `unfork` and `reset` control requests.
+  - `fork` request enables fork mode when blockhain config and account state is downloaded from the
+  provided GraphQL endpoint before transation
+  - `unfork` request disable fork mode and returns original blockchain config
+  - `reset` request clears node database and restarts it from scratch
 - Use common block parser
 
 ## 0.39.0 Jul 21, 2023
