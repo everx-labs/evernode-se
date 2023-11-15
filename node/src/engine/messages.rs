@@ -40,14 +40,14 @@ impl InMessagesQueue {
     }
 
     /// Include message into end queue.
-    pub fn queue(&self, msg: Message) -> Result<(), Message> {
+    pub fn queue(&self, msg: Message) -> Result<(), Option<Message>> {
         if self.stopped.load(std::sync::atomic::Ordering::Relaxed) {
-            return  Err(msg);
+            return Err(None);
         }
         
         let mut storage = self.storage.lock();
         if storage.len() >= self.capacity {
-            return Err(msg);
+            return Err(Some(msg));
         }
 
         log::debug!(target: "node", "Queued message: {:?}", msg);
@@ -109,5 +109,9 @@ impl InMessagesQueue {
     pub fn stop(&self) {
         self.stopped.store(true, std::sync::atomic::Ordering::Relaxed);
         self.present.notify_one();
+    }
+
+    pub fn start(&self) {
+        self.stopped.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }

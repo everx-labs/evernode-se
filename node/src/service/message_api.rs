@@ -80,7 +80,13 @@ impl MessageReceiverApi {
                             let mut message = message;
                             while let Err(msg) = node.node().message_queue.queue(message) {
                                 log::warn!(target: "node", "Error queue message");
-                                message = msg;
+                                message = match msg {
+                                    Some(msg) => msg,
+                                    None => return Ok(Response::with((
+                                        status::InternalServerError,
+                                        "Node does not accept messages".to_owned(),
+                                    )))
+                                };
                                 thread::sleep(Duration::from_micros(100));
                             }
                         }
