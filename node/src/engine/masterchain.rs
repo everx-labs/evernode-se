@@ -10,7 +10,7 @@ use ton_block::{
     BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent,
 };
 use ton_executor::BlockchainConfig;
-use ton_types::{SliceData, UInt256, write_boc};
+use ton_types::{write_boc, SliceData, UInt256};
 
 pub struct Masterchain {
     blockchain_config: Arc<BlockchainConfig>,
@@ -43,6 +43,10 @@ impl Masterchain {
             shards: RwLock::new(HashMap::new()),
             shards_has_been_changed: AtomicBool::new(false),
         })
+    }
+
+    pub(crate) fn next_seq_no(&self) -> NodeResult<u32> {
+        self.shardchain.nex_seq_no()
     }
 
     pub(crate) fn out_message_queue_is_empty(&self) -> bool {
@@ -88,11 +92,11 @@ impl Masterchain {
     ///
     pub fn generate_block(
         &self,
+        mc_seq_no: u32,
         time: u32,
         time_mode: BlockTimeMode,
     ) -> NodeResult<Option<Block>> {
-        let mut master_block =
-            self.shardchain.build_block(time, time_mode)?;
+        let mut master_block = self.shardchain.build_block(time, time_mode)?;
 
         if master_block.is_empty && !self.shards_has_been_changed.load(Ordering::Relaxed) {
             return Ok(None);
@@ -114,8 +118,12 @@ impl Masterchain {
 
         extra.write_custom(Some(&mc_extra))?;
         master_block.block.write_extra(&extra)?;
-        self.shardchain
-            .finality_and_apply_block(master_block.block.clone(), master_block.state, master_block.transaction_traces)?;
+        self.shardchain.finality_and_apply_block(
+            mc_seq_no,
+            master_block.block.clone(),
+            master_block.state,
+            master_block.transaction_traces,
+        )?;
         self.shards_has_been_changed.store(false, Ordering::Relaxed);
         log::trace!(target: "node", "master block generated successfully");
         Ok(Some(master_block.block))
@@ -141,11 +149,7 @@ impl Masterchain {
                     BinTree<ShardDescr>,
                 >| {
                     tree.iterate(&mut |shard: SliceData, descr: ShardDescr| {
-                        let shard = ShardIdent::with_prefix_slice(
-                            workchain_id,
-                            shard,
-                        )
-                        .unwrap();
+                        let shard = ShardIdent::with_prefix_slice(workchain_id, shard).unwrap();
                         shards.insert(shard, descr);
                         Ok(true)
                     })
@@ -154,7 +158,7 @@ impl Masterchain {
             }
             if let Some(last_config) = mc.config() {
                 if last_config != self.blockchain_config.raw_config() {
-                    self.generate_block(0, BlockTimeMode::System)?;
+                    self.generate_block(self.next_seq_no()?, 0, BlockTimeMode::System)?;
                 }
             }
         }

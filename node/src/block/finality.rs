@@ -26,6 +26,7 @@ use ton_block::{
     Account, BlkPrevInfo, Block, Deserializable, ExtBlkRef, Serializable, ShardIdent,
     ShardStateUnsplit,
 };
+use ton_block_json::{BlockParser, BlockParserConfig, EntryConfig, NoReduce, NoTrace};
 use ton_types::{ByteOrderRead, HashmapType, UInt256};
 
 use super::builder::EngineTraceInfoData;
@@ -47,6 +48,7 @@ pub struct BlockFinality {
     shard_ident: ShardIdent,
     storage: ShardStorage,
     db: Option<Arc<dyn DocumentsDb>>,
+    parser: BlockParser<NoTrace, NoReduce>,
     pub(crate) current_block: Box<ShardBlock>,
     pub(crate) blocks_by_hash: HashMap<UInt256, Box<FinalityBlock>>,
     // need to remove
@@ -64,10 +66,29 @@ impl BlockFinality {
         storage: ShardStorage,
         db: Option<Arc<dyn DocumentsDb>>,
     ) -> Self {
+        fn def_entry_config() -> Option<EntryConfig<NoReduce>> {
+            Some(EntryConfig {
+                sharding_depth: None,
+                reducer: None,
+            })
+        }
+        let parser = BlockParser::<NoTrace, NoReduce>::new(
+            BlockParserConfig {
+                blocks: def_entry_config(),
+                accounts: def_entry_config(),
+                transactions: def_entry_config(),
+                messages: def_entry_config(),
+                proofs: None,
+                max_account_bytes_size: None,
+                is_node_se: true,
+            },
+            None,
+        );
         Self {
             shard_ident: shard_ident.clone(),
             storage,
             db,
+            parser,
             current_block: Box::new(ShardBlock::new(global_id, shard_ident.clone())),
             blocks_by_hash: HashMap::new(),
             blocks_by_no: HashMap::new(),
@@ -86,7 +107,7 @@ impl BlockFinality {
         Ok((self.get_last_shard_state(), self.get_last_block_info()?))
     }
 
-    fn finality_blocks(&mut self, root_hash: UInt256) -> NodeResult<()> {
+    fn finality_blocks(&mut self, mc_seq_no: u32, root_hash: UInt256) -> NodeResult<()> {
         log::debug!("FIN-BLK {:x}", root_hash);
         if let Some(fin_sb) = self.blocks_by_hash.remove(&root_hash) {
             let mut sb = self.stored_to_loaded(fin_sb)?;
@@ -115,8 +136,10 @@ impl BlockFinality {
                 .expect("block by number remove error");
 
             if let Some(db) = &self.db {
-                if let Err(err) = reflect_block_in_db(db.clone(), &mut sb) {
-                    log::warn!(target: "node", "reflect_block_in_db(Finalized) error: {}", err);
+                if let Err(err) = reflect_block_in_db(db.clone(), &self.parser, mc_seq_no, &mut sb)
+                {
+                    log::error!(target: "node", "reflect_block_in_db(Finalized) error: {}", err);
+                    println!("reflect_block_in_db(Finalized) error: {}", err);
                 }
             }
 
@@ -287,6 +310,7 @@ impl BlockFinality {
     /// Save block until finality comes
     pub(crate) fn put_block_with_info(
         &mut self,
+        mc_seq_no: u32,
         block: Block,
         shard_state: Arc<ShardStateUnsplit>,
         transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
@@ -305,7 +329,7 @@ impl BlockFinality {
             .insert(sb.root_hash.clone(), sb_hash.clone());
         self.blocks_by_no.insert(sb.get_seq_no(), sb_hash.clone());
         // finalize block by finality_hash
-        self.finality_blocks(sb.root_hash.clone())?;
+        self.finality_blocks(mc_seq_no, sb.root_hash.clone())?;
         self.save_finality()?;
         Ok(())
     }

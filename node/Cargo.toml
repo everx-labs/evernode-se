@@ -14,7 +14,7 @@ failure = '0.1'
 hex = '0.4'
 http = '0.2'
 iron = '0.6'
-jsonrpc-http-server = '10.0.1'
+jsonrpc-http-server = '18.0.0'
 lazy_static = '1.4.0'
 log = '0.4'
 log4rs = '1.2'
@@ -33,10 +33,17 @@ lockfree = { git = 'https://github.com/tonlabs/lockfree.git', package = 'lockfre
 
 # Domestic
 ton_block = { git = 'https://github.com/tonlabs/ever-block', tag = '1.9.104' }
-ton_block_json = { git = 'https://github.com/tonlabs/ever-block-json', tag = '0.7.187' }
+ton_block_json = { git = 'https://github.com/tonlabs/ever-block-json', tag = '0.7.189' }
 ton_executor = { git = 'https://github.com/tonlabs/ever-executor', tag = '1.16.82', features = ['signature_with_id'] }
 ton_types = { git = 'https://github.com/tonlabs/ever-types', tag = '2.0.28' }
 ton_vm = { git = 'https://github.com/tonlabs/ever-vm', tag = '1.8.211', features = ['gosh'] }
 
+#ton_block = { path = '../../ever-block-private' }
+#ton_block_json = { path = '../../ever-block-json-private' }
+#ton_executor = { path = '../../ever-executor-private', features = ['signature_with_id'] }
+#ton_types = { path = '../../ever-types-private' }
+#ton_vm = { path = '../../ever-vm-private', features = ['gosh'] }
+
 [dev-dependencies]
 ton_abi = { git = 'https://github.com/tonlabs/ever-abi.git', tag = '2.3.147' }
+#ton_abi = { path = '../../ever-abi' }

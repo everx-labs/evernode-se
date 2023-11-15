@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
   provided GraphQL endpoint before transation
   - `unfork` request disable fork mode and returns original blockchain config
   - `reset` request clears node database and restarts it from scratch
+- Use common block parser
 
 ## 0.39.0 Jul 21, 2023
 
