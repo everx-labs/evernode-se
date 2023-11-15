@@ -2,14 +2,14 @@
 edition = '2021'
 build = 'build.rs'
 name = 'evernode_se'
-version = '0.39.0'
+version = '0.40.0'
 
 [dependencies]
 # External
 anyhow = '1.0'
 base64 = '0.13'
 clap = '3.2'
-ed25519-dalek = '1.0'
+ed25519-dalek = '2.0'
 failure = '0.1'
 hex = '0.4'
 http = '0.2'
@@ -32,11 +32,11 @@ thiserror = '1.0'
 lockfree = { git = 'https://github.com/tonlabs/lockfree.git', package = 'lockfree' }
 
 # Domestic
-ton_block = { git = 'https://github.com/tonlabs/ever-block', tag = '1.9.84' }
-ton_block_json = { git = 'https://github.com/tonlabs/ever-block-json', tag = '0.7.163' }
-ton_executor = { git = 'https://github.com/tonlabs/ever-executor', tag = '1.16.53', features = ['signature_with_id'] }
-ton_types = { git = 'https://github.com/tonlabs/ever-types', tag = '2.0.15' }
-ton_vm = { git = 'https://github.com/tonlabs/ever-vm', tag = '1.8.184', features = ['gosh'] }
+ton_block = { git = 'https://github.com/tonlabs/ever-block', tag = '1.9.104' }
+ton_block_json = { git = 'https://github.com/tonlabs/ever-block-json', tag = '0.7.187' }
+ton_executor = { git = 'https://github.com/tonlabs/ever-executor', tag = '1.16.82', features = ['signature_with_id'] }
+ton_types = { git = 'https://github.com/tonlabs/ever-types', tag = '2.0.28' }
+ton_vm = { git = 'https://github.com/tonlabs/ever-vm', tag = '1.8.211', features = ['gosh'] }
 
 [dev-dependencies]
-ton_abi = { git = 'https://github.com/tonlabs/ever-abi.git', tag = '2.3.126' }
+ton_abi = { git = 'https://github.com/tonlabs/ever-abi.git', tag = '2.3.147' }

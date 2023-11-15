@@ -25,10 +25,12 @@ fn test_node_time_control() {
             Arc::new(blockchain_config()),
             db.clone(),
             storage,
+            None,
         )
         .unwrap(),
     );
-    node.clone().start().unwrap();
+    let node_copy = node.clone();
+    std::thread::spawn(move || node_copy.run());
     let mut db_reader = DocsReader::new(db.clone());
     db_reader.dump_next();
 

@@ -8,7 +8,7 @@ use std::time::Duration;
 use failure::err_msg;
 use lazy_static::lazy_static;
 use serde_json::{json, Value};
-use ton_block::{BlockProcessingStatus, MessageProcessingStatus, TransactionProcessingStatus};
+use ton_block::{BlockProcessingStatus, MessageProcessingStatus, TransactionProcessingStatus, Serializable};
 use ton_client::abi::{
     encode_message, Abi, CallSet, DeploySet, FunctionHeader, ParamsOfEncodeMessage,
     ResultOfEncodeMessage, Signer,
@@ -17,7 +17,7 @@ use ton_client::boc::{parse_message, ParamsOfParse};
 use ton_client::crypto::KeyPair;
 use ton_client::net::{
     query_collection, wait_for_collection, NetworkConfig, ParamsOfQueryCollection,
-    ParamsOfWaitForCollection,
+    ParamsOfWaitForCollection, OrderBy, SortDirection,
 };
 use ton_client::processing::{
     send_message, wait_for_transaction, DecodedOutput, ResultOfProcessMessage,
@@ -31,6 +31,7 @@ const DEFAULT_NETWORK_ADDRESS: &str = "http://localhost";
 type Keypair = ed25519_dalek::Keypair;
 type Addr = String;
 
+#[derive(Clone)]
 pub(crate) struct Client {
     context: Arc<ClientContext>,
 }
@@ -74,7 +75,7 @@ impl Client {
             .prepare_message(addr, abi.clone(), method, params, None, keys)
             .await?;
 
-        self.send_message_and_wait(abi, msg.message).await
+        self.send_message_and_wait(Some(abi), msg.message).await
     }
 
     pub async fn run_contract(
@@ -158,7 +159,7 @@ impl Client {
 
     pub async fn send_message_and_wait(
         &self,
-        abi: Abi,
+        abi: Option<Abi>,
         msg: String,
     ) -> Result<ResultOfProcessMessage> {
         let callback = |_| async move {};
@@ -167,7 +168,7 @@ impl Client {
             self.context(),
             ParamsOfSendMessage {
                 message: msg.clone(),
-                abi: Some(abi.clone()),
+                abi: abi.clone(),
                 ..Default::default()
             },
             callback,
@@ -177,7 +178,7 @@ impl Client {
         Ok(wait_for_transaction(
             self.context(),
             ParamsOfWaitForTransaction {
-                abi: Some(abi.clone()),
+                abi: abi.clone(),
                 message: msg.clone(),
                 shard_block_id: result.shard_block_id,
                 send_events: true,
@@ -220,8 +221,7 @@ impl Client {
                 ParamsOfParse {
                     boc: message.clone(),
                 },
-            )
-            .await?
+            )?
             .parsed;
             if msg_json["msg_type"] == 0 {
                 wait_for_collection(
@@ -423,7 +423,7 @@ impl TestUtils {
             .await?;
 
         client
-            .send_message_and_wait(abi, message)
+            .send_message_and_wait(Some(abi), message)
             .await
             .map(|send_result| (address, send_result.decoded))
     }
@@ -852,7 +852,7 @@ async fn test_my_code() {
         .unwrap()
         .message;
 
-    let result = client.send_message_and_wait(abi, message).await.unwrap();
+    let result = client.send_message_and_wait(Some(abi), message).await.unwrap();
 
     assert_eq!(
         json!({"value0": "2"}),
@@ -910,7 +910,12 @@ async fn se(command: &str) -> String {
         .send()
         .await
         .unwrap();
-    response.text().await.unwrap()
+    let status = response.status().clone();
+    let result = response.text().await.unwrap();
+    if !status.is_success() {
+        panic!("Server responded with error: {}", result);
+    }
+    result
 }
 
 async fn return_time(client: &Client, addr: &str, keys: &Keypair, abi: &Abi) -> (u64, u64) {
@@ -931,7 +936,7 @@ async fn return_time(client: &Client, addr: &str, keys: &Keypair, abi: &Abi) -> 
         .message;
 
     let result = client
-        .send_message_and_wait(abi.clone(), message)
+        .send_message_and_wait(Some(abi.clone()), message)
         .await
         .unwrap();
 
@@ -978,7 +983,7 @@ async fn test_non_sponsored_deploy() {
     .unwrap();
 
     let err = client
-        .send_message_and_wait(abi.clone(), message.message.clone())
+        .send_message_and_wait(Some(abi.clone()), message.message.clone())
         .await
         .unwrap_err()
         .downcast::<ton_client::error::ClientError>().unwrap();
@@ -1022,7 +1027,7 @@ async fn test_gosh() {
             .unwrap()
             .message;
     
-        client.send_message_and_wait(abi.clone(), message).await.unwrap();
+        client.send_message_and_wait(Some(abi.clone()), message).await.unwrap();
     }
 }
 
@@ -1052,7 +1057,7 @@ async fn test_bounced_body() {
             }),
             ..Default::default()
         },
-    ).await.unwrap().boc;
+    ).unwrap().boc;
 
     let result = multisig.send_grams(
         &client,
@@ -1125,7 +1130,7 @@ async fn test_bounced_body() {
             }),
             ..Default::default()
         },
-    ).await.unwrap().boc;
+    ).unwrap().boc;
 
     assert_eq!(message["body"].as_str().unwrap(), bounced_body);
 }
@@ -1209,7 +1214,7 @@ async fn advanced_test_msg_order() {
         .await
         .unwrap();
 
-    client.send_message_and_wait(alpha_abi, message.message).await.unwrap();
+    client.send_message_and_wait(Some(alpha_abi), message.message).await.unwrap();
 
     let result = ton_client::net::query_transaction_tree(
         client.context(),
@@ -1263,4 +1268,92 @@ async fn test_transaction_trace() {
         .result;
 
     assert!(trace[0]["trace"].is_array())
+}
+
+async fn query_last_seq_no(client: &Client) -> u64 {
+    query_collection(
+        client.context(),
+        ParamsOfQueryCollection {
+            collection: "blocks".to_string(),
+            order: Some(vec![OrderBy { path: "seq_no".to_owned(), direction: SortDirection::DESC }]),
+            limit: Some(1),
+            result: "seq_no".to_string(),
+            ..Default::default()
+        },
+    )
+        .await
+        .unwrap()
+        .result[0]["seq_no"]
+        .as_u64()
+        .unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_reset() {
+    let client = Client::new();
+    let giver = Giver::new();
+    
+    giver
+        .send_grams(&client, Giver::address(), 500_000_000)
+        .await
+        .unwrap();
+
+    let seq_no = query_last_seq_no(&client).await;
+
+    se("reset").await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    let reset_seq_no = query_last_seq_no(&client).await;
+
+    assert!(seq_no > reset_seq_no);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_fork() {
+    se("reset").await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    let send_msg = || async move {
+        let client = Client::new();
+        let msg = ton_block::Message::with_ext_in_header(ton_block::ExternalInboundMessageHeader { 
+            src: Default::default(),
+            dst: "-1:0000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
+            import_fee: Default::default(),
+        }).write_to_bytes().unwrap();
+        let msg = base64::encode(&msg);
+
+        let err = client.send_message_and_wait(None, msg.clone()).await.unwrap_err().downcast::<ton_client::error::ClientError>().unwrap();
+        query_collection(
+            client.context(),
+            ParamsOfQueryCollection {
+                collection: "transactions".to_string(),
+                filter: Some(json!({ "id": { "eq": err.data["transaction_id"] } })),
+                result: "orig_status end_status".to_string(),
+                ..Default::default()
+            },
+        )
+            .await
+            .unwrap()
+            .result
+            .pop()
+            .unwrap()
+    };
+    
+    let transaction = send_msg().await;
+    assert_eq!(transaction["orig_status"].as_u64(), Some(3));
+    assert_eq!(transaction["end_status"].as_u64(), Some(3));
+
+    se("fork?endpoint=https://mainnet.evercloud.dev/1467de01155143d5ba129ab5ea4ede1f/graphql?resetData=false").await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    let transaction = send_msg().await;
+    assert_eq!(transaction["orig_status"].as_u64(), Some(1));
+    assert_eq!(transaction["end_status"].as_u64(), Some(1));
+
+    se("unfork?resetData=true").await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    let transaction = send_msg().await;
+    assert_eq!(transaction["orig_status"].as_u64(), Some(3));
+    assert_eq!(transaction["end_status"].as_u64(), Some(3));
 }
