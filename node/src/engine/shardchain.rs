@@ -1,6 +1,6 @@
-use crate::block::builder::{PreparedBlock, EngineTraceInfoData};
+use crate::block::builder::{EngineTraceInfoData, PreparedBlock};
 use crate::block::{BlockBuilder, BlockFinality};
-use crate::data::{DocumentsDb, NodeStorage, ShardStorage};
+use crate::data::{DocumentsDb, NodeStorage, ShardStorage, ExternalAccountsProvider};
 use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
 use parking_lot::Mutex;
@@ -16,6 +16,7 @@ pub struct Shardchain {
     message_queue: Arc<InMessagesQueue>,
     block_finality: Arc<Mutex<BlockFinality>>,
     block_gas_limit: u64,
+    accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
 }
 
 impl Shardchain {
@@ -26,6 +27,7 @@ impl Shardchain {
         message_queue: Arc<InMessagesQueue>,
         documents_db: Arc<dyn DocumentsDb>,
         storage: &dyn NodeStorage,
+        accounts_provider: Option<Arc<dyn ExternalAccountsProvider>>,
     ) -> NodeResult<Self> {
         let block_finality = Arc::new(Mutex::new(BlockFinality::with_params(
             global_id,
@@ -44,9 +46,14 @@ impl Shardchain {
             finality_was_loaded,
             blockchain_config,
             message_queue,
-            block_finality: block_finality.clone(),
+            block_finality,
             block_gas_limit,
+            accounts_provider
         })
+    }
+
+    pub(crate) fn nex_seq_no(&self) -> NodeResult<u32> {
+        Ok(self.block_finality.lock().get_last_info()?.0.seq_no() + 1)
     }
 
     pub(crate) fn out_message_queue_is_empty(&self) -> bool {
@@ -67,22 +74,30 @@ impl Shardchain {
             time,
             time_mode,
             self.block_gas_limit,
+            self.accounts_provider.clone(),
         )?;
-        collator.build_block(
-            &self.message_queue,
-            &self.blockchain_config,
-        )
+        collator.build_block(&self.message_queue, &self.blockchain_config)
     }
 
     ///
     /// Generate new block if possible
     ///
-    pub fn generate_block(&self, time: u32, time_mode: BlockTimeMode) -> NodeResult<Option<Block>> {
+    pub fn generate_block(
+        &self,
+        mc_seq_no: u32,
+        time: u32,
+        time_mode: BlockTimeMode,
+    ) -> NodeResult<Option<Block>> {
         let block = self.build_block(time, time_mode)?;
         Ok(if !block.is_empty {
             log::trace!(target: "node", "block generated successfully");
             Self::print_block_info(&block.block);
-            self.finality_and_apply_block(block.block.clone(), block.state, block.transaction_traces)?;
+            self.finality_and_apply_block(
+                mc_seq_no,
+                block.block.clone(),
+                block.state,
+                block.transaction_traces,
+            )?;
             Some(block.block)
         } else {
             log::trace!(target: "node", "empty block was not generated");
@@ -103,15 +118,19 @@ impl Shardchain {
     /// finality and apply block
     pub(crate) fn finality_and_apply_block(
         &self,
+        mc_seq_no: u32,
         block: Block,
         applied_shard: ShardStateUnsplit,
         transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
     ) -> NodeResult<Arc<ShardStateUnsplit>> {
         log::info!(target: "node", "Apply block seq_no = {}", block.read_info()?.seq_no());
         let new_state = Arc::new(applied_shard);
-        self.block_finality
-            .lock()
-            .put_block_with_info(block, new_state.clone(), transaction_traces)?;
+        self.block_finality.lock().put_block_with_info(
+            mc_seq_no,
+            block,
+            new_state.clone(),
+            transaction_traces,
+        )?;
         Ok(new_state)
     }
 

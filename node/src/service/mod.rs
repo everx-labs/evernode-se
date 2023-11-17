@@ -1,61 +1,55 @@
 mod control_api;
+mod engine_manager;
 mod message_api;
 
-use crate::config::NodeConfig;
-use crate::data::{ArangoHelper, FSStorage};
-use crate::engine::engine::TonNodeEngine;
+use crate::config::{NodeConfig, NodeApiConfig};
 use crate::error::NodeResult;
 use crate::service::control_api::ControlApi;
 use crate::service::message_api::MessageReceiverApi;
 use iron::Iron;
 use router::Router;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use ton_executor::BlockchainConfig;
 
+use self::engine_manager::TonNodeEngineManager;
+
+#[derive(Clone)]
 pub struct TonNodeServiceConfig {
     pub node: NodeConfig,
     pub blockchain: BlockchainConfig,
 }
 
 pub struct TonNodeService {
-    config: TonNodeServiceConfig,
-    node: Arc<TonNodeEngine>,
+    api_config: NodeApiConfig,
+    node_manager: Arc<TonNodeEngineManager>,
 }
 
 impl TonNodeService {
     pub fn new(config: TonNodeServiceConfig) -> NodeResult<Self> {
-        let storage = Arc::new(FSStorage::new(PathBuf::from("./"))?);
-        let node = Arc::new(TonNodeEngine::with_params(
-            config.node.global_id,
-            config.node.shard_id_config().shard_ident(),
-            Arc::new(config.blockchain.clone()),
-            Arc::new(ArangoHelper::from_config(
-                &config.node.document_db_config(),
-            )?),
-            storage,
-        )?);
-        Ok(Self { config, node })
+        Ok(Self {
+            api_config: config.node.api.clone(),
+            node_manager: Arc::new(TonNodeEngineManager::new(config)?),
+        })
     }
 
     pub fn run(&self) {
         let mut router = Router::new();
         MessageReceiverApi::add_route(
             &mut router,
-            self.config.node.api.messages.clone(),
-            self.node.clone(),
+            self.api_config.messages.clone(),
+            self.node_manager.clone(),
         );
         ControlApi::add_route(
             &mut router,
-            self.config.node.api.live_control.clone(),
-            self.node.clone(),
+            self.api_config.live_control.clone(),
+            self.node_manager.clone(),
         );
-        self.node.clone().start().unwrap();
+        self.node_manager.clone().start();
         let addr = format!(
             "{}:{}",
-            self.config.node.api.address, self.config.node.api.port
+            self.api_config.address, self.api_config.port
         );
 
         thread::spawn(move || {

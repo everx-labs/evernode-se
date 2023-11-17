@@ -4,7 +4,7 @@ use crate::data::{shard_storage_key, ShardStateInfo, ShardStorage};
 use crate::engine::BlockTimeMode;
 use crate::error::{NodeError, NodeResult};
 use crate::{blockchain_config_from_json, MemDocumentsDb, MemStorage};
-use ed25519_dalek::PublicKey;
+use ed25519_dalek::VerifyingKey;
 use serde_json::Value;
 use std::fs;
 use std::io::Read;
@@ -30,7 +30,7 @@ mod test_messages;
 mod test_node_se;
 mod test_time_control;
 
-pub fn get_config_params(json: &str) -> (NodeConfig, Vec<PublicKey>) {
+pub fn get_config_params(json: &str) -> (NodeConfig, Vec<VerifyingKey>) {
     match NodeConfig::parse(json) {
         Ok(config) => match import_keys(&config) {
             Ok(keys) => (config, keys),
@@ -207,13 +207,13 @@ pub fn shard_state_info_deserialize<R: Read>(rdr: &mut R) -> NodeResult<ShardSta
 }
 
 /// Import key values from list of files
-pub fn import_keys(config: &NodeConfig) -> Result<Vec<PublicKey>, String> {
+pub fn import_keys(config: &NodeConfig) -> Result<Vec<VerifyingKey>, String> {
     let mut ret = Vec::new();
     for path in config.keys.iter() {
         let data = fs::read(Path::new(path))
             .map_err(|e| format!("Error reading key file {}, {}", path, e))?;
         ret.push(
-            PublicKey::from_bytes(&data)
+            VerifyingKey::try_from(data.as_slice())
                 .map_err(|e| format!("Cannot import key from {}, {}", path, e))?,
         );
     }
@@ -239,6 +239,7 @@ pub fn builder_with_shard_ident(
         block_at,
         BlockTimeMode::System,
         1_000_000,
+        None,
     )
     .unwrap()
 }

@@ -1,5 +1,4 @@
 use crate::tests::parse_address;
-use ed25519_dalek::{Keypair, PublicKey, SecretKey};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -7,18 +6,18 @@ use std::sync::Arc;
 use ton_abi::token::Tokenizer;
 use ton_abi::Contract;
 use ton_block::{ExternalInboundMessageHeader, Message, MsgAddressExt, MsgAddressInt};
-use ton_types::SliceData;
+use ton_types::{SliceData, Ed25519PrivateKey, ed25519_create_private_key};
 
 pub struct AbiAccount {
     pub(crate) address: MsgAddressInt,
     contract: Contract,
-    keys: Keypair,
+    key: Ed25519PrivateKey,
 }
 
 impl AbiAccount {
     pub fn new(abi_json: &str, keys_json: &str, address: Option<&str>) -> Self {
         let contract = Contract::load(Cursor::new(abi_json)).unwrap();
-        let keys = parse_keypair(keys_json);
+        let key = parse_key(keys_json);
         let address = if let Some(address) = address {
             parse_address(address).unwrap()
         } else {
@@ -27,7 +26,7 @@ impl AbiAccount {
         Self {
             address,
             contract,
-            keys,
+            key,
         }
     }
 
@@ -46,7 +45,7 @@ impl AbiAccount {
                 .unwrap(),
                 &Tokenizer::tokenize_all_params(func.input_params(), &params).unwrap(),
                 false,
-                Some(&self.keys),
+                Some(&self.key),
                 Some(self.address.clone()),
             )
             .unwrap();
@@ -58,14 +57,10 @@ impl AbiAccount {
     }
 }
 
-fn parse_keypair(json_str: &str) -> Keypair {
+fn parse_key(json_str: &str) -> Ed25519PrivateKey {
     let value = serde_json::from_str::<Value>(json_str).unwrap();
-    let public = hex::decode(value["public"].as_str().unwrap()).unwrap();
-    let secret = hex::decode(value["secret"].as_str().unwrap()).unwrap();
-    Keypair {
-        public: PublicKey::from_bytes(&public).unwrap(),
-        secret: SecretKey::from_bytes(&secret).unwrap(),
-    }
+    let bytes = hex::decode(value["secret"].as_str().unwrap()).unwrap();
+    ed25519_create_private_key(&bytes).unwrap()
 }
 
 pub struct GiverV3 {

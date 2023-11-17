@@ -16,7 +16,7 @@
 
 use serde::Deserialize;
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Clone)]
 pub struct ShardIdConfig {
     pub workchain: i32,
     pub shardchain_pfx: u64,
@@ -35,7 +35,7 @@ impl ShardIdConfig {
 }
 
 /// Node config importer from JSON
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct NodeApiConfig {
     #[serde(default = "NodeApiConfig::default_messages")]
     pub messages: String,
@@ -76,7 +76,13 @@ impl NodeApiConfig {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
+pub struct ForkConfig {
+    pub endpoint: String,
+    pub auth: Option<String>,
+}
+
+#[derive(Deserialize, Clone)]
 pub struct NodeConfig {
     pub node_index: u8,
     pub port: u16,
@@ -91,6 +97,7 @@ pub struct NodeConfig {
     pub log_path: String,
     #[serde(default)]
     pub api: NodeApiConfig,
+    pub fork: Option<ForkConfig>,
 }
 
 impl NodeConfig {

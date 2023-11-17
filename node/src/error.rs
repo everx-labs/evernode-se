@@ -62,6 +62,8 @@ pub enum NodeError {
     ConfigError(String),
     #[error("SE API failed: {0}")]
     ApiError(String),
+    #[error("Fetch from forked network failed: {0}")]
+    ForkEndpointFetchError(String),
 }
 
 pub type NodeResult<T> = Result<T, NodeError>;
