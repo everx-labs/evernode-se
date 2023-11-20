@@ -1,6 +1,6 @@
 ###   STAGE build-kit
 FROM alpine:3.14 as build-kit
-ENV RUST_VERSION=1.65.0
+ENV RUST_VERSION=1.70.0
 ENV CARGO_HOME=/rust
 
 RUN apk update && \
