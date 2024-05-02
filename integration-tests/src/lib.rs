@@ -8,10 +8,16 @@ use std::time::Duration;
 use failure::err_msg;
 use lazy_static::lazy_static;
 use serde_json::{json, Value};
-use ton_block::{BlockProcessingStatus, MessageProcessingStatus, TransactionProcessingStatus, Serializable};
+use ever_block::{
+    BlockProcessingStatus,
+    MessageProcessingStatus,
+    TransactionProcessingStatus,
+    Serializable,
+    Result
+};
 use ton_client::abi::{
     encode_message, Abi, CallSet, DeploySet, FunctionHeader, ParamsOfEncodeMessage,
-    ResultOfEncodeMessage, Signer,
+    ResultOfEncodeMessage, Signer
 };
 use ton_client::boc::{parse_message, ParamsOfParse};
 use ton_client::crypto::KeyPair;
@@ -25,7 +31,6 @@ use ton_client::processing::{
 use ton_client::processing::{ParamsOfSendMessage, ParamsOfWaitForTransaction};
 use ton_client::tvm::{run_tvm, ParamsOfRunTvm, ResultOfRunTvm};
 use ton_client::{ClientConfig, ClientContext};
-use ton_types::Result;
 
 const DEFAULT_NETWORK_ADDRESS: &str = "http://localhost";
 type Keypair = ed25519_dalek::Keypair;
@@ -1044,11 +1049,13 @@ async fn test_bounced_body() {
                     components: vec![],
                     name: "a".to_owned(),
                     param_type: "uint256".to_owned(),
+                    ..Default::default()
                 },
                 ton_client::abi::AbiParam {
                     components: vec![],
                     name: "b".to_owned(),
                     param_type: "uint32".to_owned(),
+                    ..Default::default()
                 }
             ],
             data: json!({
@@ -1097,11 +1104,13 @@ async fn test_bounced_body() {
                     components: vec![],
                     name: "a".to_owned(),
                     param_type: "int32".to_owned(),
+                    ..Default::default()
                 },
                 ton_client::abi::AbiParam {
                     components: vec![],
                     name: "b".to_owned(),
                     param_type: "uint256".to_owned(),
+                    ..Default::default()
                 },
                 ton_client::abi::AbiParam {
                     name: "c".to_owned(),
@@ -1111,13 +1120,16 @@ async fn test_bounced_body() {
                             components: vec![],
                             name: "a".to_owned(),
                             param_type: "uint256".to_owned(),
+                            ..Default::default()
                         },
                         ton_client::abi::AbiParam {
                             components: vec![],
                             name: "b".to_owned(),
                             param_type: "uint32".to_owned(),
+                            ..Default::default()
                         }
                     ],
+                    ..Default::default()
                 },
             ],
             data: json!({
@@ -1315,7 +1327,7 @@ async fn test_fork() {
 
     let send_msg = || async move {
         let client = Client::new();
-        let msg = ton_block::Message::with_ext_in_header(ton_block::ExternalInboundMessageHeader { 
+        let msg = ever_block::Message::with_ext_in_header(ever_block::ExternalInboundMessageHeader { 
             src: Default::default(),
             dst: "-1:0000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
             import_fee: Default::default(),

@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
-use ton_block::ShardIdent;
+use ever_block::ShardIdent;
 
 const CFG_TEST: &str = include_str!("cfg_test");
 

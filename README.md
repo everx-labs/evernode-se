@@ -33,7 +33,7 @@ Local Node with GraphQL API for DApp development and testing in TVM compatible b
 Evernode Simple Emulator (SE) is a local instance of Evernode Platform that developer can run on their machine in one click to test applications locally. 
 
 At the moment we publish Evernode SE only as
-a [docker image](https://hub.docker.com/r/tonlabs/local-node).
+a [docker image](https://hub.docker.com/r/everx-labs/local-node).
 But you can access non-docker builds of SE in community repos:
 
 ## Use-cases
@@ -52,7 +52,7 @@ But you can access non-docker builds of SE in community repos:
 
 ### Install via EVERDEV Development Environment
 
-If you have [EVERDEV installed globally on your machine](https://github.com/tonlabs/everdev), run
+If you have [EVERDEV installed globally on your machine](https://github.com/everx-labs/everdev), run
 this command
 
 ```commandline
@@ -171,7 +171,7 @@ application specify [SE endpoints](https://docs.evercloud.dev/products/simple-em
 
 ## Evernode SE components
 
-* [EverX implementation of TON VM written in Rust](https://github.com/tonlabs/ever-vm)
+* [EverX implementation of TON VM written in Rust](https://github.com/everx-labs/ever-vm)
 * [ArangoDB database](https://www.arangodb.com/)
 * [GraphQL endpoint with web playground](https://docs.evercloud.dev/reference/graphql-api)
 * [Ever.live blockchain explorer](https://ever.live)
@@ -253,9 +253,9 @@ inside this folder to prepare dev tools).
 If you want to debug SE without docker you have to run evernode-se with following additional
 components:
 
-- Q Server (required to communicate with [ever-sdk](https://github.com/tonlabs/ever-sdk)):
-    - Checkout `ton-q-server` from [official repository](https://github.com/tonlabs/ton-q-server).
-    - Inside `ton-q-server` folder run:
+- Q Server (required to communicate with [ever-sdk](https://github.com/everx-labs/ever-sdk)):
+    - Checkout `ever-q-server` from [official repository](https://github.com/everx-labs/ever-q-server).
+    - Inside `ever-q-server` folder run:
         ```commandline
         npm i
         ```
@@ -264,7 +264,7 @@ components:
         node path-to-q-server/index --config ./dev/q-server.json
         ```
 
-- Arango DB (required to `ton-q-server`):
+- Arango DB (required to `ever-q-server`):
     - Download and install from [official site](https://www.arangodb.com/download-major).
     - Start Arango DB Server.
     - For the first time or if you want to reset database to initial state run:

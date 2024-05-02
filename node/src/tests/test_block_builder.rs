@@ -1,7 +1,6 @@
 use rand::Rng;
 use std::{thread, time::{Duration, Instant}};
-use ton_block::*;
-use ton_types::*;
+use ever_block::*;
 use crate::tests::{builder_add_test_transaction, builder_is_empty, builder_with_shard_ident};
 
 macro_rules! println_elapsed{
@@ -126,7 +125,7 @@ fn test_blockbuilder_generate_blocks() {
         println_elapsed!("write block to builder", d);
 
         let now = Instant::now();
-        let buffer = ton_types::write_boc(&builder.into_cell().unwrap()).unwrap();
+        let buffer = ever_block::write_boc(&builder.into_cell().unwrap()).unwrap();
 
         let d = now.elapsed();
         println_elapsed!("serialize block to bag", d);
@@ -134,7 +133,7 @@ fn test_blockbuilder_generate_blocks() {
         // deserialize block
 
         let now = Instant::now();
-        let block_cells_restored = ton_types::boc::read_single_root_boc(&buffer).unwrap();
+        let block_cells_restored = ever_block::boc::read_single_root_boc(&buffer).unwrap();
 
         let d = now.elapsed();
         println_elapsed!("deserialize block from bag", d);

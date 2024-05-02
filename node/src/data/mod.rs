@@ -1,5 +1,5 @@
 use crate::NodeResult;
-use ton_block::ShardIdent;
+use ever_block::ShardIdent;
 
 mod fork_provider;
 mod arango;
@@ -16,9 +16,8 @@ pub use shard_storage::{shard_storage_key, ShardStorage, ShardStateInfo};
 pub use fork_provider::ForkProvider;
 
 #[cfg(test)]
-pub use documents_db_mock::DocumentsDbMock;
-
 pub use fs_storage::FSKVStorage;
+
 pub use mem_documents_db::MemDocumentsDb;
 
 pub trait NodeStorage {
@@ -46,5 +45,5 @@ pub trait DocumentsDb: Send + Sync {
 
 
 pub trait ExternalAccountsProvider: Send + Sync {
-    fn get_account(&self, address: ton_block::MsgAddressInt) -> NodeResult<Option<ton_block::ShardAccount>>;
+    fn get_account(&self, address: ever_block::MsgAddressInt) -> NodeResult<Option<ever_block::ShardAccount>>;
 }

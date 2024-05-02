@@ -6,9 +6,8 @@ use crate::error::NodeResult;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
-use ton_block::{Block, ShardIdent, ShardStateUnsplit};
-use ton_executor::BlockchainConfig;
-use ton_types::{HashmapType, UInt256};
+use ever_block::{Block, ShardIdent, ShardStateUnsplit, HashmapType, UInt256};
+use ever_executor::BlockchainConfig;
 
 pub struct Shardchain {
     pub(crate) finality_was_loaded: bool,

@@ -5,7 +5,7 @@ use crate::tests::{
 };
 use std::io::Cursor;
 use std::sync::Arc;
-use ton_block::{
+use ever_block::{
     BlkPrevInfo, Block, ExtBlkRef, GetRepresentationHash, ShardIdent, ShardStateUnsplit,
 };
 

@@ -5,7 +5,7 @@ TONOS_SE="${TONOS_SE:-tonlabs/evernode-se}"
 
 BIN_TARGET="evernode_se"
 
-Q_SERVER_GITHUB_REPO="https://github.com/tonlabs/ton-q-server"
+Q_SERVER_GITHUB_REPO="https://github.com/everx-labs/ever-q-server"
 Q_SERVER_GITHUB_REV="${Q_SERVER_GITHUB_REV:-$(cat q-server.version)}"
 
 echo

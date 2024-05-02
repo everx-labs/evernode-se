@@ -5,7 +5,7 @@ set TONOS_SE="tonlabs/evernode-se"
 
 set BIN_TARGET="evernode_se"
 
-set Q_SERVER_GITHUB_REPO="https://github.com/tonlabs/ton-q-server"
+set Q_SERVER_GITHUB_REPO="https://github.com/everx-labs/ever-q-server"
 set /P Q_SERVER_GITHUB_REV=<q-server.version
 
 echo.

@@ -22,12 +22,11 @@ use crate::error::NodeError;
 use crate::NodeResult;
 use std::io::{Cursor, ErrorKind, Read, Seek, Write};
 use std::{collections::HashMap, sync::Arc};
-use ton_block::{
+use ever_block::{
     Account, BlkPrevInfo, Block, Deserializable, ExtBlkRef, Serializable, ShardIdent,
-    ShardStateUnsplit,
+    ShardStateUnsplit, ByteOrderRead, HashmapType, UInt256
 };
-use ton_block_json::{BlockParser, BlockParserConfig, EntryConfig, NoReduce, NoTrace};
-use ton_types::{ByteOrderRead, HashmapType, UInt256};
+use ever_block_json::{BlockParser, BlockParserConfig, EntryConfig, NoReduce, NoTrace};
 
 use super::builder::EngineTraceInfoData;
 

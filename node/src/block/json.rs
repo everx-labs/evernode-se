@@ -4,9 +4,11 @@ use serde_json::Value;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
-use ton_block::{Account, BlockIdExt, MsgAddrStd, MsgAddressInt, Serializable};
-use ton_block_json::{BlockParser, NoReduce, NoTrace, ParsedEntry, ParsingBlock};
-use ton_types::{read_single_root_boc, Result, UInt256};
+use ever_block::{
+    Account, BlockIdExt, MsgAddrStd, MsgAddressInt, Serializable,
+    read_single_root_boc, Result, UInt256
+};
+use ever_block_json::{BlockParser, NoReduce, NoTrace, ParsedEntry, ParsingBlock};
 
 lazy_static::lazy_static!(
     static ref ACCOUNT_NONE_HASH: UInt256 = Account::default().serialize().unwrap().repr_hash();

@@ -1,5 +1,5 @@
-use ton_block::Deserializable;
-use ton_executor::BlockchainConfig;
+use ever_block::Deserializable;
+use ever_executor::BlockchainConfig;
 
 use crate::{error::{NodeError, NodeResult}, config::ForkConfig};
 
@@ -72,7 +72,7 @@ impl ForkProvider {
             .flatten()
             .ok_or_else(|| NodeError::ForkEndpointFetchError("No key block found".to_owned()))?;
         
-        let block = ton_block::Block::construct_from_base64(boc)
+        let block = ever_block::Block::construct_from_base64(boc)
             .map_err(|err| NodeError::ForkEndpointFetchError(err.to_string()))?;
 
         let mc_extra = block
@@ -95,8 +95,8 @@ impl ForkProvider {
 impl ExternalAccountsProvider for ForkProvider {
     fn get_account(
         &self,
-        address: ton_block::MsgAddressInt,
-    ) -> NodeResult<Option<ton_block::ShardAccount>> {
+        address: ever_block::MsgAddressInt,
+    ) -> NodeResult<Option<ever_block::ShardAccount>> {
         let response = self.query(
             "query account($address:String!){blockchain{account(address:$address){info{boc}}}}",
             serde_json::json!({
@@ -112,11 +112,11 @@ impl ExternalAccountsProvider for ForkProvider {
             Some(boc) => {
                 let bytes = base64::decode(boc)
                     .map_err(|err| NodeError::ForkEndpointFetchError(err.to_string()))?;
-                let cell = ton_types::read_single_root_boc(&bytes)
+                let cell = ever_block::read_single_root_boc(&bytes)
                     .map_err(|err| NodeError::ForkEndpointFetchError(err.to_string()))?;
-                Ok(Some(ton_block::ShardAccount::with_account_root(
+                Ok(Some(ever_block::ShardAccount::with_account_root(
                     cell,
-                    ton_types::UInt256::default(),
+                    ever_block::UInt256::default(),
                     0,
                 )))
             }
@@ -136,7 +136,7 @@ fn test_account_provider() {
 
     dbg!(provider
         .get_account(
-            ton_block::MsgAddressInt::with_standart(None, -1, ton_types::UInt256::default().into())
+            ever_block::MsgAddressInt::with_standart(None, -1, ever_block::UInt256::default().into())
                 .unwrap()
         )
         .unwrap());

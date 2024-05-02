@@ -55,7 +55,7 @@ All notable changes to this project will be documented in this file.
 ### New
 
 - Produces masterchain block for each workchain block. 
-- Added ability to update blockchain config with node restart (without killing the database). After [changing the config](https://github.com/tonlabs/evernode-se#how-to-change-the-blockchain-configuration) stop and start the node to apply it. It will produce new key block from the new config. 
+- Added ability to update blockchain config with node restart (without killing the database). After [changing the config](https://github.com/everx-labs/evernode-se#how-to-change-the-blockchain-configuration) stop and start the node to apply it. It will produce new key block from the new config. 
 - `CapSignatureWithId` capability is supported: `global_id` parameter is used as a `signature_id` if `CapSignatureWithId` cap is turned  
     on in the blockchain config.
 
@@ -226,7 +226,7 @@ All notable changes to this project will be documented in this file.
 
 ## 0.28.4 Jul 07, 2021
 ### Fixed
-- [tvm.rawReserve](https://github.com/tonlabs/TON-Solidity-Compiler/blob/master/API.md#tvmrawreserve) function now correctly reacts on all flags.
+- [tvm.rawReserve](https://github.com/everx-labs/TVM-Solidity-Compiler/blob/master/API.md#tvmrawreserve) function now correctly reacts on all flags.
 
 ## 0.28.3 May 20, 2021
 ### Fixed

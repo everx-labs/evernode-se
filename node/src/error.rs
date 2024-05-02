@@ -23,7 +23,7 @@ pub enum NodeError {
     #[error("Failure error: {0}")]
     FailureError(failure::Error),
     #[error("Block error: {0}")]
-    BlockError(ton_block::BlockError),
+    BlockError(ever_block::BlockError),
     #[error("Requested item not found")]
     NotFound,
     #[error("Database problem")]

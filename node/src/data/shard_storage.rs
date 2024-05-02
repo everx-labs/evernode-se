@@ -2,8 +2,7 @@ use crate::data::KVStorage;
 use crate::error::NodeResult;
 use std::cmp::Ordering;
 use std::sync::Mutex;
-use ton_block::{Block, Serializable, ShardStateUnsplit};
-use ton_types::UInt256;
+use ever_block::{Block, Serializable, ShardStateUnsplit, UInt256};
 
 ///
 /// Hash of ShardState with block sequence number
@@ -141,7 +140,7 @@ impl ShardStorage {
 }
 
 pub mod shard_storage_key {
-    use ton_types::UInt256;
+    use ever_block::UInt256;
 
     // ROOT
     pub const BLOCKS_FINALITY_INFO_KEY: &'static str = "blocks_finality.info";
