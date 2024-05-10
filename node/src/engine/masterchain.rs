@@ -6,11 +6,11 @@ use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use ton_block::{
+use ever_block::{
     BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent,
+    write_boc, SliceData, UInt256
 };
-use ton_executor::BlockchainConfig;
-use ton_types::{write_boc, SliceData, UInt256};
+use ever_executor::BlockchainConfig;
 
 pub struct Masterchain {
     blockchain_config: Arc<BlockchainConfig>,

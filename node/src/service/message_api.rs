@@ -28,8 +28,7 @@ use std::{
     thread,
     time::Duration,
 };
-use ton_block::{Deserializable, Message};
-use ton_types::UInt256;
+use ever_block::{Deserializable, Message, UInt256};
 
 pub struct MessageReceiverApi;
 
@@ -120,7 +119,7 @@ impl MessageReceiverApi {
             }
         };
 
-        let message_cell = match ton_types::boc::read_single_root_boc(
+        let message_cell = match ever_block::boc::read_single_root_boc(
             &message_bytes,
         ) {
             Err(err) => {

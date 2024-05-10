@@ -39,7 +39,7 @@ loggers:
       - stdout
 
   # block messages
-  ton_block:
+  ever_block:
     level: debug
     appenders:
       - stdout

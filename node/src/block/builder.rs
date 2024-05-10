@@ -22,19 +22,19 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use serde_derive::Serialize;
-use ton_block::{
+use ever_block::{
     Account, AddSub, Augmentation, BlkPrevInfo, Block, BlockExtra, BlockInfo, ComputeSkipReason,
     CopyleftRewards, CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType,
     InMsg, InMsgDescr, MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr, OutMsgQueue,
     OutMsgQueueInfo, OutMsgQueueKey, Serializable, ShardAccount, ShardAccountBlocks, ShardAccounts,
     ShardIdent, ShardStateUnsplit, TrComputePhase, TrComputePhaseVm, Transaction, TransactionDescr,
-    TransactionDescrOrdinary, UnixTime32, ValueFlow,
+    TransactionDescrOrdinary, UnixTime32, ValueFlow,error, AccountId, Cell, HashmapRemover, HashmapType,
+    Result, SliceData, UInt256
 };
-use ton_executor::{
+use ever_executor::{
     BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
     TransactionExecutor,
 };
-use ton_types::{error, AccountId, Cell, HashmapRemover, HashmapType, Result, SliceData, UInt256};
 
 use crate::error::NodeResult;
 
@@ -60,8 +60,8 @@ pub struct EngineTraceInfoData {
     pub cmd_code_offset: u32,
 }
 
-impl From<&ton_vm::executor::EngineTraceInfo<'_>> for EngineTraceInfoData {
-    fn from(info: &ton_vm::executor::EngineTraceInfo) -> Self {
+impl From<&ever_vm::executor::EngineTraceInfo<'_>> for EngineTraceInfoData {
+    fn from(info: &ever_vm::executor::EngineTraceInfo) -> Self {
         let cmd_code_rem_bits = info.cmd_code.remaining_bits() as u32;
         let cmd_code_hex = info.cmd_code.to_hex_string();
         let cmd_code_cell_hash = info.cmd_code.cell().repr_hash().to_hex_string();
@@ -176,9 +176,9 @@ impl BlockBuilder {
 
         let trace = Arc::new(lockfree::queue::Queue::new());
         let trace_copy = trace.clone();
-        let callback = move |engine: &ton_vm::executor::Engine, info: &ton_vm::executor::EngineTraceInfo| {
+        let callback = move |engine: &ever_vm::executor::Engine, info: &ever_vm::executor::EngineTraceInfo| {
             trace_copy.push(EngineTraceInfoData::from(info));
-            ton_vm::executor::Engine::simple_trace_callback(engine, info);
+            ever_vm::executor::Engine::simple_trace_callback(engine, info);
         };
 
         let start = std::time::Instant::now();
@@ -275,7 +275,7 @@ impl BlockBuilder {
             None => self.accounts_provider
                 .as_ref()
                 .map(|provider| provider.get_account(
-                ton_block::MsgAddressInt::with_standart(
+                ever_block::MsgAddressInt::with_standart(
                     None, self.shard_ident().workchain_id() as i8, acc_id.clone()
                 )?))
                 .transpose()?

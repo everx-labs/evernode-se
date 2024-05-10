@@ -2,8 +2,10 @@ use crate::error::NodeResult;
 use std::collections::HashMap;
 use std::io::{Read, Seek};
 use std::sync::Arc;
-use ton_block::{Block, Deserializable, Serializable, ShardIdent, ShardStateUnsplit};
-use ton_types::{ByteOrderRead, SliceData, UInt256};
+use ever_block::{
+    Block, Deserializable, Serializable, ShardIdent, ShardStateUnsplit,
+    ByteOrderRead, SliceData, UInt256
+};
 
 use super::builder::EngineTraceInfoData;
 
@@ -89,7 +91,7 @@ impl ShardBlock {
         let cell = block.serialize().unwrap();
         let root_hash = cell.repr_hash();
 
-        let serialized_block = ton_types::write_boc(&cell).unwrap();
+        let serialized_block = ever_block::write_boc(&cell).unwrap();
         let file_hash = UInt256::calc_file_hash(&serialized_block);
         let info = block.read_info().unwrap();
 
@@ -135,12 +137,15 @@ impl ShardBlock {
         let hash = rdr.read_u256()?;
         sb.file_hash = UInt256::from(hash);
 
-        let boc_reader = ton_types::BocReader::new();
-        let mut shard_slice = SliceData::load_cell(boc_reader.read(rdr)?.withdraw_single_root()?)?;
+        let mut shard_slice = SliceData::load_cell(
+            ever_block::BocReader::new().read(rdr)?.withdraw_single_root()?
+        )?;
+        
         sb.shard_state.read_from(&mut shard_slice)?;
 
-        let boc_reader = ton_types::BocReader::new();
-        sb.block = Block::construct_from_cell(boc_reader.read(rdr)?.withdraw_single_root()?)?;
+        sb.block = Block::construct_from_cell(
+            ever_block::BocReader::new().read(rdr)?.withdraw_single_root()?
+        )?;
         Ok(sb)
     }
 }

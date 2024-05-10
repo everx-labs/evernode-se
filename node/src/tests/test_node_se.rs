@@ -1,8 +1,8 @@
-use ton_block::{GasLimitsPrices, MsgForwardPrices};
+use ever_block::{GasLimitsPrices, MsgForwardPrices};
 use crate::blockchain_config_from_json;
 
 #[test]
-fn test_blockchain_config_parsing() -> ton_types::Result<()> {
+fn test_blockchain_config_parsing() -> ever_block::Result<()> {
     let blockchain_config = blockchain_config_from_json(
         include_str!("blockchain.conf.json")
     )?;

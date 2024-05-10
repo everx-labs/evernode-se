@@ -22,7 +22,7 @@ use crate::service::{TonNodeService, TonNodeServiceConfig};
 use clap::{Arg, ArgMatches, Command};
 use serde_json::Value;
 use std::{env, fs, path::Path};
-use ton_executor::BlockchainConfig;
+use ever_executor::BlockchainConfig;
 
 pub mod error;
 
@@ -148,8 +148,8 @@ fn parse_config(json: &str) -> NodeConfig {
     }
 }
 
-fn blockchain_config_from_json(json: &str) -> ton_types::Result<BlockchainConfig> {
+fn blockchain_config_from_json(json: &str) -> ever_block::Result<BlockchainConfig> {
     let map = serde_json::from_str::<serde_json::Map<String, Value>>(&json)?;
-    let config_params = ton_block_json::parse_config(&map)?;
+    let config_params = ever_block_json::parse_config(&map)?;
     BlockchainConfig::with_config(config_params)
 }

@@ -4,8 +4,7 @@ use crate::data::{FSKVStorage, FSStorage, ShardStorage};
 use crate::tests::{
     generate_block_with_seq_no, get_block, save_block, save_shard_state, shard_state,
 };
-use ton_block::{BlkPrevInfo, HashmapAugType, Serializable, ShardIdent, ShardStateUnsplit};
-use ton_types::UInt256;
+use ever_block::{BlkPrevInfo, HashmapAugType, Serializable, ShardIdent, ShardStateUnsplit, UInt256};
 
 #[test]
 fn test_create_directory_tree() {

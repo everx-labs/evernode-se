@@ -16,7 +16,7 @@
 
 use parking_lot::{Condvar, Mutex};
 use std::collections::VecDeque;
-use ton_block::{Message, Serializable};
+use ever_block::{Message, Serializable};
 
 /// This FIFO accumulates inbound messages from all types of receivers.
 /// The struct might be used from many threads. It provides internal mutability.
@@ -71,7 +71,7 @@ impl InMessagesQueue {
     pub fn print_message(msg: &Message) {
         log::info!("message: {:?}", msg);
         if let Ok(cell) = msg.serialize() {
-            if let Ok(data) = ton_types::write_boc(&cell) {
+            if let Ok(data) = ever_block::write_boc(&cell) {
                 std::fs::create_dir_all("export").ok();
                 std::fs::write(&format!("export/msg_{:x}", cell.repr_hash()), &data).ok();
             }

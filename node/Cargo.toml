@@ -2,7 +2,7 @@
 edition = '2021'
 build = 'build.rs'
 name = 'evernode_se'
-version = '0.40.0'
+version = '0.41.0'
 
 [dependencies]
 # External
@@ -29,21 +29,19 @@ serde_derive = '1.0'
 serde_json = { features = ['preserve_order'], version = '1.0' }
 thiserror = '1.0'
 
-lockfree = { git = 'https://github.com/tonlabs/lockfree.git', package = 'lockfree' }
+lockfree = { git = 'https://github.com/everx-labs/lockfree.git', package = 'lockfree' }
 
 # Domestic
-ton_block = { git = 'https://github.com/tonlabs/ever-block', tag = '1.9.104' }
-ton_block_json = { git = 'https://github.com/tonlabs/ever-block-json', tag = '0.7.189' }
-ton_executor = { git = 'https://github.com/tonlabs/ever-executor', tag = '1.16.82', features = ['signature_with_id'] }
-ton_types = { git = 'https://github.com/tonlabs/ever-types', tag = '2.0.28' }
-ton_vm = { git = 'https://github.com/tonlabs/ever-vm', tag = '1.8.211', features = ['gosh'] }
+ever_block = { git = 'https://github.com/everx-labs/ever-block', tag = '1.10.2' }
+ever_block_json = { git = 'https://github.com/everx-labs/ever-block-json', tag = '0.8.6' }
+ever_executor = { git = 'https://github.com/everx-labs/ever-executor', tag = '1.17.6', features = ['signature_with_id'] }
+ever_vm = { git = 'https://github.com/everx-labs/ever-vm', tag = '2.1.5', features = ['gosh'] }
 
-#ton_block = { path = '../../ever-block-private' }
-#ton_block_json = { path = '../../ever-block-json-private' }
-#ton_executor = { path = '../../ever-executor-private', features = ['signature_with_id'] }
-#ton_types = { path = '../../ever-types-private' }
-#ton_vm = { path = '../../ever-vm-private', features = ['gosh'] }
+#ever_block = { path = '../../ever-block-private' }
+#ever_block_json = { path = '../../ever-block-json-private' }
+#ever_executor = { path = '../../ever-executor-private', features = ['signature_with_id'] }
+#ever_vm = { path = '../../ever-vm-private', features = ['gosh'] }
 
 [dev-dependencies]
-ton_abi = { git = 'https://github.com/tonlabs/ever-abi.git', tag = '2.3.147' }
-#ton_abi = { path = '../../ever-abi' }
+ever_abi = { git = 'https://github.com/everx-labs/ever-abi.git', tag = '2.5.3' }
+#ever_abi = { path = '../../ever-abi' }

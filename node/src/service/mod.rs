@@ -11,7 +11,7 @@ use router::Router;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use ton_executor::BlockchainConfig;
+use ever_executor::BlockchainConfig;
 
 use self::engine_manager::TonNodeEngineManager;
 

@@ -1,6 +1,5 @@
 use std::{thread, time, sync::Arc};
-use ton_block::*;
-use ton_types::*;
+use ever_block::*;
 use crate::engine::InMessagesQueue;
 use crate::tests::{shard_state_info_deserialize, shard_state_info_with_params};
 

@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install git
 # Install Q-Server
 USER node
 WORKDIR /home/node
-RUN git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO ton-q-server
-WORKDIR /home/node/ton-q-server
+RUN git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO ever-q-server
+WORKDIR /home/node/ever-q-server
 RUN npm ci; \
     npm run tsc; \
     npm ci --production

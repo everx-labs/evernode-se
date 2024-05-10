@@ -11,16 +11,14 @@ use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
-use ton_block::{
+use ever_block::{
     AccountStatus, Augmentation, BlkPrevInfo, Block, CurrencyCollection, Deserializable,
     ExtOutMessageHeader, ExternalInboundMessageHeader, HashmapAugType, InMsg,
     InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, OutMsg, Serializable, ShardIdent,
-    ShardStateUnsplit, Transaction, UnixTime32,
+    ShardStateUnsplit, Transaction, UnixTime32, AccountId, ByteOrderRead, Cell, HashmapType,
+    SliceData, UInt256
 };
-use ton_executor::BlockchainConfig;
-use ton_types::{
-    AccountId, ByteOrderRead, Cell, HashmapType, SliceData, UInt256,
-};
+use ever_executor::BlockchainConfig;
 
 mod abi_account;
 mod test_block_builder;
@@ -139,7 +137,7 @@ pub(crate) fn shard_state(storage: &ShardStorage) -> NodeResult<ShardStateUnspli
 fn shard_bag(storage: &ShardStorage) -> NodeResult<Cell> {
     let data = storage.get(shard_storage_key::SHARD_STATE_BLOCK_KEY)?;
     // TODO: BOC from file
-    Ok(ton_types::boc::read_single_root_boc(&data)?)
+    Ok(ever_block::boc::read_single_root_boc(&data)?)
 }
 
 ///
@@ -248,7 +246,7 @@ pub fn builder_add_test_transaction(
     builder: &mut BlockBuilder,
     in_msg: InMsg,
     out_msgs: &[OutMsg],
-) -> ton_types::Result<()> {
+) -> ever_block::Result<()> {
     log::debug!("Inserting test transaction");
     let tr_cell = in_msg.transaction_cell().unwrap();
     let transaction = Transaction::construct_from_cell(tr_cell.clone())?;

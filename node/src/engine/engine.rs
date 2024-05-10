@@ -25,8 +25,8 @@ use crate::engine::BlockTimeMode;
 use crate::error::{NodeError, NodeResult};
 use parking_lot::RwLock;
 use std::sync::Arc;
-use ton_block::{Message, ShardIdent};
-use ton_executor::BlockchainConfig;
+use ever_block::{Message, ShardIdent};
+use ever_executor::BlockchainConfig;
 
 /// It is top level struct provided node functionality related to transactions processing.
 /// Initialises instances of: all messages receivers, InMessagesQueue, MessagesProcessor.
