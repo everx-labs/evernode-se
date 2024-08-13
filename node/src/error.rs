@@ -21,7 +21,7 @@ pub enum NodeError {
     #[error("Io error: {0}")]
     Io(io::Error),
     #[error("Failure error: {0}")]
-    FailureError(failure::Error),
+    FailureError(anyhow::Error),
     #[error("Block error: {0}")]
     BlockError(ever_block::BlockError),
     #[error("Requested item not found")]
@@ -68,8 +68,8 @@ pub enum NodeError {
 
 pub type NodeResult<T> = Result<T, NodeError>;
 
-impl From<failure::Error> for NodeError {
-    fn from(error: failure::Error) -> Self {
+impl From<anyhow::Error> for NodeError {
+    fn from(error: anyhow::Error) -> Self {
         NodeError::FailureError(error).into()
     }
 }

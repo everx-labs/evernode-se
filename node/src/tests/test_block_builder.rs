@@ -32,11 +32,11 @@ fn build_transaction(acc: AccountId) -> (InMsg, OutMsg, OutMsg) {
 
     // transaction
     let mut transaction = Transaction::with_address_and_status(acc.clone(), AccountStatus::AccStateActive);
-    transaction.write_in_msg(Some(&inmsg1)).unwrap();
+    transaction.write_in_msg(Some(&CommonMessage::Std(inmsg1.clone()))).unwrap();
 
     let inmsg_int = InMsg::Immediate(InMsgFinal::with_cells(
-        MsgEnvelope::with_message_and_fee(&inmsg1, 9u64.into()).unwrap().serialize().unwrap(),
-        transaction.serialize().unwrap(),
+        ChildCell::with_cell(MsgEnvelope::with_message_and_fee(&inmsg1, 9u64.into()).unwrap().serialize().unwrap()),
+        ChildCell::with_cell(transaction.serialize().unwrap()),
         11u64.into(),
     ));
 
@@ -50,7 +50,10 @@ fn build_transaction(acc: AccountId) -> (InMsg, OutMsg, OutMsg) {
     inmsg.set_body(SliceData::new(vec![0x01;120]));
 
     // inmsg
-    let inmsgex = InMsg::External(InMsgExternal::with_cells(inmsg.serialize().unwrap(), transaction.serialize().unwrap()));
+    let inmsgex = InMsg::External(InMsgExternal::with_cells(
+        ChildCell::with_cell(inmsg.serialize().unwrap()),
+        ChildCell::with_cell(transaction.serialize().unwrap())
+    ));
 
     // outmsgs
     let mut imh = InternalMessageHeader::with_addresses(
@@ -73,12 +76,13 @@ fn build_transaction(acc: AccountId) -> (InMsg, OutMsg, OutMsg) {
     let tr_cell: Cell = transaction.serialize().unwrap().into();
 
     let out_msg1 = OutMsg::New(OutMsgNew::with_cells(
-        MsgEnvelope::with_message_and_fee(&outmsg1, 9u64.into()).unwrap().serialize().unwrap(),
-        tr_cell.serialize().unwrap()
+        ChildCell::with_cell(MsgEnvelope::with_message_and_fee(&outmsg1, 9u64.into()).unwrap().serialize().unwrap()),
+        ChildCell::with_cell(tr_cell.serialize().unwrap())
     ));
 
     let out_msg2 = OutMsg::External(OutMsgExternal::with_cells(
-        outmsg2.serialize().unwrap(), tr_cell.serialize().unwrap()
+        ChildCell::with_cell(outmsg2.serialize().unwrap()),
+        ChildCell::with_cell(tr_cell.serialize().unwrap())
     ));
 
     (if rand::thread_rng().gen() { inmsg_int } else { inmsgex }, out_msg1, out_msg2)

@@ -22,21 +22,13 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use serde_derive::Serialize;
-use ever_block::{
-    Account, AddSub, Augmentation, BlkPrevInfo, Block, BlockExtra, BlockInfo, ComputeSkipReason,
-    CopyleftRewards, CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType,
-    InMsg, InMsgDescr, MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr, OutMsgQueue,
-    OutMsgQueueInfo, OutMsgQueueKey, Serializable, ShardAccount, ShardAccountBlocks, ShardAccounts,
-    ShardIdent, ShardStateUnsplit, TrComputePhase, TrComputePhaseVm, Transaction, TransactionDescr,
-    TransactionDescrOrdinary, UnixTime32, ValueFlow,error, AccountId, Cell, HashmapRemover, HashmapType,
-    Result, SliceData, UInt256
-};
+use ever_block::{Account, AddSub, Augmentation, BlkPrevInfo, Block, BlockExtra, BlockInfo, ComputeSkipReason, CopyleftRewards, CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType, InMsg, InMsgDescr, MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr, OutMsgQueue, OutMsgQueueInfo, OutMsgQueueKey, Serializable, ShardAccount, ShardAccountBlocks, ShardAccounts, ShardIdent, ShardStateUnsplit, TrComputePhase, TrComputePhaseVm, Transaction, TransactionDescr, TransactionDescrOrdinary, UnixTime32, ValueFlow, error, AccountId, Cell, HashmapRemover, HashmapType, Result, SliceData, UInt256, CommonMessage, SERDE_OPTS_EMPTY, ChildCell, fail};
 use ever_executor::{
     BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
     TransactionExecutor,
 };
 
-use crate::error::NodeResult;
+use crate::error::{NodeError, NodeResult};
 
 pub struct PreparedBlock {
     pub block: Block,
@@ -183,7 +175,7 @@ impl BlockBuilder {
 
         let start = std::time::Instant::now();
         let result = executor.execute_with_libs_and_params(
-            Some(msg),
+            Some(&CommonMessage::Std(msg.clone())),
             acc_root,
             ExecuteParams {
                 block_unixtime,
@@ -353,7 +345,7 @@ impl BlockBuilder {
             let (key, mut slice) = out?;
             let key = key.into_cell()?;
             // key is not matter for one shard
-            sorted.push((key, OutMsgQueue::value_aug(&mut slice)?));
+            sorted.push((key, OutMsgQueue::value_aug(SERDE_OPTS_EMPTY, &mut slice)?));
         }
         sorted.sort_by(|a, b| a.1 .1.cmp(&b.1 .1));
         for (key, (enq, _create_lt)) in sorted {
@@ -413,7 +405,7 @@ impl BlockBuilder {
                     self.out_queue_info
                         .out_queue_mut()
                         .set(&key, &enq, &enq.aug()?)?;
-                    let out_msg = OutMsg::new(enq.out_msg_cell(), tr_cell);
+                    let out_msg = OutMsg::new(enq.out_msg, ChildCell::with_cell(tr_cell));
                     self.out_msg_descr
                         .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
                 } else {
@@ -463,20 +455,23 @@ impl BlockBuilder {
             let in_msg = if let Some(hdr) = msg.int_header() {
                 let fee = hdr.fwd_fee();
                 let env = MsgEnvelope::with_message_and_fee(&msg, *fee)?;
-                InMsg::immediate(env.serialize()?, tr_cell.clone(), *fee)
+                InMsg::immediate(ChildCell::with_cell(env.serialize()?), ChildCell::with_cell(tr_cell.clone()), *fee)
             } else {
-                InMsg::external(msg_cell.clone(), tr_cell.clone())
+                InMsg::external(ChildCell::with_cell(msg_cell.clone()), ChildCell::with_cell(tr_cell.clone()))
             };
             self.in_msg_descr
                 .set(&msg_cell.repr_hash(), &in_msg, &in_msg.aug()?)?;
         }
 
-        transaction.iterate_out_msgs(|msg| {
+        transaction.iterate_out_msgs(|common_message: CommonMessage| {
+            let CommonMessage::Std(msg) = common_message else {
+                fail!(NodeError::InvalidData("Supported only std messages".to_string()))
+            };
             if let Some(_) = msg.int_header() {
                 self.new_messages.push((msg, tr_cell.clone()));
             } else {
                 let msg_cell = msg.serialize()?;
-                let out_msg = OutMsg::external(msg_cell.clone(), tr_cell.clone());
+                let out_msg = OutMsg::external(ChildCell::with_cell(msg_cell.clone()), ChildCell::with_cell(tr_cell.clone()));
                 self.out_msg_descr
                     .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
             }

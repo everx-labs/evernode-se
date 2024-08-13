@@ -11,13 +11,7 @@ use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
-use ever_block::{
-    AccountStatus, Augmentation, BlkPrevInfo, Block, CurrencyCollection, Deserializable,
-    ExtOutMessageHeader, ExternalInboundMessageHeader, HashmapAugType, InMsg,
-    InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, OutMsg, Serializable, ShardIdent,
-    ShardStateUnsplit, Transaction, UnixTime32, AccountId, ByteOrderRead, Cell, HashmapType,
-    SliceData, UInt256
-};
+use ever_block::{AccountStatus, Augmentation, BlkPrevInfo, Block, CurrencyCollection, Deserializable, ExtOutMessageHeader, ExternalInboundMessageHeader, HashmapAugType, InMsg, InternalMessageHeader, Message, MsgAddressExt, MsgAddressInt, OutMsg, Serializable, ShardIdent, ShardStateUnsplit, Transaction, UnixTime32, AccountId, ByteOrderRead, Cell, HashmapType, SliceData, UInt256, CommonMessage};
 use ever_executor::BlockchainConfig;
 
 mod abi_account;
@@ -94,7 +88,7 @@ pub fn generate_block_with_seq_no(
         let mut in_msg = Message::with_ext_in_header(ext_in_header);
         in_msg.set_body(SliceData::new(vec![0x01; 120]));
 
-        transaction.write_in_msg(Some(&in_msg_1)).unwrap();
+        transaction.write_in_msg(Some(&CommonMessage::Std(in_msg_1))).unwrap();
 
         // out_msgs
         let mut value = CurrencyCollection::default();
@@ -117,8 +111,8 @@ pub fn generate_block_with_seq_no(
         let mut out_msg_2 = Message::with_ext_out_header(ext_out_header);
         out_msg_2.set_body(SliceData::new(vec![0x02; 120]));
 
-        transaction.add_out_message(&out_msg_1).unwrap();
-        transaction.add_out_message(&out_msg_2).unwrap();
+        transaction.add_out_message(&CommonMessage::Std(out_msg_1)).unwrap();
+        transaction.add_out_message(&CommonMessage::Std(out_msg_2)).unwrap();
 
         let tr_cell = transaction.serialize().unwrap();
         block_builder

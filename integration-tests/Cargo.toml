@@ -6,7 +6,7 @@ edition = '2021'
 [dev-dependencies]
 base64 = "0.13.0"
 ed25519-dalek = "1.0.1"
-failure = "0.1.8"
+anyhow = '1.0'
 hex = "0.4.2"
 lazy_static = "1.4.0"
 rand = "0.7.3"

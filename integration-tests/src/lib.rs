@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use failure::err_msg;
+use anyhow::format_err;
 use lazy_static::lazy_static;
 use serde_json::{json, Value};
 use ever_block::{
@@ -108,7 +108,7 @@ impl Client {
             },
         )
         .await
-        .map_err(|e| err_msg(format!("run failed: {:#}", e)))
+        .map_err(|e| format_err!("run failed: {:#}", e))
     }
 
     pub async fn encode_message(
@@ -139,7 +139,7 @@ impl Client {
             },
         )
         .await
-        .map_err(|e| err_msg(e.message))
+        .map_err(|e| format_err!(e.message))
     }
 
     pub async fn prepare_message(
@@ -205,15 +205,15 @@ impl Client {
             },
         )
         .await
-        .map_err(|e| err_msg(format!("failed to query account: {}", e)))?
+        .map_err(|e| format_err!("failed to query account: {}", e))?
         .result;
 
         if accounts.len() == 0 {
-            return Err(err_msg(format!("account not found")));
+            return Err(format_err!("account not found"));
         }
         let boc = accounts[0]["boc"].as_str();
         if boc.is_none() {
-            return Err(err_msg(format!("account doesn't contain data")));
+            return Err(format_err!("account doesn't contain data"));
         }
 
         Ok(boc.unwrap().to_owned())
@@ -667,7 +667,7 @@ async fn test_ext_in_created_at() -> Result<()> {
         },
     )
     .await
-    .map_err(|e| err_msg(format!("failed to query messages: {}", e)))?
+    .map_err(|e| format_err!("failed to query messages: {}", e))?
     .result;
 
     assert!(messages.len() > 0);
@@ -675,7 +675,7 @@ async fn test_ext_in_created_at() -> Result<()> {
         assert!(
             msg["created_at"]
                 .as_u64()
-                .ok_or(err_msg("created_at must be set!"))?
+                .ok_or(format_err!("created_at must be set!"))?
                 > 0
         );
     }
@@ -698,7 +698,7 @@ async fn ensure_no_non_finalized(
         },
     )
     .await
-    .map_err(|e| err_msg(format!("failed to query {}: {}", collection, e)))?
+    .map_err(|e| format_err!("failed to query {}: {}", collection, e))?
     .result;
 
     assert_eq!(
@@ -753,7 +753,7 @@ async fn assert_account(
         },
     )
     .await
-    .map_err(|e| err_msg(format!("failed to query account: {}", e)))?
+    .map_err(|e| format_err!("failed to query account: {}", e))?
     .result;
 
     assert_eq!(accounts.len(), 1, "account not found: {}", id);
