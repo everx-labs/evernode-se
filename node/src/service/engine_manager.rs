@@ -2,8 +2,8 @@ use crate::config::ForkConfig;
 use crate::data::{ArangoHelper, ExternalAccountsProvider, FSStorage, ForkProvider};
 use crate::engine::engine::TonNodeEngine;
 use crate::error::NodeResult;
-use parking_lot::RwLock;
 use ever_block::ShardIdent;
+use parking_lot::RwLock;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -64,13 +64,11 @@ impl TonNodeEngineManager {
     }
 
     fn clear_db(&self) -> NodeResult<()> {
-        let arango = ArangoHelper::from_config(
-            &self.original_config.node.document_db_config(),
-        )?;
+        let arango = ArangoHelper::from_config(&self.original_config.node.document_db_config())?;
         arango.clear_db()?;
 
         let fs_storage = FSStorage::new(PathBuf::from("./"))?;
-        fs_storage.clear_db(self.original_config.node.shard_id_config().shard_ident(),)?;
+        fs_storage.clear_db(self.original_config.node.shard_id_config().shard_ident())?;
         fs_storage.clear_db(ShardIdent::masterchain())?;
 
         Ok(())
@@ -90,10 +88,7 @@ impl TonNodeEngineManager {
             self.clear_db()?;
         }
         let mut config = self.original_config.clone();
-        config.node.fork = Some(ForkConfig {
-            endpoint,
-            auth,
-        });
+        config.node.fork = Some(ForkConfig { endpoint, auth });
         *self.node.write() = (Self::create_engine(&config)?, None);
         self.start();
         Ok(())

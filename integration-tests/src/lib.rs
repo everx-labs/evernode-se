@@ -6,24 +6,21 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::format_err;
+use ever_block::{
+    BlockProcessingStatus, MessageProcessingStatus, Result, Serializable,
+    TransactionProcessingStatus,
+};
 use lazy_static::lazy_static;
 use serde_json::{json, Value};
-use ever_block::{
-    BlockProcessingStatus,
-    MessageProcessingStatus,
-    TransactionProcessingStatus,
-    Serializable,
-    Result
-};
 use ton_client::abi::{
     encode_message, Abi, CallSet, DeploySet, FunctionHeader, ParamsOfEncodeMessage,
-    ResultOfEncodeMessage, Signer
+    ResultOfEncodeMessage, Signer,
 };
 use ton_client::boc::{parse_message, ParamsOfParse};
 use ton_client::crypto::KeyPair;
 use ton_client::net::{
-    query_collection, wait_for_collection, NetworkConfig, ParamsOfQueryCollection,
-    ParamsOfWaitForCollection, OrderBy, SortDirection,
+    query_collection, wait_for_collection, NetworkConfig, OrderBy, ParamsOfQueryCollection,
+    ParamsOfWaitForCollection, SortDirection,
 };
 use ton_client::processing::{
     send_message, wait_for_transaction, DecodedOutput, ResultOfProcessMessage,
@@ -317,7 +314,9 @@ pub(crate) struct Multisig {
 
 impl Multisig {
     pub fn new() -> Self {
-        let keypair = include_str!("../../../evernode-se/contracts/safe_multisig/SafeMultisigWallet.keys.json");
+        let keypair = include_str!(
+            "../../../evernode-se/contracts/safe_multisig/SafeMultisigWallet.keys.json"
+        );
         let json: Value =
             serde_json::from_str(keypair).expect("Failed to parse giver's keypair file");
         let public = json["public"].as_str().expect("public");
@@ -857,7 +856,10 @@ async fn test_my_code() {
         .unwrap()
         .message;
 
-    let result = client.send_message_and_wait(Some(abi), message).await.unwrap();
+    let result = client
+        .send_message_and_wait(Some(abi), message)
+        .await
+        .unwrap();
 
     assert_eq!(
         json!({"value0": "2"}),
@@ -893,7 +895,7 @@ async fn test_time_shift() {
     assert_eq!(time_delta, 10);
     tokio::time::sleep(Duration::from_secs(1)).await;
     let (tr_time2, tvm_time2) = return_time(&client, &addr, &keys, &abi).await;
-    let _ =  se("reset-time").await;
+    let _ = se("reset-time").await;
     let time_delta = se("time-delta").await.parse::<u64>().unwrap();
     assert_eq!(time_delta, 0);
     tokio::time::sleep(Duration::from_secs(delta + 1)).await;
@@ -972,26 +974,27 @@ async fn test_non_sponsored_deploy() {
 
     let keys = Client::generate_keypair();
     let (tvc, abi) = TestUtils::load_contract("TimeShiftTest").unwrap();
-    
+
     let message = client
-    .encode_message(
-        abi.clone(),
-        None,
-        Some(DeploySet {
-            tvc: Some(tvc.clone()),
-            ..Default::default()
-        }),
-        CallSet::some_with_function("constructor"),
-        Some(&keys),
-    )
-    .await
-    .unwrap();
+        .encode_message(
+            abi.clone(),
+            None,
+            Some(DeploySet {
+                tvc: Some(tvc.clone()),
+                ..Default::default()
+            }),
+            CallSet::some_with_function("constructor"),
+            Some(&keys),
+        )
+        .await
+        .unwrap();
 
     let err = client
         .send_message_and_wait(Some(abi.clone()), message.message.clone())
         .await
         .unwrap_err()
-        .downcast::<ton_client::error::ClientError>().unwrap();
+        .downcast::<ton_client::error::ClientError>()
+        .unwrap();
 
     assert_eq!(err.code, 406);
 }
@@ -1019,7 +1022,12 @@ async fn test_gosh() {
         _ => unreachable!(),
     };
 
-    for function in abi_json.functions.iter().map(|f| &f.name).filter(|f| *f != "constructor") {
+    for function in abi_json
+        .functions
+        .iter()
+        .map(|f| &f.name)
+        .filter(|f| *f != "constructor")
+    {
         let message = client
             .encode_message(
                 abi.clone(),
@@ -1031,8 +1039,11 @@ async fn test_gosh() {
             .await
             .unwrap()
             .message;
-    
-        client.send_message_and_wait(Some(abi.clone()), message).await.unwrap();
+
+        client
+            .send_message_and_wait(Some(abi.clone()), message)
+            .await
+            .unwrap();
     }
 }
 
@@ -1056,7 +1067,7 @@ async fn test_bounced_body() {
                     name: "b".to_owned(),
                     param_type: "uint32".to_owned(),
                     ..Default::default()
-                }
+                },
             ],
             data: json!({
                 "a": 123,
@@ -1064,24 +1075,31 @@ async fn test_bounced_body() {
             }),
             ..Default::default()
         },
-    ).unwrap().boc;
+    )
+    .unwrap()
+    .boc;
 
-    let result = multisig.send_grams(
-        &client,
-        "0:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        500_000_000,
-        true,
-        0,
-        Some(payload),
-    ).await.unwrap();
+    let result = multisig
+        .send_grams(
+            &client,
+            "0:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            500_000_000,
+            true,
+            0,
+            Some(payload),
+        )
+        .await
+        .unwrap();
 
     let mut transaction_tree = ton_client::net::query_transaction_tree(
         client.context(),
         ton_client::net::ParamsOfQueryTransactionTree {
             in_msg: result.transaction["in_msg"].as_str().unwrap().to_owned(),
             ..Default::default()
-        }
-    ).await.unwrap();
+        },
+    )
+    .await
+    .unwrap();
 
     let bounced_id = transaction_tree.messages.pop().unwrap().id;
     let message = &ton_client::net::query_collection(
@@ -1091,8 +1109,11 @@ async fn test_bounced_body() {
             result: "body bounced".to_owned(),
             filter: Some(json!({ "id": { "eq": bounced_id }})),
             ..Default::default()
-        }
-    ).await.unwrap().result[0];
+        },
+    )
+    .await
+    .unwrap()
+    .result[0];
 
     assert_eq!(message["bounced"], Value::Bool(true));
 
@@ -1127,7 +1148,7 @@ async fn test_bounced_body() {
                             name: "b".to_owned(),
                             param_type: "uint32".to_owned(),
                             ..Default::default()
-                        }
+                        },
                     ],
                     ..Default::default()
                 },
@@ -1142,7 +1163,9 @@ async fn test_bounced_body() {
             }),
             ..Default::default()
         },
-    ).unwrap().boc;
+    )
+    .unwrap()
+    .boc;
 
     assert_eq!(message["body"].as_str().unwrap(), bounced_body);
 }
@@ -1165,7 +1188,10 @@ async fn test_copyleft() {
     .await
     .unwrap();
 
-    client.call_contract(&addr, abi, "touch", json!({}), Some(&keys)).await.unwrap();
+    client
+        .call_contract(&addr, abi, "touch", json!({}), Some(&keys))
+        .await
+        .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1176,7 +1202,7 @@ async fn advanced_test_msg_order() {
     let (alpha_tvc, alpha_abi) = TestUtils::load_contract("Alpha").unwrap();
     let (beta_tvc, beta_abi) = TestUtils::load_contract("Beta").unwrap();
     let (gamma_tvc, gamma_abi) = TestUtils::load_contract("Gamma").unwrap();
-    
+
     let (gamma_addr, _output) = TestUtils::deploy_with_giver(
         &client,
         gamma_abi.clone(),
@@ -1200,7 +1226,7 @@ async fn advanced_test_msg_order() {
     )
     .await
     .unwrap();
-    
+
     let (alpha_addr, _output) = TestUtils::deploy_with_giver(
         &client,
         alpha_abi.clone(),
@@ -1226,7 +1252,10 @@ async fn advanced_test_msg_order() {
         .await
         .unwrap();
 
-    client.send_message_and_wait(Some(alpha_abi), message.message).await.unwrap();
+    client
+        .send_message_and_wait(Some(alpha_abi), message.message)
+        .await
+        .unwrap();
 
     let result = ton_client::net::query_transaction_tree(
         client.context(),
@@ -1234,8 +1263,10 @@ async fn advanced_test_msg_order() {
             in_msg: message.message_id,
             transaction_max_count: Some(0),
             ..Default::default()
-        }
-    ).await.unwrap();
+        },
+    )
+    .await
+    .unwrap();
 
     assert_eq!(count * 3 + 1, result.transactions.len());
 
@@ -1264,20 +1295,21 @@ async fn test_transaction_trace() {
         )
         .await
         .unwrap_err()
-        .downcast::<ton_client::error::ClientError>().unwrap();
+        .downcast::<ton_client::error::ClientError>()
+        .unwrap();
 
     let trace = query_collection(
-            client.context(),
-            ParamsOfQueryCollection {
-                collection: "transactions".to_string(),
-                filter: Some(json!({ "id": { "eq": result.data["transaction_id"] } })),
-                result: "trace { step }".to_string(),
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap()
-        .result;
+        client.context(),
+        ParamsOfQueryCollection {
+            collection: "transactions".to_string(),
+            filter: Some(json!({ "id": { "eq": result.data["transaction_id"] } })),
+            result: "trace { step }".to_string(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap()
+    .result;
 
     assert!(trace[0]["trace"].is_array())
 }
@@ -1287,15 +1319,18 @@ async fn query_last_seq_no(client: &Client) -> u64 {
         client.context(),
         ParamsOfQueryCollection {
             collection: "blocks".to_string(),
-            order: Some(vec![OrderBy { path: "seq_no".to_owned(), direction: SortDirection::DESC }]),
+            order: Some(vec![OrderBy {
+                path: "seq_no".to_owned(),
+                direction: SortDirection::DESC,
+            }]),
             limit: Some(1),
             result: "seq_no".to_string(),
             ..Default::default()
         },
     )
-        .await
-        .unwrap()
-        .result[0]["seq_no"]
+    .await
+    .unwrap()
+    .result[0]["seq_no"]
         .as_u64()
         .unwrap()
 }
@@ -1304,7 +1339,7 @@ async fn query_last_seq_no(client: &Client) -> u64 {
 async fn test_reset() {
     let client = Client::new();
     let giver = Giver::new();
-    
+
     giver
         .send_grams(&client, Giver::address(), 500_000_000)
         .await
@@ -1327,14 +1362,24 @@ async fn test_fork() {
 
     let send_msg = || async move {
         let client = Client::new();
-        let msg = ever_block::Message::with_ext_in_header(ever_block::ExternalInboundMessageHeader { 
-            src: Default::default(),
-            dst: "-1:0000000000000000000000000000000000000000000000000000000000000000".parse().unwrap(),
-            import_fee: Default::default(),
-        }).write_to_bytes().unwrap();
+        let msg =
+            ever_block::Message::with_ext_in_header(ever_block::ExternalInboundMessageHeader {
+                src: Default::default(),
+                dst: "-1:0000000000000000000000000000000000000000000000000000000000000000"
+                    .parse()
+                    .unwrap(),
+                import_fee: Default::default(),
+            })
+            .write_to_bytes()
+            .unwrap();
         let msg = base64::encode(&msg);
 
-        let err = client.send_message_and_wait(None, msg.clone()).await.unwrap_err().downcast::<ton_client::error::ClientError>().unwrap();
+        let err = client
+            .send_message_and_wait(None, msg.clone())
+            .await
+            .unwrap_err()
+            .downcast::<ton_client::error::ClientError>()
+            .unwrap();
         query_collection(
             client.context(),
             ParamsOfQueryCollection {
@@ -1344,13 +1389,13 @@ async fn test_fork() {
                 ..Default::default()
             },
         )
-            .await
-            .unwrap()
-            .result
-            .pop()
-            .unwrap()
+        .await
+        .unwrap()
+        .result
+        .pop()
+        .unwrap()
     };
-    
+
     let transaction = send_msg().await;
     assert_eq!(transaction["orig_status"].as_u64(), Some(3));
     assert_eq!(transaction["end_status"].as_u64(), Some(3));

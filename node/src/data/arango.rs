@@ -231,13 +231,22 @@ impl ArangoHelper {
                 .put(&url)
                 .header("accept", "application/json")
                 .send()
-                .map_err(|err| NodeError::DocumentDbError(format!("error on {} collection truncate ({})", collection, err)))?;
-            
+                .map_err(|err| {
+                    NodeError::DocumentDbError(format!(
+                        "error on {} collection truncate ({})",
+                        collection, err
+                    ))
+                })?;
+
             if resp.status().is_server_error() || resp.status().is_client_error() {
-                return Err(NodeError::DocumentDbError(format!("error on {} collection truncate ({:?})", collection, resp.status().canonical_reason())));
+                return Err(NodeError::DocumentDbError(format!(
+                    "error on {} collection truncate ({:?})",
+                    collection,
+                    resp.status().canonical_reason()
+                )));
             }
         }
-        
+
         Ok(())
     }
 }

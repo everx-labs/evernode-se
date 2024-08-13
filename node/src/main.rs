@@ -20,9 +20,9 @@ use crate::config::NodeConfig;
 use crate::error::{NodeError, NodeResult};
 use crate::service::{TonNodeService, TonNodeServiceConfig};
 use clap::{Arg, ArgMatches, Command};
+use ever_executor::BlockchainConfig;
 use serde_json::Value;
 use std::{env, fs, path::Path};
-use ever_executor::BlockchainConfig;
 
 pub mod error;
 
@@ -119,8 +119,12 @@ fn run() -> NodeResult<()> {
     // );
     let config = config_from_args(app.get_matches())?;
 
-    log4rs::init_file(config.node.log_path.clone(), Default::default()).unwrap_or_else(|_| panic!("Error initialize logging configuration. config: {}",
-        config.node.log_path));
+    log4rs::init_file(config.node.log_path.clone(), Default::default()).unwrap_or_else(|_| {
+        panic!(
+            "Error initialize logging configuration. config: {}",
+            config.node.log_path
+        )
+    });
 
     log::info!(target: "node", "Evernode Simple Emulator {}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
         env!("CARGO_PKG_VERSION"),

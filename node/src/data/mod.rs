@@ -1,19 +1,19 @@
 use crate::NodeResult;
 use ever_block::ShardIdent;
 
-mod fork_provider;
 mod arango;
 mod documents_db_mock;
+mod fork_provider;
 mod fs_storage;
 mod mem_documents_db;
 mod mem_storage;
 mod shard_storage;
 
 pub use arango::ArangoHelper;
+pub use fork_provider::ForkProvider;
 pub use fs_storage::FSStorage;
 pub use mem_storage::MemStorage;
-pub use shard_storage::{shard_storage_key, ShardStorage, ShardStateInfo};
-pub use fork_provider::ForkProvider;
+pub use shard_storage::{shard_storage_key, ShardStateInfo, ShardStorage};
 
 #[cfg(test)]
 pub use fs_storage::FSKVStorage;
@@ -43,7 +43,9 @@ pub trait DocumentsDb: Send + Sync {
     fn has_delivery_problems(&self) -> bool;
 }
 
-
 pub trait ExternalAccountsProvider: Send + Sync {
-    fn get_account(&self, address: ever_block::MsgAddressInt) -> NodeResult<Option<ever_block::ShardAccount>>;
+    fn get_account(
+        &self,
+        address: ever_block::MsgAddressInt,
+    ) -> NodeResult<Option<ever_block::ShardAccount>>;
 }

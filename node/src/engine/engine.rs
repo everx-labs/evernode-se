@@ -23,10 +23,10 @@ use crate::engine::shardchain::Shardchain;
 use crate::engine::time::BlockTime;
 use crate::engine::BlockTimeMode;
 use crate::error::{NodeError, NodeResult};
-use parking_lot::RwLock;
-use std::sync::Arc;
 use ever_block::{Message, ShardIdent};
 use ever_executor::BlockchainConfig;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 /// It is top level struct provided node functionality related to transactions processing.
 /// Initialises instances of: all messages receivers, InMessagesQueue, MessagesProcessor.

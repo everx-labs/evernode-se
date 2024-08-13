@@ -1,8 +1,8 @@
 use crate::data::KVStorage;
 use crate::error::NodeResult;
+use ever_block::{Block, Serializable, ShardStateUnsplit, UInt256};
 use std::cmp::Ordering;
 use std::sync::Mutex;
-use ever_block::{Block, Serializable, ShardStateUnsplit, UInt256};
 
 ///
 /// Hash of ShardState with block sequence number

@@ -1,13 +1,13 @@
 use crate::block::builder::{EngineTraceInfoData, PreparedBlock};
 use crate::block::{BlockBuilder, BlockFinality};
-use crate::data::{DocumentsDb, NodeStorage, ShardStorage, ExternalAccountsProvider};
+use crate::data::{DocumentsDb, ExternalAccountsProvider, NodeStorage, ShardStorage};
 use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
+use ever_block::{Block, HashmapType, ShardIdent, ShardStateUnsplit, UInt256};
+use ever_executor::BlockchainConfig;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
-use ever_block::{Block, ShardIdent, ShardStateUnsplit, HashmapType, UInt256};
-use ever_executor::BlockchainConfig;
 
 pub struct Shardchain {
     pub(crate) finality_was_loaded: bool,
@@ -47,7 +47,7 @@ impl Shardchain {
             message_queue,
             block_finality,
             block_gas_limit,
-            accounts_provider
+            accounts_provider,
         })
     }
 

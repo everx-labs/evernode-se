@@ -1,7 +1,7 @@
 use crate::data::{shard_storage_key, KVStorage, NodeStorage};
 use crate::error::{NodeError, NodeResult};
-use std::collections::HashMap;
 use ever_block::ShardIdent;
+use std::collections::HashMap;
 
 pub struct MemStorage {
     zerostate: Vec<u8>,

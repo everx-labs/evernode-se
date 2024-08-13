@@ -20,13 +20,13 @@ use crate::block::{FinalityBlock, ShardBlock, ShardBlockHash};
 use crate::data::{shard_storage_key, DocumentsDb, ShardStateInfo, ShardStorage};
 use crate::error::NodeError;
 use crate::NodeResult;
-use std::io::{Cursor, ErrorKind, Read, Seek, Write};
-use std::{collections::HashMap, sync::Arc};
 use ever_block::{
-    Account, BlkPrevInfo, Block, Deserializable, ExtBlkRef, Serializable, ShardIdent,
-    ShardStateUnsplit, ByteOrderRead, HashmapType, UInt256
+    Account, BlkPrevInfo, Block, ByteOrderRead, Deserializable, ExtBlkRef, HashmapType,
+    Serializable, ShardIdent, ShardStateUnsplit, UInt256,
 };
 use ever_block_json::{BlockParser, BlockParserConfig, EntryConfig, NoReduce, NoTrace};
+use std::io::{Cursor, ErrorKind, Read, Seek, Write};
+use std::{collections::HashMap, sync::Arc};
 
 use super::builder::EngineTraceInfoData;
 

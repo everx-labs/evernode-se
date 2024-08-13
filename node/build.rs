@@ -19,7 +19,7 @@ use std::process::Command;
 fn get_value(cmd: &str, args: &[&str]) -> String {
     if let Ok(result) = Command::new(cmd).args(args).output() {
         if let Ok(result) = String::from_utf8(result.stdout) {
-            return result
+            return result;
         }
     }
     "Unknown".to_string()
