@@ -84,11 +84,9 @@ impl TonNodeEngine {
             if let Err(err) = self.execute_queued_messages() {
                 log::error!(target: "node", "failed block generation: {}", err);
             }
-            if self.message_queues_are_empty() {
-                if self.message_queue.wait_new_message().is_err() {
-                    log::info!("Message queue has stoped message receiving. Exit");
-                    return;
-                }
+            if self.message_queues_are_empty() && self.message_queue.wait_new_message().is_err() {
+                log::info!("Message queue has stoped message receiving. Exit");
+                return;
             }
         }
     }

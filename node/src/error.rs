@@ -70,12 +70,12 @@ pub type NodeResult<T> = Result<T, NodeError>;
 
 impl From<anyhow::Error> for NodeError {
     fn from(error: anyhow::Error) -> Self {
-        NodeError::FailureError(error).into()
+        NodeError::FailureError(error)
     }
 }
 
 impl From<io::Error> for NodeError {
     fn from(error: io::Error) -> Self {
-        NodeError::Io(error).into()
+        NodeError::Io(error)
     }
 }

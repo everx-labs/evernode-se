@@ -467,7 +467,7 @@ impl BlockBuilder {
             let CommonMessage::Std(msg) = common_message else {
                 fail!(NodeError::InvalidData("Supported only std messages".to_string()))
             };
-            if let Some(_) = msg.int_header() {
+            if msg.int_header().is_some() {
                 self.new_messages.push((msg, tr_cell.clone()));
             } else {
                 let msg_cell = msg.serialize()?;

@@ -121,7 +121,7 @@ impl Client {
     ) -> Result<ResultOfEncodeMessage> {
         let signer = if let Some(keys) = keys {
             Signer::Keys {
-                keys: KeyPair::new(hex::encode(&keys.public), hex::encode(&keys.secret)),
+                keys: KeyPair::new(hex::encode(keys.public), hex::encode(&keys.secret)),
             }
         } else {
             Signer::None
@@ -189,7 +189,7 @@ impl Client {
                 send_events: true,
                 ..Default::default()
             },
-            callback.clone(),
+            callback,
         )
         .await?)
     }
@@ -208,7 +208,7 @@ impl Client {
         .map_err(|e| format_err!("failed to query account: {}", e))?
         .result;
 
-        if accounts.len() == 0 {
+        if accounts.is_empty() {
             return Err(format_err!("account not found"));
         }
         let boc = accounts[0]["boc"].as_str();
@@ -369,7 +369,7 @@ impl Multisig {
                     "value": value,
                     "bounce": bounce,
                     "flags": flags,
-                    "payload": payload.unwrap_or_else(|| String::new()),
+                    "payload": payload.unwrap_or_default(),
                 }),
                 Some(self.keypair()),
             )
@@ -421,7 +421,7 @@ impl TestUtils {
         client
             .wait_for_out_messages(
                 &giver
-                    .send_grams(&client, &address, value)
+                    .send_grams(client, &address, value)
                     .await?
                     .out_messages,
             )
@@ -442,7 +442,7 @@ async fn deploy_msg_ordering_receiver(client: &Client, keypair: &Keypair) -> Res
         receiver_tvc,
         0,
         CallSet::some_with_function("constructor"),
-        &keypair,
+        keypair,
         10_000_000_000_000,
     )
     .await?;
@@ -467,7 +467,7 @@ async fn deploy_msg_ordering_sender(
                 "receiver": receiver_addr,
             }),
         ),
-        &keypair,
+        keypair,
         10_000_000_000_000,
     )
     .await?;
@@ -490,7 +490,7 @@ async fn execute_msg_ordering_sender(
             json!({
             "max": max,
             }),
-            Some(&keypair),
+            Some(keypair),
         )
         .await?;
 
@@ -520,9 +520,9 @@ async fn get_receiver_last_accepted(client: &Client, addr: &Addr, abi: Abi) -> R
 async fn test_internal_message_order_internal(client: &Client) -> Result<()> {
     let keypair = Client::generate_keypair();
 
-    let (receiver_addr, receiver_abi) = deploy_msg_ordering_receiver(&client, &keypair).await?;
+    let (receiver_addr, receiver_abi) = deploy_msg_ordering_receiver(client, &keypair).await?;
     let (sender_addr, sender_abi) =
-        deploy_msg_ordering_sender(&client, &keypair, receiver_addr.clone()).await?;
+        deploy_msg_ordering_sender(client, &keypair, receiver_addr.clone()).await?;
 
     const MAX: u32 = 100;
     lazy_static! {
@@ -532,13 +532,13 @@ async fn test_internal_message_order_internal(client: &Client) -> Result<()> {
         let _guard = MUTEX.lock().await;
 
         let out_messages =
-            execute_msg_ordering_sender(&client, &sender_addr, sender_abi, &keypair, MAX).await?;
+            execute_msg_ordering_sender(client, &sender_addr, sender_abi, &keypair, MAX).await?;
 
         assert_eq!(out_messages.len(), MAX as usize + 1);
 
         client.wait_for_out_messages(&out_messages).await?;
 
-        get_receiver_last_accepted(&client, &receiver_addr, receiver_abi).await?
+        get_receiver_last_accepted(client, &receiver_addr, receiver_abi).await?
     };
 
     assert_eq!(last_accepted, MAX);
@@ -588,18 +588,18 @@ async fn call_gas_to_ton(
     workchain_id: i32,
 ) -> u64 {
     let method = "gasToTon";
-    get_price(&extract_contract_output(
+    get_price(extract_contract_output(
         method,
         &client
             .call_contract(
-                &addr,
+                addr,
                 abi,
                 method,
                 json!({
                     "gas": 1_000_000,
                     "wid": workchain_id,
                 }),
-                Some(&keypair),
+                Some(keypair),
             )
             .await,
     ))
@@ -613,18 +613,18 @@ async fn call_ton_to_gas(
     workchain_id: i32,
 ) -> u64 {
     let method = "tonToGas";
-    get_price(&extract_contract_output(
+    get_price(extract_contract_output(
         method,
         &client
             .call_contract(
-                &addr,
+                addr,
                 abi,
                 method,
                 json!({
                     "_ton": 1_000_000,
                     "wid": workchain_id,
                 }),
-                Some(&keypair),
+                Some(keypair),
             )
             .await,
     ))
@@ -636,13 +636,13 @@ fn extract_contract_output<'result>(
 ) -> &'result Value {
     result
         .as_ref()
-        .expect(&format!("Error calling {} method", method))
+        .unwrap_or_else(|_| panic!("Error calling {} method", method))
         .decoded
         .as_ref()
-        .expect(&format!("Expected {} output", method))
+        .unwrap_or_else(|| panic!("Expected {} output", method))
         .output
         .as_ref()
-        .expect(&format!("Expected {} result", method))
+        .unwrap_or_else(|| panic!("Expected {} result", method))
 }
 
 fn get_price(value: &Value) -> u64 {
@@ -670,7 +670,7 @@ async fn test_ext_in_created_at() -> Result<()> {
     .map_err(|e| format_err!("failed to query messages: {}", e))?
     .result;
 
-    assert!(messages.len() > 0);
+    assert!(!messages.is_empty());
     for msg in messages {
         assert!(
             msg["created_at"]
@@ -915,7 +915,7 @@ async fn se(command: &str) -> String {
         .send()
         .await
         .unwrap();
-    let status = response.status().clone();
+    let status = response.status();
     let result = response.text().await.unwrap();
     if !status.is_success() {
         panic!("Server responded with error: {}", result);
@@ -934,7 +934,7 @@ async fn return_time(client: &Client, addr: &str, keys: &Keypair, abi: &Abi) -> 
                 input: Some(json!({})),
                 ..Default::default()
             }),
-            Some(&keys),
+            Some(keys),
         )
         .await
         .unwrap()
@@ -952,7 +952,7 @@ async fn return_time(client: &Client, addr: &str, keys: &Keypair, abi: &Abi) -> 
 
 fn get_output_u64(result: &ResultOfProcessMessage, name: &str) -> u64 {
     get_u64(
-        &result.decoded.as_ref().unwrap().output.as_ref().unwrap(),
+        result.decoded.as_ref().unwrap().output.as_ref().unwrap(),
         name,
     )
 }
@@ -1208,7 +1208,7 @@ async fn advanced_test_msg_order() {
         0,
         CallSet::some_with_function_and_input("constructor", json!({"beta_addr": beta_addr})),
         &keys,
-        1000_000_000_000,
+        1_000_000_000_000,
     )
     .await
     .unwrap();

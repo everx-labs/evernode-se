@@ -44,6 +44,12 @@ impl Data {
     }
 }
 
+impl Default for MemDocumentsDb {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemDocumentsDb {
     pub fn new() -> Self {
         Self {

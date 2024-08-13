@@ -68,8 +68,7 @@ impl ForkProvider {
 
         let boc = response
             .pointer("/data/blockchain/key_blocks/edges/0/node/boc")
-            .map(|val| val.as_str())
-            .flatten()
+            .and_then(|val| val.as_str())
             .ok_or_else(|| NodeError::ForkEndpointFetchError("No key block found".to_owned()))?;
         
         let block = ever_block::Block::construct_from_base64(boc)
@@ -105,8 +104,7 @@ impl ExternalAccountsProvider for ForkProvider {
 
         let boc = response
             .pointer("/data/blockchain/account/info/boc")
-            .map(|val| val.as_str())
-            .flatten();
+            .and_then(|val| val.as_str());
 
         match boc {
             Some(boc) => {

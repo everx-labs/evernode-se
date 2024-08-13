@@ -143,10 +143,10 @@ pub mod shard_storage_key {
     use ever_block::UInt256;
 
     // ROOT
-    pub const BLOCKS_FINALITY_INFO_KEY: &'static str = "blocks_finality.info";
-    pub const SHARD_INFO_KEY: &'static str = "shard.info";
-    pub const SHARD_STATE_BLOCK_KEY: &'static str = "shard_state.block";
-    pub const ZEROSTATE_KEY: &'static str = "zerostate";
+    pub const BLOCKS_FINALITY_INFO_KEY: &str = "blocks_finality.info";
+    pub const SHARD_INFO_KEY: &str = "shard.info";
+    pub const SHARD_STATE_BLOCK_KEY: &str = "shard_state.block";
+    pub const ZEROSTATE_KEY: &str = "zerostate";
 
     // BLOCKS
     pub(crate) fn block_key(seq_no: u32, vert_seq_no: u32) -> String {

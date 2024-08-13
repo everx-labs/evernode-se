@@ -132,8 +132,7 @@ impl Masterchain {
     fn get_last_finalized_mc_extra(&self) -> Option<McBlockExtra> {
         self.shardchain
             .get_last_finalized_block()
-            .map_or(None, |block| block.read_extra().ok())
-            .map_or(None, |extra| extra.read_custom().ok())
+            .map_or(None, |block| block.read_extra().ok()).and_then(|extra| extra.read_custom().ok())
             .flatten()
     }
 

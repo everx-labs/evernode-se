@@ -26,9 +26,9 @@ pub struct ShardIdConfig {
 impl ShardIdConfig {
     pub fn shard_ident(&self) -> ever_block::ShardIdent {
         ever_block::ShardIdent::with_prefix_len(
-            self.shardchain_pfx_len as u8,
+            self.shardchain_pfx_len,
             self.workchain,
-            self.shardchain_pfx as u64,
+            self.shardchain_pfx,
         )
         .unwrap()
     }

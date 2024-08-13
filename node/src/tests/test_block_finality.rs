@@ -109,7 +109,7 @@ fn test_block_finality() {
             .put_block_with_info(1, blocks[n].clone(), Arc::new(ss), Default::default())
             .unwrap();
 
-        let expected_count = (if n >= 5 && n <= 8 {
+        let expected_count = (if (5..=8).contains(&n) {
             4
         } else if n > 8 {
             n - 7

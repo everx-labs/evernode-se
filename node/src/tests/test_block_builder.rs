@@ -73,7 +73,7 @@ fn build_transaction(acc: AccountId) -> (InMsg, OutMsg, OutMsg) {
     let mut outmsg2 = Message::with_ext_out_header(eomh);
     outmsg2.set_body(SliceData::new(vec![0x02;120]));
 
-    let tr_cell: Cell = transaction.serialize().unwrap().into();
+    let tr_cell: Cell = transaction.serialize().unwrap();
 
     let out_msg1 = OutMsg::New(OutMsgNew::with_cells(
         ChildCell::with_cell(MsgEnvelope::with_message_and_fee(&outmsg1, 9u64.into()).unwrap().serialize().unwrap()),

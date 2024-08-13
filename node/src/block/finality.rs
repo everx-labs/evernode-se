@@ -147,11 +147,9 @@ impl BlockFinality {
                 self.last_finalized_block.block.read_info()?.seq_no(),
                 self.last_finalized_block.serialized_block.len()
             );
-        } else {
-            if root_hash != UInt256::ZERO && root_hash != self.last_finalized_block.root_hash {
-                log::warn!(target: "node", "Can`t finality unknown hash!!!");
-                return Err(NodeError::FinalityError);
-            }
+        } else if root_hash != UInt256::ZERO && root_hash != self.last_finalized_block.root_hash {
+            log::warn!(target: "node", "Can`t finality unknown hash!!!");
+            return Err(NodeError::FinalityError);
         }
         Ok(())
     }
@@ -292,10 +290,10 @@ impl BlockFinality {
             match self.read_one_sb_hash(rdr) {
                 Ok((seq_no, hash)) => {
                     let sb_hash = Box::new(FinalityBlock::Stored(Box::new(
-                        ShardBlockHash::with_hash(seq_no.clone(), hash.clone()),
+                        ShardBlockHash::with_hash(seq_no, hash.clone()),
                     )));
                     self.blocks_by_hash.insert(hash.clone(), sb_hash.clone());
-                    self.blocks_by_no.insert(seq_no.clone(), sb_hash.clone());
+                    self.blocks_by_no.insert(seq_no, sb_hash.clone());
                 }
                 Err(NodeError::Io(err)) if err.kind() == ErrorKind::UnexpectedEof => {
                     break;

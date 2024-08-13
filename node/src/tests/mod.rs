@@ -257,7 +257,7 @@ pub fn builder_add_test_transaction(
         let msg_hash = out_msg.read_message_hash()?;
         builder
             .out_msg_descr
-            .set(&msg_hash, &out_msg, &out_msg.aug()?)?;
+            .set(&msg_hash, out_msg, &out_msg.aug()?)?;
     }
     Ok(())
 }
@@ -387,7 +387,7 @@ impl DocsReader {
                 if !s.is_empty() {
                     s.push_str(", ");
                 }
-                s.push_str(&value.map_or_else(|| String::new(), |x| x.to_string()))
+                s.push_str(&value.map_or_else(String::new, |x| x.to_string()))
             }
             println!("{}", s);
         }

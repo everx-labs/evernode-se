@@ -129,9 +129,7 @@ impl MessageReceiverApi {
             Ok(cell) => cell,
         };
         if message_cell.repr_hash() != id {
-            return Err(format!(
-                "Error: calculated message's hash doesn't correspond given key"
-            ));
+            return Err("Error: calculated message's hash doesn't correspond given key".to_string());
         }
 
         match Message::construct_from_cell(message_cell) {

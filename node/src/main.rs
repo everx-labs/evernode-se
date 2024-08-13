@@ -44,8 +44,8 @@ fn main() {
 }
 
 fn read_str(path: &str) -> NodeResult<String> {
-    Ok(fs::read_to_string(Path::new(path))
-        .map_err(|err| NodeError::PathError(format!("Failed to read {}: {}", path, err)))?)
+    fs::read_to_string(Path::new(path))
+        .map_err(|err| NodeError::PathError(format!("Failed to read {}: {}", path, err)))
 }
 
 fn config_from_args(args: ArgMatches) -> NodeResult<TonNodeServiceConfig> {
@@ -119,10 +119,8 @@ fn run() -> NodeResult<()> {
     // );
     let config = config_from_args(app.get_matches())?;
 
-    log4rs::init_file(config.node.log_path.clone(), Default::default()).expect(&format!(
-        "Error initialize logging configuration. config: {}",
-        config.node.log_path
-    ));
+    log4rs::init_file(config.node.log_path.clone(), Default::default()).unwrap_or_else(|_| panic!("Error initialize logging configuration. config: {}",
+        config.node.log_path));
 
     log::info!(target: "node", "Evernode Simple Emulator {}\nCOMMIT_ID: {}\nBUILD_DATE: {}\nCOMMIT_DATE: {}\nGIT_BRANCH: {}",
         env!("CARGO_PKG_VERSION"),
@@ -132,8 +130,8 @@ fn run() -> NodeResult<()> {
         env!("BUILD_GIT_BRANCH"));
 
     let service = TonNodeService::new(config)?;
-    let err = service.run();
-    log::error!(target: "node", "{:?}", err);
+    service.run();
+    log::error!(target: "node", "{:?}", ());
 
     Ok(())
 }
@@ -149,7 +147,7 @@ fn parse_config(json: &str) -> NodeConfig {
 }
 
 fn blockchain_config_from_json(json: &str) -> ever_block::Result<BlockchainConfig> {
-    let map = serde_json::from_str::<serde_json::Map<String, Value>>(&json)?;
+    let map = serde_json::from_str::<serde_json::Map<String, Value>>(json)?;
     let config_params = ever_block_json::parse_config(&map)?;
     BlockchainConfig::with_config(config_params)
 }
