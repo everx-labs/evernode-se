@@ -17,26 +17,27 @@
 use crate::data::ExternalAccountsProvider;
 use crate::engine::messages::InMessagesQueue;
 use crate::engine::BlockTimeMode;
-use std::collections::HashMap;
-use std::ops::Deref;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use serde_derive::Serialize;
 use ever_block::{
-    Account, AddSub, Augmentation, BlkPrevInfo, Block, BlockExtra, BlockInfo, ComputeSkipReason,
-    CopyleftRewards, CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType,
-    InMsg, InMsgDescr, MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr, OutMsgQueue,
-    OutMsgQueueInfo, OutMsgQueueKey, Serializable, ShardAccount, ShardAccountBlocks, ShardAccounts,
-    ShardIdent, ShardStateUnsplit, TrComputePhase, TrComputePhaseVm, Transaction, TransactionDescr,
-    TransactionDescrOrdinary, UnixTime32, ValueFlow,error, AccountId, Cell, HashmapRemover, HashmapType,
-    Result, SliceData, UInt256
+    error, fail, Account, AccountId, AddSub, Augmentation, BlkPrevInfo, Block, BlockExtra,
+    BlockInfo, Cell, ChildCell, CommonMessage, ComputeSkipReason, CopyleftRewards,
+    CurrencyCollection, Deserializable, EnqueuedMsg, HashUpdate, HashmapAugType, HashmapRemover,
+    HashmapType, InMsg, InMsgDescr, MerkleUpdate, Message, MsgEnvelope, OutMsg, OutMsgDescr,
+    OutMsgQueue, OutMsgQueueInfo, OutMsgQueueKey, Result, Serializable, ShardAccount,
+    ShardAccountBlocks, ShardAccounts, ShardIdent, ShardStateUnsplit, SliceData, TrComputePhase,
+    TrComputePhaseVm, Transaction, TransactionDescr, TransactionDescrOrdinary, UInt256, UnixTime32,
+    ValueFlow, SERDE_OPTS_EMPTY,
 };
 use ever_executor::{
     BlockchainConfig, ExecuteParams, ExecutorError, OrdinaryTransactionExecutor,
     TransactionExecutor,
 };
+use serde_derive::Serialize;
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
-use crate::error::NodeResult;
+use crate::error::{NodeError, NodeResult};
 
 pub struct PreparedBlock {
     pub block: Block,
@@ -44,7 +45,6 @@ pub struct PreparedBlock {
     pub is_empty: bool,
     pub transaction_traces: HashMap<UInt256, Vec<EngineTraceInfoData>>,
 }
-
 
 #[derive(Clone, Default, Debug, Serialize)]
 pub struct EngineTraceInfoData {
@@ -176,14 +176,15 @@ impl BlockBuilder {
 
         let trace = Arc::new(lockfree::queue::Queue::new());
         let trace_copy = trace.clone();
-        let callback = move |engine: &ever_vm::executor::Engine, info: &ever_vm::executor::EngineTraceInfo| {
+        let callback = move |engine: &ever_vm::executor::Engine,
+                             info: &ever_vm::executor::EngineTraceInfo| {
             trace_copy.push(EngineTraceInfoData::from(info));
             ever_vm::executor::Engine::simple_trace_callback(engine, info);
         };
 
         let start = std::time::Instant::now();
         let result = executor.execute_with_libs_and_params(
-            Some(msg),
+            Some(&CommonMessage::Std(msg.clone())),
             acc_root,
             ExecuteParams {
                 block_unixtime,
@@ -203,9 +204,7 @@ impl BlockBuilder {
                     self.total_gas_used += gas_used;
                 }
                 let trace = if transaction.read_description()?.is_aborted() {
-                    Some(trace
-                        .pop_iter()
-                        .collect::<Vec<EngineTraceInfoData>>())
+                    Some(trace.pop_iter().collect::<Vec<EngineTraceInfoData>>())
                         .filter(|trace| !trace.is_empty())
                 } else {
                     None
@@ -272,15 +271,19 @@ impl BlockBuilder {
         self.total_message_processed += 1;
         let shard_acc = match self.accounts.account(acc_id)? {
             Some(acc) => acc,
-            None => self.accounts_provider
+            None => self
+                .accounts_provider
                 .as_ref()
-                .map(|provider| provider.get_account(
-                ever_block::MsgAddressInt::with_standart(
-                    None, self.shard_ident().workchain_id() as i8, acc_id.clone()
-                )?))
+                .map(|provider| {
+                    provider.get_account(ever_block::MsgAddressInt::with_standart(
+                        None,
+                        self.shard_ident().workchain_id() as i8,
+                        acc_id.clone(),
+                    )?)
+                })
                 .transpose()?
                 .flatten()
-                .unwrap_or_default()
+                .unwrap_or_default(),
         };
         let mut acc_root = shard_acc.account_cell();
         let executor = OrdinaryTransactionExecutor::new((*blockchain_config).clone());
@@ -353,7 +356,7 @@ impl BlockBuilder {
             let (key, mut slice) = out?;
             let key = key.into_cell()?;
             // key is not matter for one shard
-            sorted.push((key, OutMsgQueue::value_aug(&mut slice)?));
+            sorted.push((key, OutMsgQueue::value_aug(SERDE_OPTS_EMPTY, &mut slice)?));
         }
         sorted.sort_by(|a, b| a.1 .1.cmp(&b.1 .1));
         for (key, (enq, _create_lt)) in sorted {
@@ -413,7 +416,7 @@ impl BlockBuilder {
                     self.out_queue_info
                         .out_queue_mut()
                         .set(&key, &enq, &enq.aug()?)?;
-                    let out_msg = OutMsg::new(enq.out_msg_cell(), tr_cell);
+                    let out_msg = OutMsg::new(enq.out_msg, ChildCell::with_cell(tr_cell));
                     self.out_msg_descr
                         .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
                 } else {
@@ -463,20 +466,35 @@ impl BlockBuilder {
             let in_msg = if let Some(hdr) = msg.int_header() {
                 let fee = hdr.fwd_fee();
                 let env = MsgEnvelope::with_message_and_fee(&msg, *fee)?;
-                InMsg::immediate(env.serialize()?, tr_cell.clone(), *fee)
+                InMsg::immediate(
+                    ChildCell::with_cell(env.serialize()?),
+                    ChildCell::with_cell(tr_cell.clone()),
+                    *fee,
+                )
             } else {
-                InMsg::external(msg_cell.clone(), tr_cell.clone())
+                InMsg::external(
+                    ChildCell::with_cell(msg_cell.clone()),
+                    ChildCell::with_cell(tr_cell.clone()),
+                )
             };
             self.in_msg_descr
                 .set(&msg_cell.repr_hash(), &in_msg, &in_msg.aug()?)?;
         }
 
-        transaction.iterate_out_msgs(|msg| {
-            if let Some(_) = msg.int_header() {
+        transaction.iterate_out_msgs(|common_message: CommonMessage| {
+            let CommonMessage::Std(msg) = common_message else {
+                fail!(NodeError::InvalidData(
+                    "Supported only std messages".to_string()
+                ))
+            };
+            if msg.int_header().is_some() {
                 self.new_messages.push((msg, tr_cell.clone()));
             } else {
                 let msg_cell = msg.serialize()?;
-                let out_msg = OutMsg::external(msg_cell.clone(), tr_cell.clone());
+                let out_msg = OutMsg::external(
+                    ChildCell::with_cell(msg_cell.clone()),
+                    ChildCell::with_cell(tr_cell.clone()),
+                );
                 self.out_msg_descr
                     .set(&msg_cell.repr_hash(), &out_msg, &out_msg.aug()?)?;
             }

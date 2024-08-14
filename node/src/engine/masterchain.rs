@@ -1,16 +1,16 @@
-use crate::data::{DocumentsDb, NodeStorage, ExternalAccountsProvider};
+use crate::data::{DocumentsDb, ExternalAccountsProvider, NodeStorage};
 use crate::engine::shardchain::Shardchain;
 use crate::engine::{BlockTimeMode, InMessagesQueue};
 use crate::error::NodeResult;
+use ever_block::{
+    write_boc, BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr,
+    ShardIdent, SliceData, UInt256,
+};
+use ever_executor::BlockchainConfig;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use ever_block::{
-    BinTree, BinTreeType, Block, InRefValue, McBlockExtra, Serializable, ShardDescr, ShardIdent,
-    write_boc, SliceData, UInt256
-};
-use ever_executor::BlockchainConfig;
 
 pub struct Masterchain {
     blockchain_config: Arc<BlockchainConfig>,
@@ -133,7 +133,7 @@ impl Masterchain {
         self.shardchain
             .get_last_finalized_block()
             .map_or(None, |block| block.read_extra().ok())
-            .map_or(None, |extra| extra.read_custom().ok())
+            .and_then(|extra| extra.read_custom().ok())
             .flatten()
     }
 

@@ -1,13 +1,13 @@
 use crate::tests::parse_address;
-use serde_json::{json, Value};
-use std::io::Cursor;
-use std::sync::Arc;
 use ever_abi::token::Tokenizer;
 use ever_abi::Contract;
 use ever_block::{
-    ExternalInboundMessageHeader, Message, MsgAddressExt, MsgAddressInt, 
-    SliceData, Ed25519PrivateKey, ed25519_create_private_key
+    ed25519_create_private_key, Ed25519PrivateKey, ExternalInboundMessageHeader, Message,
+    MsgAddressExt, MsgAddressInt, SliceData,
 };
+use serde_json::{json, Value};
+use std::io::Cursor;
+use std::sync::Arc;
 
 pub struct AbiAccount {
     pub(crate) address: MsgAddressInt,
@@ -40,7 +40,7 @@ impl AbiAccount {
                     &json!({
                         "time": (time as u64) * 1000,
                         "expire": time + 1,
-                    })
+                    }),
                 )
                 .unwrap(),
                 &Tokenizer::tokenize_all_params(func.input_params(), &params).unwrap(),

@@ -16,12 +16,11 @@
 
 use crate::data::{KVStorage, NodeStorage};
 use crate::error::{NodeError, NodeResult};
-use std;
+use ever_block::ShardIdent;
 use std::clone::Clone;
 use std::fs::{create_dir_all, File};
 use std::io::prelude::*;
 use std::path::PathBuf;
-use ever_block::ShardIdent;
 
 ///
 /// Shard Storage based on file system

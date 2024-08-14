@@ -62,6 +62,6 @@ impl BlockTime {
     }
 
     pub fn set_last(&mut self, time: u32) {
-        self.last_time = time.checked_sub(self.delta).unwrap_or(0);
+        self.last_time = time.saturating_sub(self.delta);
     }
 }

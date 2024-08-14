@@ -23,10 +23,10 @@ use crate::engine::shardchain::Shardchain;
 use crate::engine::time::BlockTime;
 use crate::engine::BlockTimeMode;
 use crate::error::{NodeError, NodeResult};
-use parking_lot::RwLock;
-use std::sync::Arc;
 use ever_block::{Message, ShardIdent};
 use ever_executor::BlockchainConfig;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 /// It is top level struct provided node functionality related to transactions processing.
 /// Initialises instances of: all messages receivers, InMessagesQueue, MessagesProcessor.
@@ -84,11 +84,9 @@ impl TonNodeEngine {
             if let Err(err) = self.execute_queued_messages() {
                 log::error!(target: "node", "failed block generation: {}", err);
             }
-            if self.message_queues_are_empty() {
-                if self.message_queue.wait_new_message().is_err() {
-                    log::info!("Message queue has stoped message receiving. Exit");
-                    return;
-                }
+            if self.message_queues_are_empty() && self.message_queue.wait_new_message().is_err() {
+                log::info!("Message queue has stoped message receiving. Exit");
+                return;
             }
         }
     }

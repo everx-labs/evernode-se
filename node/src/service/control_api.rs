@@ -22,7 +22,7 @@ use iron::{
     status,
 };
 use router::Router;
-use std::{sync::Arc, borrow::Cow, str::FromStr};
+use std::{borrow::Cow, str::FromStr, sync::Arc};
 
 pub struct ControlApi;
 
@@ -35,7 +35,10 @@ impl ControlApi {
         );
     }
 
-    fn process_request(req: &mut Request, node: Arc<TonNodeEngineManager>) -> Result<Response, IronError> {
+    fn process_request(
+        req: &mut Request,
+        node: Arc<TonNodeEngineManager>,
+    ) -> Result<Response, IronError> {
         log::info!(target: "node", "Control API request: {}", req.url.path().last().unwrap_or(&""));
         let command = ControlCommand::from_req(req)?;
         let response = match command {
@@ -110,10 +113,10 @@ impl ControlCommand {
                 "fork" => Ok(Self::Fork(
                     required_parameter(&url, "endpoint")?,
                     optional_parameter(&url, "auth")?,
-                    optional_parameter(&url, "resetData")?.unwrap_or_default()
+                    optional_parameter(&url, "resetData")?.unwrap_or_default(),
                 )),
                 "unfork" => Ok(Self::Unfork(
-                    optional_parameter(&url, "resetData")?.unwrap_or_default()
+                    optional_parameter(&url, "resetData")?.unwrap_or_default(),
                 )),
                 _ => Err(bad_request(format!(
                     "Unknown live control command \"{}\".",
@@ -138,7 +141,9 @@ fn required_time_mode(url: &iron::url::Url) -> IronResult<BlockTimeMode> {
 }
 
 fn find_parameter<'a>(url: &'a iron::url::Url, name: &str) -> Option<Cow<'a, str>> {
-    url.query_pairs().find(|(x, _)| x == name).map(|(_, value)| value)
+    url.query_pairs()
+        .find(|(x, _)| x == name)
+        .map(|(_, value)| value)
 }
 
 fn required_parameter<R: FromStr + Default>(url: &iron::url::Url, name: &str) -> IronResult<R> {
@@ -148,7 +153,11 @@ fn required_parameter<R: FromStr + Default>(url: &iron::url::Url, name: &str) ->
 
 fn optional_parameter<R: FromStr>(url: &iron::url::Url, name: &str) -> IronResult<Option<R>> {
     find_parameter(url, name)
-        .map(|value| value.parse().map_err(|_| bad_request(format!("Invalid {} value {}", name, value))))
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| bad_request(format!("Invalid {} value {}", name, value)))
+        })
         .transpose()
 }
 

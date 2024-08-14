@@ -15,6 +15,7 @@
 */
 
 use super::TonNodeEngineManager;
+use ever_block::{Deserializable, Message, UInt256};
 use iron::{
     prelude::{IronError, Request, Response},
     status,
@@ -22,13 +23,7 @@ use iron::{
 use router::Router;
 use serde_json::Value;
 use std::str::FromStr;
-use std::{
-    io::Read,
-    sync::Arc,
-    thread,
-    time::Duration,
-};
-use ever_block::{Deserializable, Message, UInt256};
+use std::{io::Read, sync::Arc, thread, time::Duration};
 
 pub struct MessageReceiverApi;
 
@@ -42,7 +37,10 @@ impl MessageReceiverApi {
         );
     }
 
-    fn process_request(req: &mut Request, node: Arc<TonNodeEngineManager>) -> Result<Response, IronError> {
+    fn process_request(
+        req: &mut Request,
+        node: Arc<TonNodeEngineManager>,
+    ) -> Result<Response, IronError> {
         log::info!(target: "node", "Rest service: request got!");
 
         let mut body = String::new();
@@ -81,10 +79,12 @@ impl MessageReceiverApi {
                                 log::warn!(target: "node", "Error queue message");
                                 message = match msg {
                                     Some(msg) => msg,
-                                    None => return Ok(Response::with((
-                                        status::InternalServerError,
-                                        "Node does not accept messages".to_owned(),
-                                    )))
+                                    None => {
+                                        return Ok(Response::with((
+                                            status::InternalServerError,
+                                            "Node does not accept messages".to_owned(),
+                                        )))
+                                    }
                                 };
                                 thread::sleep(Duration::from_micros(100));
                             }
@@ -119,9 +119,7 @@ impl MessageReceiverApi {
             }
         };
 
-        let message_cell = match ever_block::boc::read_single_root_boc(
-            &message_bytes,
-        ) {
+        let message_cell = match ever_block::boc::read_single_root_boc(&message_bytes) {
             Err(err) => {
                 log::error!(target: "node", "Error deserializing message: {}", err);
                 return Err(format!("Error deserializing message: {}", err));
@@ -129,9 +127,9 @@ impl MessageReceiverApi {
             Ok(cell) => cell,
         };
         if message_cell.repr_hash() != id {
-            return Err(format!(
-                "Error: calculated message's hash doesn't correspond given key"
-            ));
+            return Err(
+                "Error: calculated message's hash doesn't correspond given key".to_string(),
+            );
         }
 
         match Message::construct_from_cell(message_cell) {

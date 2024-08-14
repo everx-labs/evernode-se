@@ -1,7 +1,10 @@
 use ever_block::Deserializable;
 use ever_executor::BlockchainConfig;
 
-use crate::{error::{NodeError, NodeResult}, config::ForkConfig};
+use crate::{
+    config::ForkConfig,
+    error::{NodeError, NodeResult},
+};
 
 use super::ExternalAccountsProvider;
 
@@ -35,10 +38,13 @@ impl ForkProvider {
             .client
             .request(reqwest::Method::POST, &self.url)
             .header("content-type", "application/json")
-            .body(serde_json::json!({
-                "query": query,
-                "variables": variables
-            }).to_string());
+            .body(
+                serde_json::json!({
+                    "query": query,
+                    "variables": variables
+                })
+                .to_string(),
+            );
 
         if let Some(secret) = &self.secret {
             request = request.header("Authorization", secret);
@@ -68,10 +74,9 @@ impl ForkProvider {
 
         let boc = response
             .pointer("/data/blockchain/key_blocks/edges/0/node/boc")
-            .map(|val| val.as_str())
-            .flatten()
+            .and_then(|val| val.as_str())
             .ok_or_else(|| NodeError::ForkEndpointFetchError("No key block found".to_owned()))?;
-        
+
         let block = ever_block::Block::construct_from_base64(boc)
             .map_err(|err| NodeError::ForkEndpointFetchError(err.to_string()))?;
 
@@ -79,10 +84,12 @@ impl ForkProvider {
             .read_extra()
             .and_then(|extra| extra.read_custom())
             .map_err(|err| NodeError::ForkEndpointFetchError(err.to_string()))?
-            .ok_or_else(|| NodeError::ForkEndpointFetchError("Key block is not master block".to_owned()))?;
-        let config = mc_extra
-            .config()
-            .ok_or_else(|| NodeError::ForkEndpointFetchError("Key block without config".to_owned()))?;
+            .ok_or_else(|| {
+                NodeError::ForkEndpointFetchError("Key block is not master block".to_owned())
+            })?;
+        let config = mc_extra.config().ok_or_else(|| {
+            NodeError::ForkEndpointFetchError("Key block without config".to_owned())
+        })?;
 
         Ok((
             BlockchainConfig::with_config(config.clone())
@@ -101,12 +108,12 @@ impl ExternalAccountsProvider for ForkProvider {
             "query account($address:String!){blockchain{account(address:$address){info{boc}}}}",
             serde_json::json!({
                 "address": address.to_string(),
-            }))?;
+            }),
+        )?;
 
         let boc = response
             .pointer("/data/blockchain/account/info/boc")
-            .map(|val| val.as_str())
-            .flatten();
+            .and_then(|val| val.as_str());
 
         match boc {
             Some(boc) => {
@@ -127,17 +134,20 @@ impl ExternalAccountsProvider for ForkProvider {
 
 #[test]
 fn test_account_provider() {
-    let provider = ForkProvider::new(
-        ForkConfig {
-            endpoint: "https://mainnet.evercloud.dev/1467de01155143d5ba129ab5ea4ede1f/graphql".to_owned(),
-            auth:  None,
-        }
-    );
+    let provider = ForkProvider::new(ForkConfig {
+        endpoint: "https://mainnet.evercloud.dev/1467de01155143d5ba129ab5ea4ede1f/graphql"
+            .to_owned(),
+        auth: None,
+    });
 
     dbg!(provider
         .get_account(
-            ever_block::MsgAddressInt::with_standart(None, -1, ever_block::UInt256::default().into())
-                .unwrap()
+            ever_block::MsgAddressInt::with_standart(
+                None,
+                -1,
+                ever_block::UInt256::default().into()
+            )
+            .unwrap()
         )
         .unwrap());
 }

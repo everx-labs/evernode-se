@@ -1,47 +1,67 @@
-use std::{thread, time, sync::Arc};
-use ever_block::*;
 use crate::engine::InMessagesQueue;
 use crate::tests::{shard_state_info_deserialize, shard_state_info_with_params};
+use ever_block::*;
+use std::{sync::Arc, thread, time};
 
 fn get_message(n: u8) -> Message {
-
-    let mut msg = Message::with_int_header(
-        InternalMessageHeader::with_addresses(
-            MsgAddressInt::with_standart(None, -1, AccountId::from_raw(vec![n,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], 256)).unwrap(),
-            MsgAddressInt::with_standart(None, -1, AccountId::from_raw(vec![0,n,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], 256)).unwrap(),
-            CurrencyCollection::default()
+    let mut msg = Message::with_int_header(InternalMessageHeader::with_addresses(
+        MsgAddressInt::with_standart(
+            None,
+            -1,
+            AccountId::from_raw(
+                vec![
+                    n, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                256,
+            ),
         )
-    );
+        .unwrap(),
+        MsgAddressInt::with_standart(
+            None,
+            -1,
+            AccountId::from_raw(
+                vec![
+                    0, n, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                256,
+            ),
+        )
+        .unwrap(),
+        CurrencyCollection::default(),
+    ));
     msg.set_at_and_lt(0, n as u64);
 
     let mut stinit = StateInit::default();
     stinit.set_special(TickTock::with_values(false, true));
-    let code = SliceData::new(vec![n, 0b11111111,0b11111111,0b11111111,0b11111111,0b11111111,0b11111111,0b11110100]);
+    let code = SliceData::new(vec![
+        n, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11110100,
+    ]);
     stinit.set_code(code.into_cell());
-    let data = SliceData::new(vec![0b00111111, n,0b11111111,0b11111111,0b11111111,0b11111111,0b11111111,0b11110100]);
+    let data = SliceData::new(vec![
+        0b00111111, n, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11110100,
+    ]);
     stinit.set_data(data.into_cell());
-    let library = SliceData::new(vec![0b00111111, 0b11111111,n,0b11111111,0b11111111,0b11111111,0b11111111,0b11110100]);
+    let library = SliceData::new(vec![
+        0b00111111, 0b11111111, n, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11110100,
+    ]);
     stinit.set_library(library.into_cell());
 
-    let body = SliceData::new(
-            vec![n,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,
-                 0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0xFE,0x80]);
+    let body = SliceData::new(vec![
+        n, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+        0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+        0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+        0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+        0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE,
+        0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0x80,
+    ]);
 
     msg.set_state_init(stinit);
     msg.set_body(body);
 
     msg
 }
-
 
 #[test]
 fn test_in_messages_queue_sigle_thread() {
@@ -111,7 +131,7 @@ fn test_in_messages_queue_multi_thread() {
 
 #[test]
 fn test_shard_chain_inf0_serialization() {
-    let ssi = shard_state_info_with_params(121, 234123, UInt256::from([56;32]));
+    let ssi = shard_state_info_with_params(121, 234123, UInt256::from([56; 32]));
 
     let data = ssi.serialize();
 

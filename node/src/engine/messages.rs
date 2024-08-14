@@ -14,9 +14,9 @@
 * under the License.
 */
 
+use ever_block::{Message, Serializable};
 use parking_lot::{Condvar, Mutex};
 use std::collections::VecDeque;
-use ever_block::{Message, Serializable};
 
 /// This FIFO accumulates inbound messages from all types of receivers.
 /// The struct might be used from many threads. It provides internal mutability.
@@ -44,7 +44,7 @@ impl InMessagesQueue {
         if self.stopped.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(None);
         }
-        
+
         let mut storage = self.storage.lock();
         if storage.len() >= self.capacity {
             return Err(Some(msg));
@@ -89,7 +89,7 @@ impl InMessagesQueue {
 
         let mut mutex_guard = self.storage.lock();
         self.present.wait(&mut mutex_guard);
-        
+
         if self.stopped.load(std::sync::atomic::Ordering::Relaxed) {
             Err(())
         } else {
@@ -107,11 +107,13 @@ impl InMessagesQueue {
     }
 
     pub fn stop(&self) {
-        self.stopped.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.stopped
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         self.present.notify_one();
     }
 
     pub fn start(&self) {
-        self.stopped.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.stopped
+            .store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }

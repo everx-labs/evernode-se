@@ -1,11 +1,11 @@
 use crate::error::NodeResult;
+use ever_block::{
+    Block, ByteOrderRead, Deserializable, Serializable, ShardIdent, ShardStateUnsplit, SliceData,
+    UInt256,
+};
 use std::collections::HashMap;
 use std::io::{Read, Seek};
 use std::sync::Arc;
-use ever_block::{
-    Block, Deserializable, Serializable, ShardIdent, ShardStateUnsplit,
-    ByteOrderRead, SliceData, UInt256
-};
 
 use super::builder::EngineTraceInfoData;
 
@@ -54,12 +54,12 @@ pub struct ShardBlock {
 #[cfg(test)]
 impl PartialEq for ShardBlock {
     fn eq(&self, other: &Self) -> bool {
-        self.seq_no == other.seq_no &&
-        self.serialized_block == other.serialized_block &&
-        self.root_hash == other.root_hash &&
-        self.file_hash == other.file_hash &&
-        self.block == other.block &&
-        self.shard_state == other.shard_state
+        self.seq_no == other.seq_no
+            && self.serialized_block == other.serialized_block
+            && self.root_hash == other.root_hash
+            && self.file_hash == other.file_hash
+            && self.block == other.block
+            && self.shard_state == other.shard_state
     }
 }
 
@@ -138,13 +138,17 @@ impl ShardBlock {
         sb.file_hash = UInt256::from(hash);
 
         let mut shard_slice = SliceData::load_cell(
-            ever_block::BocReader::new().read(rdr)?.withdraw_single_root()?
+            ever_block::BocReader::new()
+                .read(rdr)?
+                .withdraw_single_root()?,
         )?;
-        
+
         sb.shard_state.read_from(&mut shard_slice)?;
 
         sb.block = Block::construct_from_cell(
-            ever_block::BocReader::new().read(rdr)?.withdraw_single_root()?
+            ever_block::BocReader::new()
+                .read(rdr)?
+                .withdraw_single_root()?,
         )?;
         Ok(sb)
     }

@@ -3,11 +3,11 @@ use crate::engine::BlockTimeMode;
 use crate::tests::abi_account::GiverV3;
 use crate::tests::{blockchain_config, get_config_params, init_logger, mem_storage, DocsReader};
 use crate::MemDocumentsDb;
+use ever_block::ShardIdent;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
-use ever_block::ShardIdent;
 
 const CFG_TEST: &str = include_str!("cfg_test");
 
