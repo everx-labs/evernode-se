@@ -1,61 +1,86 @@
 ARG TON_NODE
 
-FROM node:18-buster as q-server-build
+FROM ${TON_NODE} as ton-node
+
+FROM ubuntu:24.04 as final
 
 ARG Q_SERVER_GITHUB_REPO
 ARG Q_SERVER_GITHUB_REV
 
-RUN apt-get update && apt-get install git
+ENV TZ="Europe/Moscow"
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Q-Server
-USER node
-WORKDIR /home/node
-RUN git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO ever-q-server
-WORKDIR /home/node/ever-q-server
-RUN npm ci; \
-    npm run tsc; \
-    npm ci --production
+RUN apt update; \
+    apt upgrade -y; \
+    apt install -y python3 \
+        apt-utils\
+        python3 \
+        python3-pip \
+        gpg \
+        dos2unix \
+        build-essential \
+        nginx \
+        git \
+        curl; \
+    gpg --receive-keys EA93F5E56E751E9B; \
+    gpg --export -o arango.gpg EA93F5E56E751E9B; \
+    mv arango.gpg /etc/apt/trusted.gpg.d/arango.gpg; \
+    echo 'deb [Signed-By=/etc/apt/trusted.gpg.d/arango.gpg] https://download.arangodb.com/arangodb37/DEBIAN/ /' | tee /etc/apt/sources.list.d/arangodb.list; \
+    apt update; \
+    echo arangodb3 arangodb3/password password '' | debconf-set-selections; \
+    echo arangodb3 arangodb3/password_again password '' | debconf-set-selections; \
+    apt install -y arangodb3=3.7.18-1; \
+    groupadd -r -g 103 nginx; \ 
+    useradd -r -p '' -G 103 -d /nonexistent -g "users" -s /bin/false -u 103 nginx; \
+    mkdir -p /run/nginx;
+    
+WORKDIR /root
 
-FROM ${TON_NODE} as ton-node
-
-FROM arangodb:3.7.11
-
+ENV HOME="/root"
+ENV NVM_DIR="$HOME/.nvm"
+ENV PATH="$NVM_DIR:/root/.local/bin:$PATH"
 ENV LANG=en_US.UTF-8
 ENV PYTHONIOENCODING=utf-8
 
-RUN rm /entrypoint.sh
+# install nodejs
+RUN touch .bashrc; \
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash && \
+    . "$NVM_DIR/nvm.sh" && \
+    . "$NVM_DIR/bash_completion"; \
+    nvm install 18 && \
+    node -v; \
+    npm -v; \
+    git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO ever-q-server; \
+    cd ever-q-server; \
+    npm ci; \
+    npm run tsc; \
+    npm ci --production;
 
-COPY --from=q-server-build /home/ /home/
-COPY --from=q-server-build /lib/ /lib/
-COPY --from=q-server-build /lib64/ /lib64/
-COPY --from=q-server-build /usr/ /usr/
+ENV PATH="/root/.nvm/versions/node/v18.20.4/bin:$PATH"
 
-COPY --from=ton-node / /
+COPY --from=ton-node /node /node
 
 ADD q-server /q-server
 ADD ton-node /ton-node
 ADD Procfile /honcho-cfg/
 ADD arango /arango
 
-RUN apk --update add nginx dos2unix bash git py-pip; \
-    addgroup --system --gid 103 nginx; \ 
-    adduser --system --disabled-login --ingroup nginx --no-create-home --home /nonexistent --gecos "nginx user" --shell /bin/false --uid 103 nginx; \
-    mkdir -p /run/nginx; \
-    rm -rf /etc/nginx/conf.d/; \
+RUN rm -rf /etc/nginx/conf.d/; \
     rm -rf /etc/nginx/v.host/; \
     rm -f /etc/nginx/nginx.conf; \
+    rm -f "/usr/lib/python$(python3 --version | grep -P -o '\d+\.\d+')/EXTERNALLY-MANAGED"; \
     pip install --upgrade pip; \
     pip install -Iv honcho==1.0.1; \
     mkdir -p '/var/lib/arangodb3'; \
     mkdir -p '/var/lib/arangodb3-apps'; \
     chmod +w '/var/lib/arangodb3'; \
-    chmod +w '/var/lib/arangodb3-apps'
-
-RUN dos2unix /q-server/entrypoint /arango/entrypoint /arango/config /ton-node/entrypoint /honcho-cfg/Procfile
-
-RUN chmod +x /q-server/entrypoint; \
+    chmod +w '/var/lib/arangodb3-apps'; \
+    dos2unix /q-server/entrypoint /arango/entrypoint /arango/config /ton-node/entrypoint /honcho-cfg/Procfile; \
+    chmod +x /q-server/entrypoint; \
     chmod +x /arango/entrypoint; \
-    chmod +x /ton-node/entrypoint
+    chmod +x /node/entrypoint;
 
 WORKDIR /honcho-cfg
 RUN /arango/entrypoint init

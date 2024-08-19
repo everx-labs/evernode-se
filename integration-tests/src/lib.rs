@@ -12,22 +12,22 @@ use ever_block::{
 };
 use lazy_static::lazy_static;
 use serde_json::{json, Value};
-use ton_client::abi::{
+use ever_client::abi::{
     encode_message, Abi, CallSet, DeploySet, FunctionHeader, ParamsOfEncodeMessage,
     ResultOfEncodeMessage, Signer,
 };
-use ton_client::boc::{parse_message, ParamsOfParse};
-use ton_client::crypto::KeyPair;
-use ton_client::net::{
+use ever_client::boc::{parse_message, ParamsOfParse};
+use ever_client::crypto::KeyPair;
+use ever_client::net::{
     query_collection, wait_for_collection, NetworkConfig, OrderBy, ParamsOfQueryCollection,
     ParamsOfWaitForCollection, SortDirection,
 };
-use ton_client::processing::{
+use ever_client::processing::{
     send_message, wait_for_transaction, DecodedOutput, ResultOfProcessMessage,
 };
-use ton_client::processing::{ParamsOfSendMessage, ParamsOfWaitForTransaction};
-use ton_client::tvm::{run_tvm, ParamsOfRunTvm, ResultOfRunTvm};
-use ton_client::{ClientConfig, ClientContext};
+use ever_client::processing::{ParamsOfSendMessage, ParamsOfWaitForTransaction};
+use ever_client::tvm::{run_tvm, ParamsOfRunTvm, ResultOfRunTvm};
+use ever_client::{ClientConfig, ClientContext};
 
 const DEFAULT_NETWORK_ADDRESS: &str = "http://localhost";
 type Keypair = ed25519_dalek::Keypair;
@@ -993,7 +993,7 @@ async fn test_non_sponsored_deploy() {
         .send_message_and_wait(Some(abi.clone()), message.message.clone())
         .await
         .unwrap_err()
-        .downcast::<ton_client::error::ClientError>()
+        .downcast::<ever_client::error::ClientError>()
         .unwrap();
 
     assert_eq!(err.code, 406);
@@ -1052,17 +1052,17 @@ async fn test_bounced_body() {
     let client = Client::new();
 
     let multisig = Multisig::new();
-    let payload = ton_client::abi::encode_boc(
+    let payload = ever_client::abi::encode_boc(
         client.context(),
-        ton_client::abi::ParamsOfAbiEncodeBoc {
+        ever_client::abi::ParamsOfAbiEncodeBoc {
             params: vec![
-                ton_client::abi::AbiParam {
+                ever_client::abi::AbiParam {
                     components: vec![],
                     name: "a".to_owned(),
                     param_type: "uint256".to_owned(),
                     ..Default::default()
                 },
-                ton_client::abi::AbiParam {
+                ever_client::abi::AbiParam {
                     components: vec![],
                     name: "b".to_owned(),
                     param_type: "uint32".to_owned(),
@@ -1091,9 +1091,9 @@ async fn test_bounced_body() {
         .await
         .unwrap();
 
-    let mut transaction_tree = ton_client::net::query_transaction_tree(
+    let mut transaction_tree = ever_client::net::query_transaction_tree(
         client.context(),
-        ton_client::net::ParamsOfQueryTransactionTree {
+        ever_client::net::ParamsOfQueryTransactionTree {
             in_msg: result.transaction["in_msg"].as_str().unwrap().to_owned(),
             ..Default::default()
         },
@@ -1102,9 +1102,9 @@ async fn test_bounced_body() {
     .unwrap();
 
     let bounced_id = transaction_tree.messages.pop().unwrap().id;
-    let message = &ton_client::net::query_collection(
+    let message = &ever_client::net::query_collection(
         client.context(),
-        ton_client::net::ParamsOfQueryCollection {
+        ever_client::net::ParamsOfQueryCollection {
             collection: "messages".to_owned(),
             result: "body bounced".to_owned(),
             filter: Some(json!({ "id": { "eq": bounced_id }})),
@@ -1117,33 +1117,33 @@ async fn test_bounced_body() {
 
     assert_eq!(message["bounced"], Value::Bool(true));
 
-    let bounced_body = ton_client::abi::encode_boc(
+    let bounced_body = ever_client::abi::encode_boc(
         client.context(),
-        ton_client::abi::ParamsOfAbiEncodeBoc {
+        ever_client::abi::ParamsOfAbiEncodeBoc {
             params: vec![
-                ton_client::abi::AbiParam {
+                ever_client::abi::AbiParam {
                     components: vec![],
                     name: "a".to_owned(),
                     param_type: "int32".to_owned(),
                     ..Default::default()
                 },
-                ton_client::abi::AbiParam {
+                ever_client::abi::AbiParam {
                     components: vec![],
                     name: "b".to_owned(),
                     param_type: "uint256".to_owned(),
                     ..Default::default()
                 },
-                ton_client::abi::AbiParam {
+                ever_client::abi::AbiParam {
                     name: "c".to_owned(),
                     param_type: "ref(tuple)".to_owned(),
                     components: vec![
-                        ton_client::abi::AbiParam {
+                        ever_client::abi::AbiParam {
                             components: vec![],
                             name: "a".to_owned(),
                             param_type: "uint256".to_owned(),
                             ..Default::default()
                         },
-                        ton_client::abi::AbiParam {
+                        ever_client::abi::AbiParam {
                             components: vec![],
                             name: "b".to_owned(),
                             param_type: "uint32".to_owned(),
@@ -1257,9 +1257,9 @@ async fn advanced_test_msg_order() {
         .await
         .unwrap();
 
-    let result = ton_client::net::query_transaction_tree(
+    let result = ever_client::net::query_transaction_tree(
         client.context(),
-        ton_client::net::ParamsOfQueryTransactionTree {
+        ever_client::net::ParamsOfQueryTransactionTree {
             in_msg: message.message_id,
             transaction_max_count: Some(0),
             ..Default::default()
@@ -1295,7 +1295,7 @@ async fn test_transaction_trace() {
         )
         .await
         .unwrap_err()
-        .downcast::<ton_client::error::ClientError>()
+        .downcast::<ever_client::error::ClientError>()
         .unwrap();
 
     let trace = query_collection(
@@ -1378,7 +1378,7 @@ async fn test_fork() {
             .send_message_and_wait(None, msg.clone())
             .await
             .unwrap_err()
-            .downcast::<ton_client::error::ClientError>()
+            .downcast::<ever_client::error::ClientError>()
             .unwrap();
         query_collection(
             client.context(),

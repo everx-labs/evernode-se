@@ -1,6 +1,6 @@
 #!/bin/sh -e
 
-TON_NODE="tonlabs/ton-node"
+TON_NODE="${TON_NODE:-tonlabs/ton-node}"
 TONOS_SE="${TONOS_SE:-tonlabs/evernode-se}"
 
 BIN_TARGET="evernode_se"
@@ -14,6 +14,8 @@ echo
 docker build \
     --platform linux/amd64 \
     --no-cache \
+    --force-rm \
+    --pull \
     --build-arg BIN_TARGET="$BIN_TARGET" \
     --build-arg FEATURES="${1:-disable-tests}" \
     --tag $TON_NODE \
@@ -25,6 +27,7 @@ echo
 docker build \
     --platform linux/amd64 \
     --no-cache \
+    --force-rm \
     --build-arg TON_NODE="$TON_NODE" \
     --build-arg Q_SERVER_GITHUB_REPO="$Q_SERVER_GITHUB_REPO" \
     --build-arg Q_SERVER_GITHUB_REV="$Q_SERVER_GITHUB_REV" \

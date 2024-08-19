@@ -2,27 +2,45 @@
 
 
 ###   STAGE build-kit
-FROM alpine:3.14 as build-kit
+FROM ubuntu:24.04 as build-kit
 
+ENV CARGO_HOME=/rust
+ENV RUST_HOME=/rust
+ENV PATH="$RUST_HOME/bin:$PATH"
 
-RUN apk update; \
-    apk add \
-        bash bash-completion \
+RUN apt update; \
+    apt install -y \
+        apt-utils \
+        bash \
+        bash-completion \
+        build-essential \
         dos2unix \
         cmake \
-        clang clang-libs clang-dev \
-        curl ca-certificates zlib-dev\
+        clang \
+        dos2unix \
+        libclang-dev \
+        curl \
+        ca-certificates \
+        zlib1g-dev \
         gcc g++ \
         git \
         make \
-        musl musl-utils musl-dev \
-        openssh-client openssh-keygen openssh-keygen \
-        openssl openssl-dev; \
-        curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y; \
-        source $HOME/.cargo/env; \
-        rustup --version; \
-        cargo --version; \
-        rustc --version
+        openssh-client \
+        openssl \
+        pkg-config \
+        automake \
+        sudo \
+        libssl-dev; \
+    groupmod -n jenkins ubuntu; \
+    userdel -r ubuntu; \
+    useradd -m -s /usr/bin/bash -u 1000 -g jenkins jenkins; \
+    echo "jenkins  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers; \
+    mkdir $RUST_HOME; \
+    curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.80.1 -y; \
+    . $RUST_HOME/env; \
+    rustup --version; \
+    cargo --version; \
+    rustc --version
 
 RUN ssh-keygen -q -P "" -f ~/.ssh/id_rsa; \
     ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -36,15 +54,18 @@ COPY . .
 
 ARG FEATURES="disable-tests"
 
-RUN dos2unix /ton-node/build.sh && chmod +x /ton-node/build.sh && /ton-node/build.sh $FEATURES
+RUN dos2unix /ton-node/build.sh && \
+    chmod +x /ton-node/build.sh && \
+    /ton-node/build.sh $FEATURES
 
 ###   STAGE final-image
-FROM alpine:3.10 as final-image
+FROM ubuntu:24.04 as final-image
 
 ARG BIN_TARGET
 
-RUN apk update; \
-    apk add libgcc libstdc++;
+RUN apt update; \
+    apt upgrade -y; \
+    apt install -y libstdc++6 libgcc-14-dev;
 
 # ton-node
 COPY --from=build-kit \
