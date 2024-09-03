@@ -11,6 +11,18 @@ ENV TZ="Europe/Moscow"
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV HOME="/root"
+ENV NVM_DIR="$HOME/.nvm"
+ENV PATH="$HOME/.nvm/versions/node/v18.20.4/bin:$NVM_DIR:$HOME/.local/bin:$PATH"
+ENV LANG=en_US.UTF-8
+ENV PYTHONIOENCODING=utf-8
+
+COPY --from=ton-node /node /node
+
+ADD q-server /q-server
+ADD ton-node /ton-node
+ADD Procfile /honcho-cfg/
+ADD arango /arango
 
 RUN apt update; \
     apt upgrade -y; \
@@ -34,18 +46,9 @@ RUN apt update; \
     apt install -y arangodb3=3.7.18-1; \
     groupadd -r -g 103 nginx; \ 
     useradd -r -p '' -G 103 -d /nonexistent -g "users" -s /bin/false -u 103 nginx; \
-    mkdir -p /run/nginx;
-    
-WORKDIR /root
-
-ENV HOME="/root"
-ENV NVM_DIR="$HOME/.nvm"
-ENV PATH="$NVM_DIR:/root/.local/bin:$PATH"
-ENV LANG=en_US.UTF-8
-ENV PYTHONIOENCODING=utf-8
-
-# install nodejs
-RUN touch .bashrc; \
+    mkdir -p /run/nginx; \
+    cd /root; \
+    touch .bashrc; \
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash && \
     . "$NVM_DIR/nvm.sh" && \
     . "$NVM_DIR/bash_completion"; \
@@ -56,18 +59,8 @@ RUN touch .bashrc; \
     cd ever-q-server; \
     npm ci; \
     npm run tsc; \
-    npm ci --production;
-
-ENV PATH="/root/.nvm/versions/node/v18.20.4/bin:$PATH"
-
-COPY --from=ton-node /node /node
-
-ADD q-server /q-server
-ADD ton-node /ton-node
-ADD Procfile /honcho-cfg/
-ADD arango /arango
-
-RUN rm -rf /etc/nginx/conf.d/; \
+    npm ci --production; \
+    rm -rf /etc/nginx/conf.d/; \
     rm -rf /etc/nginx/v.host/; \
     rm -f /etc/nginx/nginx.conf; \
     rm -f "/usr/lib/python$(python3 --version | grep -P -o '\d+\.\d+')/EXTERNALLY-MANAGED"; \
