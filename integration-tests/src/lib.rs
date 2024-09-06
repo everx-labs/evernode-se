@@ -10,8 +10,6 @@ use ever_block::{
     BlockProcessingStatus, MessageProcessingStatus, Result, Serializable,
     TransactionProcessingStatus,
 };
-use lazy_static::lazy_static;
-use serde_json::{json, Value};
 use ever_client::abi::{
     encode_message, Abi, CallSet, DeploySet, FunctionHeader, ParamsOfEncodeMessage,
     ResultOfEncodeMessage, Signer,
@@ -28,6 +26,8 @@ use ever_client::processing::{
 use ever_client::processing::{ParamsOfSendMessage, ParamsOfWaitForTransaction};
 use ever_client::tvm::{run_tvm, ParamsOfRunTvm, ResultOfRunTvm};
 use ever_client::{ClientConfig, ClientContext};
+use lazy_static::lazy_static;
+use serde_json::{json, Value};
 
 const DEFAULT_NETWORK_ADDRESS: &str = "http://localhost";
 type Keypair = ed25519_dalek::Keypair;
@@ -1358,7 +1358,7 @@ async fn test_reset() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_fork() {
     se("reset").await;
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     let send_msg = || async move {
         let client = Client::new();
@@ -1401,14 +1401,14 @@ async fn test_fork() {
     assert_eq!(transaction["end_status"].as_u64(), Some(3));
 
     se("fork?endpoint=https://mainnet.evercloud.dev/1467de01155143d5ba129ab5ea4ede1f/graphql?resetData=false").await;
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     let transaction = send_msg().await;
     assert_eq!(transaction["orig_status"].as_u64(), Some(1));
     assert_eq!(transaction["end_status"].as_u64(), Some(1));
 
     se("unfork?resetData=true").await;
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     let transaction = send_msg().await;
     assert_eq!(transaction["orig_status"].as_u64(), Some(3));
