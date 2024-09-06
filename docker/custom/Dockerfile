@@ -1,6 +1,6 @@
 ###   STAGE build-kit
-FROM alpine:3.14 as build-kit
-ENV RUST_VERSION=1.70.0
+FROM ubuntu:24.04 as build-kit
+ENV RUST_VERSION=1.80.1
 ENV CARGO_HOME=/rust
 
 RUN apk update && \
@@ -44,7 +44,7 @@ COPY ./integration-tests ./integration-tests
 RUN cargo build --release
 
 ###   STAGE final-image
-FROM alpine:3.10 as final-image
+FROM alpine:3.20.2 as final-image
 WORKDIR /ton-node
 
 RUN apk update; \

@@ -7,6 +7,9 @@ ARANGO_ENDPOINT="tcp://127.0.0.1:$ARANGO_INIT_PORT"
 ARANGO_INIT_PIDFILE='/run/arango-init.pid'
 export GLIBCXX_FORCE_NEW=1
 
+# check foxx
+foxx -V || npm install --global foxx-cli;
+
 # check for numa
 NUMACTL=""
 

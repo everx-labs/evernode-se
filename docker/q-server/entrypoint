@@ -11,5 +11,5 @@ export Q_QUERY_WAIT_FOR_PERIOD=10
 export Q_CHAIN_RANGES_VERIFICATION=http://127.0.0.1:8529
 export Q_SLOW_QUERIES=enable
 
-cd /home/node/ever-q-server
+cd /root/ever-q-server
 exec node index.js

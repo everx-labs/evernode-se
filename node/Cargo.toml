@@ -31,16 +31,10 @@ thiserror = '1.0'
 lockfree = { git = 'https://github.com/everx-labs/lockfree.git', package = 'lockfree' }
 
 # Domestic
-ever_block = { git = 'https://github.com/everx-labs/ever-block', tag = '1.11.11' }
-ever_block_json = { git = 'https://github.com/everx-labs/ever-block-json', tag = '0.9.18' }
-ever_executor = { git = 'https://github.com/everx-labs/ever-executor', tag = '1.18.12', features = ['signature_with_id'] }
-ever_vm = { git = 'https://github.com/everx-labs/ever-vm', tag = '2.2.12', features = ['gosh'] }
-
-#ever_block = { path = '../../ever-block-private' }
-#ever_block_json = { path = '../../ever-block-json-private' }
-#ever_executor = { path = '../../ever-executor-private', features = ['signature_with_id'] }
-#ever_vm = { path = '../../ever-vm-private', features = ['gosh'] }
+ever_block = { git = 'https://github.com/everx-labs/ever-block', tag = '1.11.15', features = [ 'gosh' ] }
+ever_block_json = { git = 'https://github.com/everx-labs/ever-block-json', tag = '0.9.28' }
+ever_executor = { git = 'https://github.com/everx-labs/ever-executor', tag = '1.18.17', features = [ 'signature_with_id', 'gosh' ] }
+ever_vm = { git = 'https://github.com/everx-labs/ever-vm', tag = '2.2.16', features = [ 'gosh' ] }
 
 [dev-dependencies]
-ever_abi = { git = 'https://github.com/everx-labs/ever-abi.git', tag = '2.7.2' }
-#ever_abi = { path = '../../ever-abi' }
+ever_abi = { git = 'https://github.com/everx-labs/ever-abi.git', tag = '2.7.6' }
