@@ -1,31 +1,27 @@
 ###   STAGE build-kit
-FROM ubuntu:24.04 as build-kit
+FROM ubuntu:24.04 AS build-kit
 ENV RUST_VERSION=1.80.1
 ENV CARGO_HOME=/rust
 
-RUN apk update && \
+RUN apt update && \
     mkdir $CARGO_HOME && \
-    apk add \
+    apt install -y \
         bash \
         bash-completion \
         ca-certificates \
         clang \
-        clang-dev \
-        clang-libs \
+        libclang-dev \
         cmake \
         curl \
         g++ \
         gcc \
         git \
         make \
-        musl \
-        musl-dev \
-        musl-utils \
+        pkg-config \
         openssh-client \
-        openssh-keygen \
         openssl \
-        openssl-dev \
-        zlib-dev && \
+        libssl-dev \
+        zlib1g-dev && \
     curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain $RUST_VERSION -y && \
     ssh-keygen -q -P "" -f ~/.ssh/id_rsa && \
     ssh-keyscan github.com >> ~/.ssh/known_hosts;
@@ -44,11 +40,12 @@ COPY ./integration-tests ./integration-tests
 RUN cargo build --release
 
 ###   STAGE final-image
-FROM alpine:3.20.2 as final-image
+# FROM alpine:3.20.2 AS final-image
+FROM ubuntu:24.04 AS final-image
 WORKDIR /ton-node
 
-RUN apk update; \
-    apk add libgcc libstdc++;
+RUN apt update; \
+    apt install -y libgcc-14-dev libstdc++-14-dev;
 
 # ton-node
 COPY --from=build-kit /ton-node/target/release/evernode_se /
