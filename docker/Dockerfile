@@ -1,11 +1,49 @@
 ARG TON_NODE
 
-FROM ${TON_NODE} as ton-node
+FROM ${TON_NODE} AS ton-node
 
-FROM ubuntu:24.04 as final
+FROM ubuntu:24.04 AS builder
+ENV TZ="Europe/Moscow"
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HOME="/root"
+ENV NVM_DIR="$HOME/.nvm"
+ENV PATH="$HOME/.nvm/versions/node/v18.20.4/bin:$NVM_DIR:$HOME/.local/bin:$PATH"
+ENV LANG=en_US.UTF-8
+ENV PYTHONIOENCODING=utf-8
+
+RUN apt update; \
+    apt upgrade -y; \
+    apt install -y \
+        apt-utils \
+        build-essential \
+        git \
+        curl;\
+    rm -rf /var/lib/apt/lists/*; \
+    touch .bashrc; \
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash && \
+    . "$NVM_DIR/nvm.sh" && \
+    . "$NVM_DIR/bash_completion"; \
+    nvm install 18 && \
+    node -v; \
+    npm -v; \
+
+FROM builder AS q-server
 
 ARG Q_SERVER_GITHUB_REPO
 ARG Q_SERVER_GITHUB_REV
+
+WORKDIR /root
+
+RUN git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO /root/ever-q-server; \
+    cd /root/ever-q-server; \
+    npm ci; \
+    npm run tsc; \
+    npm ci --production;
+
+
+FROM ubuntu:24.04 AS final
 
 ENV TZ="Europe/Moscow"
 ENV LC_ALL=C.UTF-8
@@ -18,6 +56,7 @@ ENV LANG=en_US.UTF-8
 ENV PYTHONIOENCODING=utf-8
 
 COPY --from=ton-node /node /node
+COPY --from=q-server /root/ever-q-server /root/ever-q-server
 
 ADD q-server /q-server
 ADD ton-node /ton-node
@@ -26,15 +65,13 @@ ADD arango /arango
 
 RUN apt update; \
     apt upgrade -y; \
-    apt install -y python3 \
-        apt-utils\
+    apt install -y \
+        apt-utils \
         python3 \
         python3-pip \
         gpg \
         dos2unix \
-        build-essential \
         nginx \
-        git \
         curl; \
     gpg --receive-keys EA93F5E56E751E9B; \
     gpg --export -o arango.gpg EA93F5E56E751E9B; \
@@ -44,6 +81,7 @@ RUN apt update; \
     echo arangodb3 arangodb3/password password '' | debconf-set-selections; \
     echo arangodb3 arangodb3/password_again password '' | debconf-set-selections; \
     apt install -y arangodb3=3.7.18-1; \
+    rm -rf /var/lib/apt/lists/*; \
     groupadd -r -g 103 nginx; \ 
     useradd -r -p '' -G 103 -d /nonexistent -g "users" -s /bin/false -u 103 nginx; \
     mkdir -p /run/nginx; \
@@ -55,11 +93,6 @@ RUN apt update; \
     nvm install 18 && \
     node -v; \
     npm -v; \
-    git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO ever-q-server; \
-    cd ever-q-server; \
-    npm ci; \
-    npm run tsc; \
-    npm ci --production; \
     rm -rf /etc/nginx/conf.d/; \
     rm -rf /etc/nginx/v.host/; \
     rm -f /etc/nginx/nginx.conf; \
