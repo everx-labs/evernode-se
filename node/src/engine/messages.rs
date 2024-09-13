@@ -73,7 +73,7 @@ impl InMessagesQueue {
         if let Ok(cell) = msg.serialize() {
             if let Ok(data) = ever_block::write_boc(&cell) {
                 std::fs::create_dir_all("export").ok();
-                std::fs::write(&format!("export/msg_{:x}", cell.repr_hash()), &data).ok();
+                std::fs::write(format!("export/msg_{:x}", cell.repr_hash()), &data).ok();
             }
         }
     }
