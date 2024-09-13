@@ -27,21 +27,20 @@ RUN apt update; \
     . "$NVM_DIR/bash_completion"; \
     nvm install 18 && \
     node -v; \
-    npm -v; \
+    npm -v;
 
-FROM builder AS q-server
+FROM builder AS QServer
 
 ARG Q_SERVER_GITHUB_REPO
 ARG Q_SERVER_GITHUB_REV
 
-WORKDIR /root
+RUN git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO /root/ever-q-server;
 
-RUN git clone --recursive --branch $Q_SERVER_GITHUB_REV $Q_SERVER_GITHUB_REPO /root/ever-q-server; \
-    cd /root/ever-q-server; \
-    npm ci; \
+WORKDIR /root/ever-q-server
+
+RUN npm ci; \
     npm run tsc; \
     npm ci --production;
-
 
 FROM ubuntu:24.04 AS final
 
@@ -56,7 +55,7 @@ ENV LANG=en_US.UTF-8
 ENV PYTHONIOENCODING=utf-8
 
 COPY --from=ton-node /node /node
-COPY --from=q-server /root/ever-q-server /root/ever-q-server
+COPY --from=QServer /root/ever-q-server /root/ever-q-server
 
 ADD q-server /q-server
 ADD ton-node /ton-node
