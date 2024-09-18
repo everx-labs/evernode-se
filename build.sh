@@ -18,7 +18,7 @@ docker build \
     --pull \
     --build-arg BIN_TARGET="$BIN_TARGET" \
     --build-arg FEATURES="${1:-disable-tests}" \
-    --tag $TON_NODE \
+    --tag "$TON_NODE" \
     ./node
 
 echo
@@ -31,7 +31,7 @@ docker build \
     --build-arg TON_NODE="$TON_NODE" \
     --build-arg Q_SERVER_GITHUB_REPO="$Q_SERVER_GITHUB_REPO" \
     --build-arg Q_SERVER_GITHUB_REV="$Q_SERVER_GITHUB_REV" \
-    --tag $TONOS_SE \
+    --tag "$TONOS_SE" \
     ./docker
 
 echo
